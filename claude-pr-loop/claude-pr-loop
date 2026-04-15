@@ -47,7 +47,11 @@ log() {
 
 notify() {
   local title="$1" message="$2"
-  osascript -e "display notification \"${message}\" with title \"${title}\" sound name \"Glass\"" 2>/dev/null || true
+  if command -v terminal-notifier >/dev/null 2>&1; then
+    terminal-notifier -title "$title" -message "$message" -sound Glass 2>/dev/null || true
+  else
+    osascript -e "display notification \"${message}\" with title \"${title}\" sound name \"Glass\"" 2>/dev/null || true
+  fi
 }
 
 # Extract token usage from claude JSON output and accumulate totals.
