@@ -1,14 +1,23 @@
-# toolbox
+# claude-pr-loop
 
-Personal developer automation scripts.
+Automated PR review-fix loop using [Claude Code](https://claude.ai/code) CLI.
 
-## Scripts
+## TL;DR
 
-### `claude-pr-loop`
+**What it solves:** The manual cycle of reviewing a PR, posting feedback, switching context to fix issues, committing, pushing, re-reviewing, and repeating until clean. This script does that entire loop hands-free — drop a PR link and walk away.
 
-Automated PR review-fix loop using [Claude Code](https://claude.ai/code) CLI. Drops a PR link (or a batch of PRs by label), reviews the code, posts findings to GitHub, fixes them, pushes, and repeats until the review passes — no manual intervention required.
+**How it works:**
 
-#### Prerequisites
+1. **Clones** the repo into a bare git repo + worktree under `~/.claude-pr-loop/worktrees/` (multiple PRs from the same repo share the object store)
+2. **Reviews** via `claude -p --from-pr <URL>` with read-only permissions — outputs structured JSON
+3. **Posts** the review on GitHub via `gh pr review` (falls back to comment for own PRs)
+4. **Fixes** via `claude -p --dangerously-skip-permissions` in the worktree — edits, commits, pushes
+5. **Loops** steps 2-4 until approved or max iterations (default 5)
+6. **Notifies** via macOS notification with sound when done
+
+Each Claude call is a fresh context — no state leaks between iterations. Supports batch mode to process multiple labeled PRs in parallel.
+
+## Prerequisites
 
 | Tool | Install | Purpose |
 |------|---------|---------|
@@ -20,7 +29,7 @@ Automated PR review-fix loop using [Claude Code](https://claude.ai/code) CLI. Dr
 
 You must be authenticated with both `gh auth login` and have a valid Claude Code session (`claude` should work interactively before using this script).
 
-#### Installation
+## Installation
 
 ```bash
 # Clone the repo
@@ -30,7 +39,7 @@ git clone git@github.com:alabele/toolbox.git ~/code/toolbox
 ln -s ~/code/toolbox/claude-pr-loop ~/.local/bin/claude-pr-loop
 ```
 
-#### Quick start
+## Quick start
 
 ```bash
 # Review and fix a single PR (full URL)
@@ -49,7 +58,7 @@ claude-pr-loop --label needs-review --repo owner/repo
 claude-pr-loop --dry-run owner/repo#123
 ```
 
-#### How it works
+## How it works
 
 The script runs a loop for each PR:
 
@@ -74,7 +83,7 @@ Each Claude call uses `claude -p` (print mode), which starts a **fresh context**
 
 **Posting** uses `gh pr review` to submit a formal GitHub review. If you're reviewing your own PR (where GitHub blocks formal reviews), it falls back to `gh pr comment`.
 
-#### Options
+## Options
 
 ```
 --max-iterations N     Max review-fix cycles before giving up (default: 5)
@@ -89,7 +98,7 @@ Each Claude call uses `claude -p` (print mode), which starts a **fresh context**
 -h, --help             Show usage help
 ```
 
-#### Batch mode
+## Batch mode
 
 Batch mode fetches all open PRs matching a label and processes each one in a **parallel background process** with its own worktree and log file:
 
@@ -114,7 +123,7 @@ Logs: ~/.claude-pr-loop/logs/
 
 Each PR gets a macOS notification when it completes (approved, exhausted iterations, or error).
 
-#### How worktrees work
+## How worktrees work
 
 The script uses **bare git repos with worktrees** so multiple PRs from the same repo can run in parallel without conflicts:
 
@@ -128,7 +137,7 @@ The script uses **bare git repos with worktrees** so multiple PRs from the same 
 
 The bare repo is reused across runs. Worktrees are cleaned up automatically when the loop finishes.
 
-#### Logs
+## Logs
 
 Every run writes a timestamped log file:
 
@@ -148,7 +157,7 @@ tail -f ~/.claude-pr-loop/logs/owner_repo-pr42-*.log
 ls -lt ~/.claude-pr-loop/logs/ | head
 ```
 
-#### Notifications
+## Notifications
 
 On macOS, the script sends a notification via `osascript` when each PR loop finishes:
 
@@ -159,7 +168,7 @@ On macOS, the script sends a notification via `osascript` when each PR loop fini
 | Parse error | "owner/repo#42 — review parse error, check logs" |
 | Batch complete | "myrepo: 3 PRs processed (label: review), 0 failed" |
 
-#### Cost control
+## Cost control
 
 Each `claude -p` call is capped by `--max-budget-usd` (default $2.00). With the default of 5 max iterations, each iteration has 2 Claude calls (review + fix), so worst case for a single PR is:
 
@@ -172,7 +181,7 @@ To reduce cost:
 - Lower `--max-iterations` if you expect quick convergence
 - Use `--no-fix` to just get the review without spending on fixes
 
-#### Examples
+## Examples
 
 ```bash
 # Quick review of a small PR with haiku
@@ -189,7 +198,7 @@ claude-pr-loop --label ready-for-review --repo myorg/api \
 claude-pr-loop --dry-run --label needs-review --repo myorg/frontend
 ```
 
-#### Troubleshooting
+## Troubleshooting
 
 **"Error: 'claude' not found in PATH"**
 Install Claude Code: `npm install -g @anthropic-ai/claude-code`
