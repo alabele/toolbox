@@ -147,7 +147,7 @@ Every run writes a timestamped log file:
   owner_repo-pr45-20260415-130501.log
 ```
 
-Log entries include timestamps, iteration markers, verdicts, finding counts, and any errors. If Claude's output fails to parse, the raw output is dumped to the log for debugging.
+Log entries include timestamps, iteration markers, verdicts, finding counts, token usage per step, and any errors. If Claude's output fails to parse, the raw output is dumped to the log for debugging.
 
 ```bash
 # Tail a running review
@@ -167,6 +167,39 @@ On macOS, the script sends a notification via `osascript` when each PR loop fini
 | Max iterations hit | "owner/repo#42 — 5 iterations, still has issues" |
 | Parse error | "owner/repo#42 — review parse error, check logs" |
 | Batch complete | "myrepo: 3 PRs processed (label: review), 0 failed" |
+
+## Token usage and cost tracking
+
+Every Claude call logs its token usage and cost. You'll see per-step stats in the log output:
+
+```
+[2026-04-15 13:05:00] === Iteration 1/5 ===
+[2026-04-15 13:05:00] Running review...
+[2026-04-15 13:05:12]   review usage: 8342 in / 1205 out / 12330 cache-read / 7825 cache-write / $0.0421
+[2026-04-15 13:05:12] Verdict: changes_requested (3 actionable findings)
+[2026-04-15 13:05:12] Running fix pass...
+[2026-04-15 13:05:30]   fix usage: 4210 in / 2847 out / 15100 cache-read / 0 cache-write / $0.0318
+```
+
+At the end of each PR run, a summary is logged with accumulated totals:
+
+```
+[2026-04-15 13:06:45] === Usage Summary ===
+[2026-04-15 13:06:45]   Iterations:     2
+[2026-04-15 13:06:45]   Input tokens:   22,104
+[2026-04-15 13:06:45]   Output tokens:  6,830
+[2026-04-15 13:06:45]   Cache read:     39,760
+[2026-04-15 13:06:45]   Cache write:    7,825
+[2026-04-15 13:06:45]   Total cost:     $0.1472
+```
+
+Token fields:
+- **Input tokens** — new (non-cached) tokens sent to Claude
+- **Output tokens** — tokens Claude generated
+- **Cache read** — tokens served from Anthropic's prompt cache (cheaper)
+- **Cache write** — tokens written into the cache for future reuse
+
+In batch mode, each PR tracks its own usage independently.
 
 ## Cost control
 

@@ -28,6 +28,13 @@ PR_INPUT=""
 OWNER_REPO=""
 PR_NUMBER=""
 
+# Token/cost tracking (accumulated across iterations)
+TOTAL_INPUT_TOKENS=0
+TOTAL_OUTPUT_TOKENS=0
+TOTAL_CACHE_READ_TOKENS=0
+TOTAL_CACHE_CREATION_TOKENS=0
+TOTAL_COST_USD="0"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -41,6 +48,45 @@ log() {
 notify() {
   local title="$1" message="$2"
   osascript -e "display notification \"${message}\" with title \"${title}\" sound name \"Glass\"" 2>/dev/null || true
+}
+
+# Extract token usage from claude JSON output and accumulate totals.
+# Logs per-call stats and updates the running totals.
+track_usage() {
+  local claude_output="$1" step_label="$2" log_file="$3"
+
+  local input_tokens output_tokens cache_read cache_creation cost_usd
+  input_tokens=$(echo "$claude_output" | jq -r '.usage.input_tokens // 0' 2>/dev/null)
+  output_tokens=$(echo "$claude_output" | jq -r '.usage.output_tokens // 0' 2>/dev/null)
+  cache_read=$(echo "$claude_output" | jq -r '.usage.cache_read_input_tokens // 0' 2>/dev/null)
+  cache_creation=$(echo "$claude_output" | jq -r '.usage.cache_creation_input_tokens // 0' 2>/dev/null)
+  cost_usd=$(echo "$claude_output" | jq -r '.total_cost_usd // 0' 2>/dev/null)
+
+  # Accumulate
+  TOTAL_INPUT_TOKENS=$((TOTAL_INPUT_TOKENS + input_tokens))
+  TOTAL_OUTPUT_TOKENS=$((TOTAL_OUTPUT_TOKENS + output_tokens))
+  TOTAL_CACHE_READ_TOKENS=$((TOTAL_CACHE_READ_TOKENS + cache_read))
+  TOTAL_CACHE_CREATION_TOKENS=$((TOTAL_CACHE_CREATION_TOKENS + cache_creation))
+  TOTAL_COST_USD=$(echo "$TOTAL_COST_USD + $cost_usd" | bc -l)
+
+  local formatted_cost
+  formatted_cost=$(printf '%.4f' "$cost_usd")
+  log "$log_file" "  ${step_label} usage: ${input_tokens} in / ${output_tokens} out / ${cache_read} cache-read / ${cache_creation} cache-write / \$${formatted_cost}"
+}
+
+# Log the accumulated usage summary
+log_usage_summary() {
+  local log_file="$1" iteration_count="$2"
+  local formatted_total
+  formatted_total=$(printf '%.4f' "$TOTAL_COST_USD")
+
+  log "$log_file" "=== Usage Summary ==="
+  log "$log_file" "  Iterations:     ${iteration_count}"
+  log "$log_file" "  Input tokens:   ${TOTAL_INPUT_TOKENS}"
+  log "$log_file" "  Output tokens:  ${TOTAL_OUTPUT_TOKENS}"
+  log "$log_file" "  Cache read:     ${TOTAL_CACHE_READ_TOKENS}"
+  log "$log_file" "  Cache write:    ${TOTAL_CACHE_CREATION_TOKENS}"
+  log "$log_file" "  Total cost:     \$${formatted_total}"
 }
 
 usage() {
@@ -357,11 +403,14 @@ Address ALL findings. Do not skip any."
 
   cd "$worktree_dir"
 
-  claude -p \
+  local fix_output
+  fix_output=$(claude -p \
     --dangerously-skip-permissions \
+    --output-format json \
     --model "$MODEL" \
     --max-budget-usd "$MAX_BUDGET" \
-    "$fix_prompt" 2>>"$log_file" >/dev/null
+    "$fix_prompt" 2>>"$log_file")
+  track_usage "$fix_output" "fix" "$log_file"
 }
 
 # ---------------------------------------------------------------------------
@@ -373,6 +422,13 @@ single_pr_loop() {
 
   local log_file="${LOG_DIR}/${OWNER_REPO//\//_}-pr${PR_NUMBER}-$(date +%Y%m%d-%H%M%S).log"
   mkdir -p "$(dirname "$log_file")"
+
+  # Reset usage counters for this PR
+  TOTAL_INPUT_TOKENS=0
+  TOTAL_OUTPUT_TOKENS=0
+  TOTAL_CACHE_READ_TOKENS=0
+  TOTAL_CACHE_CREATION_TOKENS=0
+  TOTAL_COST_USD="0"
 
   log "$log_file" "Starting review loop for ${OWNER_REPO}#${PR_NUMBER}"
   log "$log_file" "Config: max_iterations=${MAX_ITERATIONS} model=${MODEL} effort=${EFFORT} budget=${MAX_BUDGET} no_fix=${NO_FIX}"
@@ -401,6 +457,7 @@ single_pr_loop() {
     log "$log_file" "Running review..."
     local claude_output review_json
     claude_output=$(run_review "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file")
+    track_usage "$claude_output" "review" "$log_file"
     review_json=$(parse_review "$claude_output")
 
     if [[ -z "$review_json" ]] || ! echo "$review_json" | jq -e '.verdict' >/dev/null 2>&1; then
@@ -440,6 +497,9 @@ single_pr_loop() {
       git pull --rebase origin "$(git branch --show-current)" 2>>"$log_file" || true
     fi
   done
+
+  # Usage summary
+  log_usage_summary "$log_file" "$iteration"
 
   # Final status + notification
   if [[ "$verdict" == "approve" ]]; then
