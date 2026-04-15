@@ -1,0 +1,540 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# claude-pr-loop — Automated PR review-fix loop using Claude Code CLI
+#
+# Usage:
+#   claude-pr-loop https://github.com/owner/repo/pull/123
+#   claude-pr-loop owner/repo#123
+#   claude-pr-loop --label needs-review --repo owner/repo
+#   claude-pr-loop --no-fix https://github.com/owner/repo/pull/123
+
+# ---------------------------------------------------------------------------
+# Defaults
+# ---------------------------------------------------------------------------
+MAX_ITERATIONS=5
+MAX_BUDGET="2.00"
+MODEL="sonnet"
+EFFORT="high"
+LOG_DIR="${HOME}/.claude-pr-loop/logs"
+WORKTREE_BASE="${HOME}/.claude-pr-loop/worktrees"
+NO_FIX=false
+DRY_RUN=false
+BATCH_LABEL=""
+BATCH_REPO=""
+PR_INPUT=""
+
+# Resolved per-PR (set by parse_pr_url)
+OWNER_REPO=""
+PR_NUMBER=""
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+log() {
+  local log_file="$1" message="$2"
+  local ts
+  ts=$(date '+%Y-%m-%d %H:%M:%S')
+  echo "[${ts}] ${message}" | tee -a "$log_file"
+}
+
+notify() {
+  local title="$1" message="$2"
+  osascript -e "display notification \"${message}\" with title \"${title}\" sound name \"Glass\"" 2>/dev/null || true
+}
+
+usage() {
+  cat <<'EOF'
+Usage: claude-pr-loop [OPTIONS] [PR_URL]
+
+Automates the review-fix-push cycle for GitHub PRs using Claude Code.
+
+Single PR:
+  claude-pr-loop https://github.com/owner/repo/pull/123
+  claude-pr-loop owner/repo#123
+
+Batch (parallel):
+  claude-pr-loop --label needs-review --repo owner/repo
+
+Options:
+  --max-iterations N     Max review-fix cycles (default: 5)
+  --max-budget-usd N     Per-iteration spend cap in USD (default: 2.00)
+  --model MODEL          Claude model: sonnet, opus, haiku (default: sonnet)
+  --effort LEVEL         low | medium | high | max (default: high)
+  --log-dir PATH         Log directory (default: ~/.claude-pr-loop/logs)
+  --no-fix               Review-only mode — post review but do not fix
+  --label LABEL          Batch: filter PRs by this label (requires --repo)
+  --repo OWNER/REPO      Batch: target repository
+  --dry-run              Print what would happen without executing
+  -h, --help             Show this help
+EOF
+  exit 0
+}
+
+# ---------------------------------------------------------------------------
+# Arg parsing
+# ---------------------------------------------------------------------------
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --max-iterations)  MAX_ITERATIONS="$2"; shift 2 ;;
+      --max-budget-usd)  MAX_BUDGET="$2"; shift 2 ;;
+      --model)           MODEL="$2"; shift 2 ;;
+      --effort)          EFFORT="$2"; shift 2 ;;
+      --log-dir)         LOG_DIR="$2"; shift 2 ;;
+      --no-fix)          NO_FIX=true; shift ;;
+      --dry-run)         DRY_RUN=true; shift ;;
+      --label)           BATCH_LABEL="$2"; shift 2 ;;
+      --repo)            BATCH_REPO="$2"; shift 2 ;;
+      -h|--help)         usage ;;
+      -*)                echo "Unknown option: $1" >&2; exit 1 ;;
+      *)                 PR_INPUT="$1"; shift ;;
+    esac
+  done
+
+  # Validate: need either a PR or batch args
+  if [[ -z "$PR_INPUT" && -z "$BATCH_LABEL" ]]; then
+    echo "Error: provide a PR URL or --label + --repo for batch mode" >&2
+    exit 1
+  fi
+  if [[ -n "$BATCH_LABEL" && -z "$BATCH_REPO" ]]; then
+    echo "Error: --label requires --repo" >&2
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# PR URL parsing
+# ---------------------------------------------------------------------------
+parse_pr_url() {
+  local input="$1"
+
+  # Full URL: https://github.com/owner/repo/pull/123
+  if [[ "$input" =~ github\.com/([^/]+/[^/]+)/pull/([0-9]+) ]]; then
+    OWNER_REPO="${BASH_REMATCH[1]}"
+    PR_NUMBER="${BASH_REMATCH[2]}"
+    return
+  fi
+
+  # Shorthand: owner/repo#123
+  if [[ "$input" =~ ^([^/]+/[^#]+)#([0-9]+)$ ]]; then
+    OWNER_REPO="${BASH_REMATCH[1]}"
+    PR_NUMBER="${BASH_REMATCH[2]}"
+    return
+  fi
+
+  echo "Error: cannot parse PR from '${input}'" >&2
+  echo "Expected: https://github.com/owner/repo/pull/123 or owner/repo#123" >&2
+  exit 1
+}
+
+# ---------------------------------------------------------------------------
+# Worktree management
+# ---------------------------------------------------------------------------
+setup_worktree() {
+  local owner_repo="$1" pr_number="$2"
+  local repo_dir="${WORKTREE_BASE}/${owner_repo//\//_}"
+  local bare_repo="${repo_dir}/bare.git"
+  local worktree_dir="${repo_dir}/pr-${pr_number}"
+
+  mkdir -p "$repo_dir"
+
+  # Clone bare repo if not present
+  if [[ ! -d "$bare_repo" ]]; then
+    echo "Cloning bare repo for ${owner_repo}..."
+    git clone --bare "https://github.com/${owner_repo}.git" "$bare_repo"
+  else
+    # Fetch latest
+    git -C "$bare_repo" fetch origin 2>/dev/null || true
+  fi
+
+  # Fetch the PR head ref
+  git -C "$bare_repo" fetch origin "pull/${pr_number}/head:pr-${pr_number}" --force
+
+  # Remove stale worktree if it exists
+  if [[ -d "$worktree_dir" ]]; then
+    git -C "$bare_repo" worktree remove --force "$worktree_dir" 2>/dev/null || true
+    rm -rf "$worktree_dir" 2>/dev/null || true
+  fi
+
+  # Create fresh worktree
+  git -C "$bare_repo" worktree add "$worktree_dir" "pr-${pr_number}"
+
+  # Set up the branch for pushing
+  local head_ref
+  head_ref=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRefName -q .headRefName)
+
+  cd "$worktree_dir"
+  git checkout -B "$head_ref" "pr-${pr_number}"
+
+  # Configure remote for push (use gh-authenticated URL)
+  local fork_owner
+  fork_owner=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRepositoryOwner -q .headRepositoryOwner.login)
+  local fork_repo
+  fork_repo=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRepository -q .headRepository.name)
+  git remote set-url origin "https://github.com/${fork_owner}/${fork_repo}.git"
+  git branch --set-upstream-to="origin/${head_ref}" "$head_ref" 2>/dev/null || true
+
+  echo "$worktree_dir"
+}
+
+cleanup_worktree() {
+  local worktree_dir="$1"
+  if [[ -z "$worktree_dir" || ! -d "$worktree_dir" ]]; then
+    return
+  fi
+  local bare_repo
+  bare_repo="$(dirname "$worktree_dir")/bare.git"
+  if [[ -d "$bare_repo" ]]; then
+    git -C "$bare_repo" worktree remove --force "$worktree_dir" 2>/dev/null || true
+  fi
+  rm -rf "$worktree_dir" 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
+# Review step — read-only Claude call
+# ---------------------------------------------------------------------------
+run_review() {
+  local owner_repo="$1" pr_number="$2" iteration="$3" log_file="$4"
+
+  local review_prompt
+  review_prompt="You are reviewing this PR for code quality, correctness, and completeness.
+
+Analyze the PR diff, description, and any existing review comments carefully.
+This is review iteration ${iteration}. If prior fixes were attempted, focus on remaining issues.
+
+You MUST output ONLY a JSON object (no markdown fences, no preamble) with this structure:
+{
+  \"verdict\": \"approve\" or \"changes_requested\",
+  \"summary\": \"One paragraph overall assessment\",
+  \"findings\": [
+    {
+      \"severity\": \"critical\" | \"warning\" | \"suggestion\",
+      \"file\": \"path/to/file\",
+      \"line\": 42,
+      \"message\": \"Description of the issue\",
+      \"suggestion\": \"How to fix it\"
+    }
+  ],
+  \"review_comment\": \"Full formatted markdown review comment for GitHub\"
+}
+
+Rules:
+- Only use \"changes_requested\" if there are critical or warning findings
+- Suggestions alone should NOT block approval
+- Be specific about file paths and line numbers
+- The review_comment should be well-formatted GitHub markdown with findings organized by severity
+- If the code is solid with only minor suggestions, approve it"
+
+  local pr_url="https://github.com/${owner_repo}/pull/${pr_number}"
+
+  claude -p \
+    --from-pr "$pr_url" \
+    --output-format json \
+    --permission-mode "default" \
+    --model "$MODEL" \
+    --max-budget-usd "$MAX_BUDGET" \
+    "$review_prompt" 2>>"$log_file"
+}
+
+# ---------------------------------------------------------------------------
+# Parse Claude's JSON-envelope output to extract the review
+# ---------------------------------------------------------------------------
+parse_review() {
+  local claude_output="$1"
+
+  # claude --output-format json wraps response in {"result": "..."}
+  local result_text
+  result_text=$(echo "$claude_output" | jq -r '.result // empty' 2>/dev/null)
+
+  if [[ -z "$result_text" ]]; then
+    # Maybe it's raw text (no envelope)
+    result_text="$claude_output"
+  fi
+
+  # Strip markdown code fences if present
+  result_text=$(echo "$result_text" | sed '/^```json$/d; /^```$/d; /^```$/d')
+
+  # Try to parse as JSON directly
+  if echo "$result_text" | jq -e '.verdict' >/dev/null 2>&1; then
+    echo "$result_text"
+    return
+  fi
+
+  # Try to extract a JSON object from the text
+  local extracted
+  extracted=$(echo "$result_text" | python3 -c "
+import sys, json, re
+text = sys.stdin.read()
+match = re.search(r'\{[\s\S]*\}', text)
+if match:
+    try:
+        obj = json.loads(match.group())
+        print(json.dumps(obj))
+    except json.JSONDecodeError:
+        pass
+" 2>/dev/null)
+
+  if [[ -n "$extracted" ]] && echo "$extracted" | jq -e '.verdict' >/dev/null 2>&1; then
+    echo "$extracted"
+    return
+  fi
+
+  # Failed to parse
+  echo ""
+}
+
+# ---------------------------------------------------------------------------
+# Post review to GitHub
+# ---------------------------------------------------------------------------
+post_review() {
+  local pr_number="$1" owner_repo="$2" review_json="$3" log_file="$4"
+
+  local verdict comment
+  verdict=$(echo "$review_json" | jq -r '.verdict')
+  comment=$(echo "$review_json" | jq -r '.review_comment')
+
+  # Write to temp file to avoid shell escaping issues
+  local body_file
+  body_file=$(mktemp "${TMPDIR:-/tmp}/claude-pr-loop-review.XXXXXX.md")
+
+  printf '%s\n\n---\n*Automated review by claude-pr-loop (iteration %s)*' "$comment" "$iteration" > "$body_file"
+
+  local review_output
+  if [[ "$verdict" == "approve" ]]; then
+    log "$log_file" "Posting APPROVE review"
+    if review_output=$(gh pr review "$pr_number" --repo "$owner_repo" --approve --body-file "$body_file" 2>&1); then
+      log "$log_file" "Review submitted successfully"
+    elif echo "$review_output" | grep -qiE "your own pull request|can not approve|cannot approve|author of this pull request"; then
+      log "$log_file" "Cannot approve own PR — posting as comment"
+      gh pr comment "$pr_number" --repo "$owner_repo" --body-file "$body_file" 2>>"$log_file"
+    else
+      log "$log_file" "Review submission failed: ${review_output}"
+    fi
+  else
+    log "$log_file" "Posting REQUEST_CHANGES review"
+    if review_output=$(gh pr review "$pr_number" --repo "$owner_repo" --request-changes --body-file "$body_file" 2>&1); then
+      log "$log_file" "Review submitted successfully"
+    elif echo "$review_output" | grep -qiE "your own pull request|can not approve|cannot approve|author of this pull request"; then
+      log "$log_file" "Cannot submit formal review on own PR — posting as comment"
+      gh pr comment "$pr_number" --repo "$owner_repo" --body-file "$body_file" 2>>"$log_file"
+    else
+      log "$log_file" "Review submission failed: ${review_output}"
+    fi
+  fi
+
+  rm -f "$body_file"
+}
+
+# ---------------------------------------------------------------------------
+# Fix step — Claude with write permissions in worktree
+# ---------------------------------------------------------------------------
+run_fix() {
+  local worktree_dir="$1" review_json="$2" log_file="$3"
+
+  local findings_text
+  findings_text=$(echo "$review_json" | jq -r '
+    [.findings[] | select(.severity != "suggestion")] |
+    map("- [\(.severity)] \(.file):\(.line // "?") — \(.message)\n  Fix: \(.suggestion // "see above")") |
+    join("\n\n")
+  ')
+
+  local fix_prompt="You are fixing PR review feedback in this repository.
+
+Here are the findings that need to be addressed:
+
+${findings_text}
+
+Instructions:
+1. Read each file mentioned in the findings
+2. Fix every critical and warning issue
+3. Run any relevant linters or tests if config files exist (package.json scripts, Makefile, etc.)
+4. Stage your changes with git add (specific files only, not -A)
+5. Commit with a message like: \"fix: address PR review feedback\"
+6. Push to the remote branch with: git push
+
+Address ALL findings. Do not skip any."
+
+  cd "$worktree_dir"
+
+  claude -p \
+    --dangerously-skip-permissions \
+    --model "$MODEL" \
+    --max-budget-usd "$MAX_BUDGET" \
+    "$fix_prompt" 2>>"$log_file" >/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# Core loop for a single PR
+# ---------------------------------------------------------------------------
+single_pr_loop() {
+  local pr_input="$1"
+  parse_pr_url "$pr_input"
+
+  local log_file="${LOG_DIR}/${OWNER_REPO//\//_}-pr${PR_NUMBER}-$(date +%Y%m%d-%H%M%S).log"
+  mkdir -p "$(dirname "$log_file")"
+
+  log "$log_file" "Starting review loop for ${OWNER_REPO}#${PR_NUMBER}"
+  log "$log_file" "Config: max_iterations=${MAX_ITERATIONS} model=${MODEL} effort=${EFFORT} budget=${MAX_BUDGET} no_fix=${NO_FIX}"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "$log_file" "[DRY RUN] Would clone ${OWNER_REPO}, checkout PR #${PR_NUMBER}"
+    log "$log_file" "[DRY RUN] Would run up to ${MAX_ITERATIONS} review-fix iterations"
+    log "$log_file" "[DRY RUN] Review: claude -p --from-pr https://github.com/${OWNER_REPO}/pull/${PR_NUMBER} --model ${MODEL}"
+    log "$log_file" "[DRY RUN] Fix: claude -p --dangerously-skip-permissions --model ${MODEL}"
+    return
+  fi
+
+  # Set up worktree
+  local worktree_dir
+  worktree_dir=$(setup_worktree "$OWNER_REPO" "$PR_NUMBER")
+  trap 'cleanup_worktree "'"$worktree_dir"'"' EXIT
+
+  local iteration=0
+  local verdict="changes_requested"
+
+  while [[ "$iteration" -lt "$MAX_ITERATIONS" && "$verdict" != "approve" ]]; do
+    iteration=$((iteration + 1))
+    log "$log_file" "=== Iteration ${iteration}/${MAX_ITERATIONS} ==="
+
+    # Step 1: Review
+    log "$log_file" "Running review..."
+    local claude_output review_json
+    claude_output=$(run_review "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file")
+    review_json=$(parse_review "$claude_output")
+
+    if [[ -z "$review_json" ]] || ! echo "$review_json" | jq -e '.verdict' >/dev/null 2>&1; then
+      log "$log_file" "ERROR: Failed to parse review output"
+      echo "--- Raw Claude output ---" >> "$log_file"
+      echo "$claude_output" >> "$log_file"
+      echo "--- End raw output ---" >> "$log_file"
+      verdict="error"
+      break
+    fi
+
+    verdict=$(echo "$review_json" | jq -r '.verdict')
+    local finding_count
+    finding_count=$(echo "$review_json" | jq '[.findings[] | select(.severity != "suggestion")] | length')
+    log "$log_file" "Verdict: ${verdict} (${finding_count} actionable findings)"
+
+    # Step 2: Post review
+    post_review "$PR_NUMBER" "$OWNER_REPO" "$review_json" "$log_file"
+
+    # Step 3: Fix (if needed and allowed)
+    if [[ "$verdict" != "approve" ]]; then
+      if [[ "$NO_FIX" == "true" ]]; then
+        log "$log_file" "Review-only mode (--no-fix). Stopping after review."
+        break
+      fi
+
+      log "$log_file" "Running fix pass..."
+      run_fix "$worktree_dir" "$review_json" "$log_file"
+
+      # Also re-fetch the PR ref so review sees the new commits
+      local bare_repo
+      bare_repo="$(dirname "$worktree_dir")/bare.git"
+      sleep 5  # Let GitHub index the push
+
+      # Pull latest into worktree
+      cd "$worktree_dir"
+      git pull --rebase origin "$(git branch --show-current)" 2>>"$log_file" || true
+    fi
+  done
+
+  # Final status + notification
+  if [[ "$verdict" == "approve" ]]; then
+    log "$log_file" "PR #${PR_NUMBER} APPROVED after ${iteration} iteration(s)"
+    notify "PR Approved" "${OWNER_REPO}#${PR_NUMBER} passed review (${iteration} iterations)"
+  elif [[ "$verdict" == "error" ]]; then
+    log "$log_file" "PR #${PR_NUMBER} stopped due to parse error"
+    notify "PR Loop Error" "${OWNER_REPO}#${PR_NUMBER} — review parse error, check logs"
+  elif [[ "$iteration" -ge "$MAX_ITERATIONS" ]]; then
+    log "$log_file" "PR #${PR_NUMBER} hit max iterations (${MAX_ITERATIONS}) without approval"
+    notify "PR Loop Exhausted" "${OWNER_REPO}#${PR_NUMBER} — ${MAX_ITERATIONS} iterations, still has issues"
+  fi
+
+  log "$log_file" "Log: ${log_file}"
+  cleanup_worktree "$worktree_dir"
+  trap - EXIT
+}
+
+# ---------------------------------------------------------------------------
+# Batch mode — process multiple PRs in parallel
+# ---------------------------------------------------------------------------
+batch_run() {
+  local label="$1" repo="$2"
+
+  local prs
+  prs=$(gh pr list --repo "$repo" --label "$label" --state open --json number,url,title --limit 50)
+  local count
+  count=$(echo "$prs" | jq 'length')
+
+  if [[ "$count" -eq 0 ]]; then
+    echo "No open PRs found with label '${label}' in ${repo}"
+    exit 0
+  fi
+
+  echo "Found ${count} PR(s) with label '${label}' in ${repo}:"
+  echo "$prs" | jq -r '.[] | "  #\(.number) — \(.title)"'
+  echo ""
+
+  local pids=()
+  local pr_numbers=()
+
+  while IFS= read -r pr_line; do
+    local url number title
+    url=$(echo "$pr_line" | jq -r '.url')
+    number=$(echo "$pr_line" | jq -r '.number')
+    title=$(echo "$pr_line" | jq -r '.title')
+
+    echo "Starting background loop for PR #${number}: ${title}"
+    single_pr_loop "$url" &
+    pids+=($!)
+    pr_numbers+=("$number")
+  done < <(echo "$prs" | jq -c '.[]')
+
+  echo ""
+  echo "All ${count} PR(s) running in background. PIDs: ${pids[*]}"
+  echo "Logs: ${LOG_DIR}/"
+  echo ""
+
+  # Wait for all
+  local failed=0
+  for i in "${!pids[@]}"; do
+    if ! wait "${pids[$i]}"; then
+      echo "PR #${pr_numbers[$i]} loop failed (exit code $?)"
+      failed=$((failed + 1))
+    else
+      echo "PR #${pr_numbers[$i]} loop completed"
+    fi
+  done
+
+  echo ""
+  echo "Batch complete: $((count - failed))/${count} succeeded"
+  notify "Batch Review Complete" "${repo}: ${count} PRs processed (label: ${label}), ${failed} failed"
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+main() {
+  parse_args "$@"
+
+  # Preflight checks
+  for cmd in claude gh git jq; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      echo "Error: '${cmd}' not found in PATH" >&2
+      exit 1
+    fi
+  done
+
+  mkdir -p "$LOG_DIR" "$WORKTREE_BASE"
+
+  if [[ -n "$BATCH_LABEL" ]]; then
+    batch_run "$BATCH_LABEL" "$BATCH_REPO"
+  else
+    single_pr_loop "$PR_INPUT"
+  fi
+}
+
+main "$@"
