@@ -504,6 +504,8 @@ single_pr_loop() {
   # Final status + notification
   if [[ "$verdict" == "approve" ]]; then
     log "$log_file" "PR #${PR_NUMBER} APPROVED after ${iteration} iteration(s)"
+    gh pr edit "$PR_NUMBER" --repo "$OWNER_REPO" --add-label "claude-approved" 2>>"$log_file" || true
+    log "$log_file" "Added 'claude-approved' label"
     notify "PR Approved" "${OWNER_REPO}#${PR_NUMBER} passed review (${iteration} iterations)"
   elif [[ "$verdict" == "error" ]]; then
     log "$log_file" "PR #${PR_NUMBER} stopped due to parse error"
