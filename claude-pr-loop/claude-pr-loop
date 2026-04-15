@@ -185,41 +185,41 @@ setup_worktree() {
 
   mkdir -p "$repo_dir"
 
-  # Clone bare repo if not present
+  # Clone bare repo if not present (all git output to stderr to keep stdout clean)
   if [[ ! -d "$bare_repo" ]]; then
-    echo "Cloning bare repo for ${owner_repo}..."
-    git clone --bare "https://github.com/${owner_repo}.git" "$bare_repo"
+    echo "Cloning bare repo for ${owner_repo}..." >&2
+    git clone --bare "https://github.com/${owner_repo}.git" "$bare_repo" >&2
   else
     # Fetch latest
-    git -C "$bare_repo" fetch origin 2>/dev/null || true
+    git -C "$bare_repo" fetch origin >&2 2>&1 || true
   fi
 
   # Fetch the PR head ref
-  git -C "$bare_repo" fetch origin "pull/${pr_number}/head:pr-${pr_number}" --force
+  git -C "$bare_repo" fetch origin "pull/${pr_number}/head:pr-${pr_number}" --force >&2 2>&1
 
   # Remove stale worktree if it exists
   if [[ -d "$worktree_dir" ]]; then
-    git -C "$bare_repo" worktree remove --force "$worktree_dir" 2>/dev/null || true
+    git -C "$bare_repo" worktree remove --force "$worktree_dir" >&2 2>&1 || true
     rm -rf "$worktree_dir" 2>/dev/null || true
   fi
 
   # Create fresh worktree
-  git -C "$bare_repo" worktree add "$worktree_dir" "pr-${pr_number}"
+  git -C "$bare_repo" worktree add "$worktree_dir" "pr-${pr_number}" >&2 2>&1
 
   # Set up the branch for pushing
   local head_ref
   head_ref=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRefName -q .headRefName)
 
   cd "$worktree_dir"
-  git checkout -B "$head_ref" "pr-${pr_number}"
+  git checkout -B "$head_ref" "pr-${pr_number}" >&2 2>&1
 
   # Configure remote for push (use gh-authenticated URL)
   local fork_owner
   fork_owner=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRepositoryOwner -q .headRepositoryOwner.login)
   local fork_repo
   fork_repo=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRepository -q .headRepository.name)
-  git remote set-url origin "https://github.com/${fork_owner}/${fork_repo}.git"
-  git branch --set-upstream-to="origin/${head_ref}" "$head_ref" 2>/dev/null || true
+  git remote set-url origin "https://github.com/${fork_owner}/${fork_repo}.git" >&2 2>&1
+  git branch --set-upstream-to="origin/${head_ref}" "$head_ref" >&2 2>&1 || true
 
   echo "$worktree_dir"
 }
