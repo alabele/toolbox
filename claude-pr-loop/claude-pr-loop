@@ -245,13 +245,30 @@ cleanup_worktree() {
 # Review step — read-only Claude call
 # ---------------------------------------------------------------------------
 run_review() {
-  local owner_repo="$1" pr_number="$2" iteration="$3" log_file="$4"
+  local owner_repo="$1" pr_number="$2" iteration="$3" log_file="$4" worktree_dir="$5"
+
+  # --from-pr is a session-resume flag, not a context loader, so we inline the
+  # PR description, comments, reviews, and diff here. Without this the model
+  # has nothing to evaluate and replies "No PR diff or git context found".
+  local pr_metadata pr_diff
+  pr_metadata=$(gh pr view "$pr_number" --repo "$owner_repo" \
+    --json title,body,author,headRefName,baseRefName,reviews,comments \
+    2>>"$log_file") || pr_metadata="{}"
+  pr_diff=$(gh pr diff "$pr_number" --repo "$owner_repo" 2>>"$log_file") || pr_diff=""
 
   local review_prompt
   review_prompt="You are reviewing this PR for code quality, correctness, and completeness.
 
 Analyze the PR diff, description, and any existing review comments carefully.
 This is review iteration ${iteration}. If prior fixes were attempted, focus on remaining issues.
+
+PR metadata (JSON):
+${pr_metadata}
+
+PR diff:
+\`\`\`diff
+${pr_diff}
+\`\`\`
 
 You MUST output ONLY a JSON object (no markdown fences, no preamble) with this structure:
 {
@@ -278,6 +295,7 @@ Rules:
 
   local pr_url="https://github.com/${owner_repo}/pull/${pr_number}"
 
+  cd "$worktree_dir"
   claude -p \
     --from-pr "$pr_url" \
     --output-format json \
@@ -460,7 +478,7 @@ single_pr_loop() {
     # Step 1: Review
     log "$log_file" "Running review..."
     local claude_output review_json
-    claude_output=$(run_review "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file")
+    claude_output=$(run_review "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file" "$worktree_dir")
     track_usage "$claude_output" "review" "$log_file"
     review_json=$(parse_review "$claude_output")
 
