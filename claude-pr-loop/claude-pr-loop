@@ -223,6 +223,10 @@ setup_worktree() {
   local fork_repo
   fork_repo=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRepository -q .headRepository.name)
   git remote set-url origin "https://github.com/${fork_owner}/${fork_repo}.git" >&2 2>&1
+  # Fetch the head ref from the (now-pointed-at) fork so origin/<head_ref>
+  # exists locally — otherwise --set-upstream-to fires the
+  # advice.setUpstreamFailure hint.
+  git fetch origin "${head_ref}" >&2 2>&1 || true
   git branch --set-upstream-to="origin/${head_ref}" "$head_ref" >&2 2>&1 || true
 
   echo "$worktree_dir"
