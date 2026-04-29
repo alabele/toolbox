@@ -300,13 +300,19 @@ Rules:
   local pr_url="https://github.com/${owner_repo}/pull/${pr_number}"
 
   cd "$worktree_dir"
-  claude -p \
+  # Pipe the prompt via stdin — inlined PR diffs can exceed ARG_MAX
+  # (~256KB on macOS), causing exec to fail with "Argument list too long".
+  local output
+  if ! output=$(printf '%s' "$review_prompt" | claude -p \
     --from-pr "$pr_url" \
     --output-format json \
     --permission-mode "default" \
     --model "$MODEL" \
-    --max-budget-usd "$MAX_BUDGET" \
-    "$review_prompt" 2>>"$log_file"
+    --max-budget-usd "$MAX_BUDGET" 2>>"$log_file"); then
+    log "$log_file" "ERROR: claude review invocation failed (exit $?). See log for stderr."
+    return 1
+  fi
+  printf '%s' "$output"
 }
 
 # ---------------------------------------------------------------------------
@@ -430,12 +436,14 @@ Address ALL findings. Do not skip any."
   cd "$worktree_dir"
 
   local fix_output
-  fix_output=$(claude -p \
+  if ! fix_output=$(printf '%s' "$fix_prompt" | claude -p \
     --dangerously-skip-permissions \
     --output-format json \
     --model "$MODEL" \
-    --max-budget-usd "$MAX_BUDGET" \
-    "$fix_prompt" 2>>"$log_file")
+    --max-budget-usd "$MAX_BUDGET" 2>>"$log_file"); then
+    log "$log_file" "ERROR: claude fix invocation failed (exit $?). See log for stderr."
+    return 1
+  fi
   track_usage "$fix_output" "fix" "$log_file"
 }
 
@@ -482,7 +490,11 @@ single_pr_loop() {
     # Step 1: Review
     log "$log_file" "Running review..."
     local claude_output review_json
-    claude_output=$(run_review "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file" "$worktree_dir")
+    if ! claude_output=$(run_review "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file" "$worktree_dir"); then
+      log "$log_file" "Review step failed — aborting loop. Check stderr in log above."
+      verdict="error"
+      break
+    fi
     track_usage "$claude_output" "review" "$log_file"
     review_json=$(parse_review "$claude_output")
 
@@ -511,7 +523,11 @@ single_pr_loop() {
       fi
 
       log "$log_file" "Running fix pass..."
-      run_fix "$worktree_dir" "$review_json" "$log_file"
+      if ! run_fix "$worktree_dir" "$review_json" "$log_file"; then
+        log "$log_file" "Fix step failed — aborting loop. Check stderr in log above."
+        verdict="error"
+        break
+      fi
 
       # Also re-fetch the PR ref so review sees the new commits
       local bare_repo
