@@ -343,18 +343,29 @@ setup_worktree() {
   # Create fresh worktree
   git -C "$bare_repo" worktree add "$worktree_dir" "pr-${pr_number}" >&2 2>&1
 
-  # Set up the branch for pushing
-  local head_ref
-  head_ref=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRefName -q .headRefName)
+  # Fetch all branch/remote metadata in one gh call, then validate before use.
+  # An empty head_ref slipping through here writes a `[branch ""]` section to
+  # the bare repo's config that poisons every later git invocation against it
+  # — git treats `branch..remote` as a fatal parse error and refuses to read
+  # the config at all, blocking fetch/worktree/checkout for the whole repo.
+  local pr_meta head_ref fork_owner fork_repo
+  pr_meta=$(gh pr view "$pr_number" --repo "$owner_repo" \
+    --json headRefName,headRepositoryOwner,headRepository) || {
+    echo "ERROR: gh pr view failed for ${owner_repo}#${pr_number}" >&2
+    exit 1
+  }
+  head_ref=$(echo "$pr_meta" | jq -r '.headRefName // empty')
+  fork_owner=$(echo "$pr_meta" | jq -r '.headRepositoryOwner.login // empty')
+  fork_repo=$(echo "$pr_meta" | jq -r '.headRepository.name // empty')
+  if [[ -z "$head_ref" || -z "$fork_owner" || -z "$fork_repo" ]]; then
+    echo "ERROR: gh pr view returned incomplete metadata for ${owner_repo}#${pr_number}: head_ref='${head_ref}' fork_owner='${fork_owner}' fork_repo='${fork_repo}'" >&2
+    exit 1
+  fi
 
   cd "$worktree_dir"
   git checkout -B "$head_ref" "pr-${pr_number}" >&2 2>&1
 
   # Configure remote for push (use gh-authenticated URL)
-  local fork_owner
-  fork_owner=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRepositoryOwner -q .headRepositoryOwner.login)
-  local fork_repo
-  fork_repo=$(gh pr view "$pr_number" --repo "$owner_repo" --json headRepository -q .headRepository.name)
   git remote set-url origin "https://github.com/${fork_owner}/${fork_repo}.git" 1>&2
   # Set upstream tracking by writing branch config directly. The bare repo's
   # fetch refspec is +refs/heads/*:refs/heads/* (mirror), so origin/<head_ref>
