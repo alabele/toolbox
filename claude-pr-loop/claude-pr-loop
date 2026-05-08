@@ -433,15 +433,14 @@ You MUST output ONLY a JSON object (no markdown fences, no preamble) with this s
       \"message\": \"Description of the issue\",
       \"suggestion\": \"How to fix it\"
     }
-  ],
-  \"review_comment\": \"Full formatted markdown review comment for GitHub\"
+  ]
 }
 
 Rules:
 - Only use \"changes_requested\" if there are critical or warning findings
 - Suggestions alone should NOT block approval
 - Be specific about file paths and line numbers
-- The review_comment should be well-formatted GitHub markdown with findings organized by severity
+- Keep summary, message, and suggestion fields as plain prose — the GitHub comment is rendered from these fields, so do not embed pre-formatted markdown
 - If the code is solid with only minor suggestions, approve it"
 
   local pr_url="https://github.com/${owner_repo}/pull/${pr_number}"
@@ -526,6 +525,65 @@ if match:
     return
   fi
 
+  # Last-resort repair: walk the candidate string with a tiny state machine and
+  # escape any `"` that appears mid-string (i.e. the next non-whitespace char
+  # isn't one of `,]}:` ending a value/key). The model occasionally under-
+  # escapes embedded quotes inside long prose fields; this rescues those cases
+  # without introducing a JSON5 dependency.
+  local repaired_input="$result_text"
+  if [[ -z "$repaired_input" || "$repaired_input" != *"{"* ]]; then
+    repaired_input="$claude_output"
+  fi
+  local repaired
+  repaired=$(printf '%s' "$repaired_input" | python3 -c "
+import sys, json, re
+text = sys.stdin.read()
+m = re.search(r'\{[\s\S]*\}', text)
+if not m:
+    sys.exit(0)
+src = m.group()
+out = []
+i = 0
+in_str = False
+escape = False
+while i < len(src):
+    c = src[i]
+    if not in_str:
+        out.append(c)
+        if c == '\"':
+            in_str = True
+    else:
+        if escape:
+            out.append(c)
+            escape = False
+        elif c == '\\\\':
+            out.append(c)
+            escape = True
+        elif c == '\"':
+            j = i + 1
+            while j < len(src) and src[j] in ' \t\r\n':
+                j += 1
+            if j < len(src) and src[j] in ',]}:':
+                out.append(c)
+                in_str = False
+            else:
+                out.append('\\\\\"')
+        else:
+            out.append(c)
+    i += 1
+candidate = ''.join(out)
+try:
+    obj = json.loads(candidate)
+    print(json.dumps(obj))
+except json.JSONDecodeError:
+    pass
+" 2>/dev/null)
+
+  if [[ -n "$repaired" ]] && echo "$repaired" | jq -e '.verdict' >/dev/null 2>&1; then
+    echo "$repaired"
+    return
+  fi
+
   # Failed to parse
   echo ""
 }
@@ -536,15 +594,43 @@ if match:
 post_review() {
   local pr_number="$1" owner_repo="$2" review_json="$3" log_file="$4"
 
-  local verdict comment
+  local verdict
   verdict=$(echo "$review_json" | jq -r '.verdict')
-  comment=$(echo "$review_json" | jq -r '.review_comment')
 
-  # Write to temp file to avoid shell escaping issues
+  # Build the GitHub markdown comment from structured fields. We used to ask
+  # the model for a pre-formatted `review_comment` blob, but long markdown
+  # inside a JSON string field tripped repeated escape bugs (model under-
+  # escaping embedded quotes). Rendering locally from summary + findings
+  # eliminates that failure mode.
   local body_file
   body_file=$(mktemp "${TMPDIR:-/tmp}/claude-pr-loop-review.XXXXXX.md")
 
-  printf '%s\n\n---\n*Automated review by claude-pr-loop (iteration %s)*' "$comment" "$iteration" > "$body_file"
+  local heading
+  if [[ "$verdict" == "approve" ]]; then
+    heading="## Review: Approved"
+  else
+    heading="## Review: Changes Requested"
+  fi
+
+  {
+    printf '%s\n\n' "$heading"
+    echo "$review_json" | jq -r '.summary // empty'
+    echo "$review_json" | jq -r '
+      def render(title; sev):
+        [.findings[] | select(.severity == sev)] as $items
+        | if ($items | length) == 0 then empty
+          else "\n\n### \(title)\n\n" +
+            ($items | map(
+              "- **\(.file)\(if .line then ":\(.line)" else "" end)** — \(.message)" +
+              (if .suggestion and .suggestion != "" then "\n  *Suggestion:* \(.suggestion)" else "" end)
+            ) | join("\n"))
+          end;
+      render("Critical"; "critical"),
+      render("Warnings"; "warning"),
+      render("Suggestions"; "suggestion")
+    '
+    printf '\n\n---\n*Automated review by claude-pr-loop (iteration %s)*\n' "$iteration"
+  } > "$body_file"
 
   local review_output
   if [[ "$verdict" == "approve" ]]; then
