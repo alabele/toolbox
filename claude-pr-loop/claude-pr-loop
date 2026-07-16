@@ -14,6 +14,11 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 MAX_ITERATIONS=5
 MAX_BUDGET="2.00"
+# The fix step gets its own, larger cap. It edits code, runs checks, commits,
+# and pushes — inherently more expensive than the read-only review. Keeping it
+# separate means a heavyweight repo's fix pass doesn't force the cheap review
+# cap up too. See run_fix.
+MAX_FIX_BUDGET="6.00"
 MODEL="sonnet"
 EFFORT="high"
 LOG_DIR="${HOME}/.claude-pr-loop/logs"
@@ -243,7 +248,8 @@ Batch (parallel):
 
 Options:
   --max-iterations N     Max review-fix cycles (default: 5)
-  --max-budget-usd N     Per-iteration spend cap in USD (default: 2.00)
+  --max-budget-usd N     Per-call spend cap for the review step in USD (default: 2.00)
+  --max-fix-budget-usd N Per-call spend cap for the fix step in USD (default: 6.00)
   --model MODEL          Claude model: sonnet, opus, haiku (default: sonnet)
   --effort LEVEL         low | medium | high | max (default: high)
   --log-dir PATH         Log directory (default: ~/.claude-pr-loop/logs)
@@ -264,6 +270,7 @@ parse_args() {
     case "$1" in
       --max-iterations)  MAX_ITERATIONS="$2"; shift 2 ;;
       --max-budget-usd)  MAX_BUDGET="$2"; shift 2 ;;
+      --max-fix-budget-usd) MAX_FIX_BUDGET="$2"; shift 2 ;;
       --model)           MODEL="$2"; shift 2 ;;
       --effort)          EFFORT="$2"; shift 2 ;;
       --log-dir)         LOG_DIR="$2"; shift 2 ;;
@@ -682,7 +689,11 @@ ${findings_text}
 Instructions:
 1. Read each file mentioned in the findings
 2. Fix every critical and warning issue
-3. Run any relevant linters or tests if config files exist (package.json scripts, Makefile, etc.)
+3. Run only FAST static checks that already exist in the repo (typecheck, lint,
+   unit tests via package.json scripts / Makefile targets). Do NOT build or
+   launch the application, start a dev server, or create test fixtures/seed
+   data to verify your change end-to-end — CI performs full verification. Your
+   job is to make the code correct and let the fast checks catch regressions.
 4. Stage your changes with git add (specific files only, not -A)
 5. Commit with a message like: \"fix: address PR review feedback\"
 6. Push to the remote branch with: git push
@@ -703,7 +714,7 @@ Address ALL findings. Do not skip any."
     --output-format stream-json \
     --verbose \
     --model "$MODEL" \
-    --max-budget-usd "$MAX_BUDGET" \
+    --max-budget-usd "$MAX_FIX_BUDGET" \
     > "$transcript_file" 2>>"$log_file" || rc=$?
 
   # Extract the result envelope (last `.type == "result"` line). This holds
@@ -726,7 +737,9 @@ Address ALL findings. Do not skip any."
       cost=$(echo "$result_line" | jq -r '.total_cost_usd // empty' 2>/dev/null)
     fi
     if [[ "$subtype" == "error_max_budget_usd" ]]; then
-      log "$log_file" "ERROR: claude fix hit --max-budget-usd cap of \$${MAX_BUDGET} (spent \$${cost}). Transcript: ${transcript_file}"
+      local suggested
+      suggested=$(awk -v c="${cost:-$MAX_FIX_BUDGET}" 'BEGIN{ printf "%.2f", (c*2.5) }')
+      log "$log_file" "ERROR: claude fix hit --max-fix-budget-usd cap of \$${MAX_FIX_BUDGET} (spent \$${cost}). Rerun with --max-fix-budget-usd ${suggested} or larger. Transcript: ${transcript_file}"
     else
       log "$log_file" "ERROR: claude fix invocation failed (exit ${rc}, subtype='${subtype:-none}'). Transcript: ${transcript_file}"
     fi
@@ -793,7 +806,7 @@ single_pr_loop() {
   DIFF_FILTERED_BYTES=0
 
   log "$log_file" "Starting review loop for ${OWNER_REPO}#${PR_NUMBER}"
-  log "$log_file" "Config: max_iterations=${MAX_ITERATIONS} model=${MODEL} effort=${EFFORT} budget=${MAX_BUDGET} no_fix=${NO_FIX}"
+  log "$log_file" "Config: max_iterations=${MAX_ITERATIONS} model=${MODEL} effort=${EFFORT} review_budget=${MAX_BUDGET} fix_budget=${MAX_FIX_BUDGET} no_fix=${NO_FIX}"
 
   if [[ "$DRY_RUN" == "true" ]]; then
     log "$log_file" "[DRY RUN] Would clone ${OWNER_REPO}, checkout PR #${PR_NUMBER}"
