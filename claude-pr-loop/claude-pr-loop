@@ -129,6 +129,8 @@ filter_diff() {
       if (path ~ /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|npm-shrinkwrap\.json|Cargo\.lock|Gemfile\.lock|poetry\.lock|composer\.lock|Pipfile\.lock)$/ ||
           path ~ /(^|\/)go\.sum$/ ||
           path ~ /\.snap$/ ||
+          path ~ /(^|\/)static\/typedoc\/.*\.json$/ ||
+          path ~ /\.data\.json$/ ||
           path ~ /\.min\.(js|css|map)$/) {
         skip = 1
         skipped_count++
