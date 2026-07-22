@@ -407,11 +407,24 @@ run_review() {
   # --from-pr is a session-resume flag, not a context loader, so we inline the
   # PR description, comments, reviews, and diff here. Without this the model
   # has nothing to evaluate and replies "No PR diff or git context found".
-  local pr_metadata pr_diff_raw pr_diff
+  local pr_metadata pr_diff_raw pr_diff base_ref
   pr_metadata=$(gh pr view "$pr_number" --repo "$owner_repo" \
     --json title,body,author,headRefName,baseRefName,reviews,comments \
     2>>"$log_file") || pr_metadata="{}"
+  base_ref=$(echo "$pr_metadata" | jq -r '.baseRefName // empty')
   pr_diff_raw=$(gh pr diff "$pr_number" --repo "$owner_repo" 2>>"$log_file") || pr_diff_raw=""
+  # `gh pr diff` fetches via the GitHub API, which returns HTTP 406 ("diff
+  # exceeded the maximum number of lines (20000)") for large refactors and
+  # bulk deletes. That failure was silently swallowed into an empty diff,
+  # leaving the model with nothing to review and producing a bogus "the diff
+  # was empty" finding that no fix pass can ever resolve. On any empty/failed
+  # API diff, fall back to a local three-dot diff against the base ref: the
+  # bare repo mirrors all of the base repo's heads, so <base_ref> resolves
+  # inside the worktree for both same-repo and fork PRs.
+  if [[ -z "${pr_diff_raw//[[:space:]]/}" && -n "$base_ref" && -n "$worktree_dir" ]]; then
+    echo "gh pr diff empty/failed (likely >20k lines); falling back to local 'git diff ${base_ref}...HEAD'" >>"$log_file"
+    pr_diff_raw=$(git -C "$worktree_dir" diff "${base_ref}...HEAD" 2>>"$log_file") || pr_diff_raw=""
+  fi
   # Strip lockfiles/snapshots/minified bundles before inlining — these often
   # dominate large PRs (1MB+ diffs) and rarely warrant token-by-token review.
   pr_diff=$(filter_diff "$pr_diff_raw" "$log_file")
