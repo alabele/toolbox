@@ -1,0 +1,251 @@
+{
+  "question": "Research question (gap-fill E: final remaining gaps). Five earlier passes never reached these topics, so they have zero verified claims. Cover exactly these five angles, one search angle each, and spend the verification budget ONLY on them. Fetch through open sources to avoid 403 errors: PubMed, PubMed Central, Europe PMC, arXiv, Semantic Scholar, university-hosted author PDFs, Microsoft Research publication pages. Prioritise primary peer-reviewed sources. This is input to designing a personal work dashboard for an adult software engineer who is gifted, ADHD and autistic.\n\n1. Neurodivergent software engineers: Morris, Begel and Wiedermann 2015 \"Understanding the challenges faced by neurodiverse software engineering employees: towards a more inclusive and productive technical workforce\" (ASSETS 2015); Annabi and Locke 2019 on autism employment in IT; Gama, Liebel and colleagues 2024-2026 on neurodiversity in software engineering (including any systematic mapping or follow-ups to the ICSE 2024 ADHD study, and studies of autistic or dyslexic developers); McChesney and Bond on dyslexic programmers. Reported challenges, strengths, and tooling or workplace accommodations.\n\n2. The dopamine account of ADHD motivation: Volkow et al. 2009 JAMA \"Evaluating dopamine reward pathway in ADHD\" and Volkow et al. 2011 Molecular Psychiatry \"Motivation deficit in ADHD is associated with dysfunction of the dopamine reward pathway\"; Gonon 2009 \"The dopaminergic hypothesis of ADHD needs re-examining\"; recent reviews of reinforcement and reward processing in ADHD (e.g. Luman, Tripp and Scheres 2010; Plichta and Scheres 2014 meta-analysis of ventral striatal reward anticipation). Is there any empirical support for \"dopamine menu\", \"dopamine detox\" or Dodson's \"interest-based nervous system\"?\n\n3. HRV biofeedback: Lehrer et al. 2020 meta-analysis (Applied Psychophysiology and Biofeedback), Goessl, Curtiss and Hofmann 2017 meta-analysis on HRV biofeedback for stress and anxiety, and any HRV biofeedback or neurofeedback-adjacent trials in ADHD or autistic adults.\n\n4. Breaks and restoration: Albulescu et al. 2022 PLOS ONE meta-analysis of micro-breaks; Ohly et al. 2016 systematic review of attention restoration theory; Stevenson, Schilhab and Bentsen 2018 meta-analysis; and evidence on break reminders or break-taking software for knowledge workers.\n\n5. Kanban, WIP limits and gamification: Ahmad et al. (2013, 2018) systematic reviews of kanban in software engineering and any empirical study of WIP limits; Sailer and Homner 2020 meta-analysis \"The gamification of learning\"; Koivisto and Hamari 2019 review of gamification research; the goal-gradient effect (Kivetz, Urminsky and Zheng 2006) and the endowed progress effect (Nunes and Dreze 2006); and any trials of gamified or app-based interventions for adults with ADHD (e.g. systematic reviews of digital interventions for adult ADHD).\n\nOutput: a cited report with findings ranked by confidence, each with a concrete dashboard design implication, and an explicit \"weak, contested, or pop-psychology\" section. Flag every population transfer.",
+  "summary": "Only three of the five angles produced verified claims: neurodivergent software engineers (partly), the dopamine account of ADHD motivation (partly), and HRV biofeedback. Angle 4 (micro-breaks, attention restoration, break software) and angle 5 (kanban and WIP limits, gamification, goal-gradient and endowed progress, digital interventions for adult ADHD) have zero verified claims, so this report says nothing about them. The strongest design-relevant evidence is the Liebel, Langlois and Gama ICSE 2024 interview study of 19 ADHD engineers. They reported trouble starting and finishing tasks, planning and time estimation, focus and context switching, and 11 of 19 cope by externalising; this is ADHD-only self-report, so applying it to an autistic, gifted user is a population transfer. The dopamine evidence is real but modest: in adults with ADHD, PET dopamine markers in the accumbens are roughly 6-11% lower and correlations with attention or trait motivation are about r 0.3-0.4, and a reward-anticipation fMRI meta-analysis gives d 0.48-0.58. All of it is correlational, the field has seven competing models with inconsistent findings, and no verified claim tested \"dopamine menu\", \"dopamine detox\" or the \"interest-based nervous system\". HRV biofeedback has meta-analytic support for self-reported stress and anxiety in general populations (g 0.83 in 2017, small-to-moderate across 58 RCTs in 2020). The ADHD and autism studies are uncontrolled, tiny or confounded with neurofeedback, so it fits as an optional calming tool but not as an ADHD or executive-function treatment.",
+  "findings": [
+    {
+      "claim": "ADHD software engineers most often report difficulty with organisation, planning and time estimation (11 of 19), starting and finishing tasks (11 of 19), and maintaining focus (11 of 19). One participant said it takes almost an hour to reload context after a switch. The source is Liebel, Langlois and Gama, ICSE-SEIS 2024, an exploratory qualitative case study of 19 interviews plus 4 manager validation interviews, which extracted 15 challenges, 8 strengths and 12 strategies. Design implication: make the single next action and the task's entry point obvious to lower the cost of the \"first 5 percent\". Save and restore working context (notes, open files, where I left off) to cut re-entry cost. Surface the unfinished last 15 percent explicitly. Pair time estimates with actuals. POPULATION TRANSFER: the sample is ADHD only, and the user is also autistic and gifted.",
+      "confidence": "medium",
+      "sources": [
+        "https://arxiv.org/abs/2312.05029",
+        "https://doi.org/10.1145/3639475.3640107"
+      ],
+      "evidence": "Merged claims 2 and 3, each with a 3-0 vote and verified against the full PDF text. Confidence is medium because this is one small, self-selected, self-report qualitative study, so the counts are interview frequencies and not prevalence estimates. Only 2 of the 11 in the organisation group mentioned time estimation specifically. The context-switch cost is one participant's quote with no count behind it.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "Externalising was the most commonly reported coping strategy among ADHD engineers: 11 of 19 use to-do lists, calendar apps, sticky notes or exhaustive note-taking, and 4 of 19 built their own support systems or automation. One interviewee said \"If I can't see it, I'm not going to remember it.\" Design implication: the dashboard is itself an externalisation tool, which matches reported practice. Keep deadlines and commitments persistently visible, not behind clicks. Make capture near-frictionless. Make the dashboard scriptable and extensible, since building one's own tooling is a reported pattern. POPULATION TRANSFER: ADHD-only sample. This shows how common the strategy is, not that it works.",
+      "confidence": "medium",
+      "sources": [
+        "https://arxiv.org/abs/2312.05029"
+      ],
+      "evidence": "Claim 4, 3-0 vote, numbers verified verbatim in the full text. Two caveats: the \"invisible deadlines are forgotten\" point generalises one quote (I3) plus \"several interviewees\", and the strategies were never tested for efficacy.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "The foundational study of neurodiverse software engineers is Morris, Begel and Wiedermann, ASSETS 2015. It interviewed 10 neurodiverse tech workers and surveyed 846 engineers at one large software company, of whom only 59 (about 7%) self-identified as neurodiverse against 781 neurotypical. Design implication: treat its challenge and strength lists as hypotheses to check against the user's own experience, not as norms. Build in per-user configuration instead of fixed \"ND defaults\". POPULATION TRANSFER: the sample is a single company with mixed neurodiverse conditions, and none of the participants is specifically gifted plus ADHD plus autistic.",
+      "confidence": "medium",
+      "sources": [
+        "https://doi.org/10.1145/2700648.2809841"
+      ],
+      "evidence": "Merged claims 0 and 1, both 3-0, verified against the abstract on the Microsoft Research publication page. Only the study design and sample sizes were verified; none of the paper's substantive findings on challenges, strengths or accommodations reached verification. 781 plus 59 is 840, so 6 respondents were unclassified.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "In unmedicated adults with ADHD, PET shows lower dopamine transporter and D2/D3 receptor availability in left-hemisphere reward-pathway regions (accumbens, midbrain, caudate, hypothalamic region), in 53 ADHD adults vs 44 controls (Volkow et al. 2009, JAMA). The accumbens differences are small, with overlapping distributions: DAT 0.71 vs 0.63 and D2/D3 2.85 vs 2.68, about 6-11% lower. Correlations with attention ratings are modest, r 0.31-0.37, or roughly 10-14% of variance. Design implication: it is reasonable to assume that reward salience and immediacy matter for this user, so make progress and payoff visible and near-term. Do not build features on a \"dopamine deficiency\" metaphor, and do not claim to regulate dopamine. There is no population transfer for adult ADHD. The autism and giftedness dimensions are not covered.",
+      "confidence": "high",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19738093/"
+      ],
+      "evidence": "Merged claims 5, 6 and 7, all 3-0, with numbers verified against the abstract through Europe PMC and NCBI E-utilities. Confidence is high for the descriptive result only. The study is cross-sectional and single-site. The correlations were pooled across ADHD and controls, and an erratum and two comment letters exist. The midbrain DAT difference was proportionally larger, 0.16 vs 0.09. The wider DAT literature is inconsistent: verifiers cited Fusar-Poli 2012 and Gonon 2009 from memory, and neither was independently verified.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "Trait motivation (MPQ Achievement scale) was lower in ADHD adults than in controls (11±5 vs 14±3, P<0.001; 45 ADHD, 41 controls). In the ADHD group only, it correlated moderately with accumbens and midbrain D2/D3 availability (r 0.39 and 0.41) and with accumbens DAT (r 0.35) (Volkow et al. 2011, Molecular Psychiatry). This comes from correlational secondary analyses that use a surrogate self-report measure, not an experimental test of motivation, so it does not show that dopamine causes the motivation deficit. Design implication: treat low motivation on low-interest tasks as an expected feature to design around, using friction reduction, external structure and visible progress. Do not treat it as a user failing. Do not present any feature as fixing a dopamine deficit. No population transfer for adult ADHD.",
+      "confidence": "medium",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/20856250/"
+      ],
+      "evidence": "Merged claims 8, 9 and 10, all 3-0, verbatim from the abstract. Confidence is medium because this is a secondary analysis of a sample that overlaps the 2009 cohort. The correlations appear uncorrected for multiple comparisons. \"Not in controls\" means the correlation was not significant in controls; no interaction was tested.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "The reward-processing literature in ADHD points to altered reinforcement sensitivity, but it is inconsistent and has no agreed mechanism. A meta-analysis of fMRI reward anticipation found ventral-striatal hyporesponsiveness in ADHD with a medium effect, d 0.48-0.58 (Plichta and Scheres 2014). In healthy samples, by contrast, trait impulsivity correlates positively with ventral-striatal activation, and the authors say the studies are too few for a final answer. Luman, Tripp and Scheres 2010 compare seven neurobiological models with 15 predictions, note inconsistent findings, and note a lack of mechanistic studies as of 2010. Design implication: make the reward mechanics (immediacy, frequency, type of feedback) user-tunable and easy to switch off. Do not hard-code one theory of ADHD reward. Let the user run small self-experiments. POPULATION TRANSFER: the reviewed samples are largely children and adolescents, and none is autistic or gifted.",
+      "confidence": "medium",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/23928090/",
+        "https://pubmed.ncbi.nlm.nih.gov/19944715/"
+      ],
+      "evidence": "Merged claims 11-15, all 3-0, verbatim from the abstracts. Verifiers noted that the 2014 effect size probably suffers from small-study inflation and that later, larger samples were mixed; this comes from background knowledge and was not verified. \"No single agreed dopamine account\" is an inference from the seven competing models, not a quote.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "HRV biofeedback reduces self-reported stress and anxiety in general and clinical non-ND populations. Goessl, Curtiss and Hofmann 2017 pooled 24 studies with 484 participants and found within-group g 0.81 and between-group g 0.83. Lehrer et al. 2020 pooled 58 RCTs selected from 1,868 papers and found a significant small-to-moderate effect that was not different from other effective treatments. Effects were largest for anxiety, depression, anger and performance, and smallest for PTSD, sleep and quality of life, with few studies behind each outcome. Design implication: an optional, low-friction paced-breathing or HRV widget is defensible as a stress and anxiety down-regulation tool, for example before hard task starts or after interruptions. Present it as one option among equally effective ones, not as a core mechanic. POPULATION TRANSFER: neither meta-analysis targets ADHD or autistic adults.",
+      "confidence": "high",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/28478782/",
+        "https://pubmed.ncbi.nlm.nih.gov/32385728/"
+      ],
+      "evidence": "Merged claims 16-19, all 3-0. Two independent peer-reviewed meta-analyses agree on the direction of effect. The outcomes are self-reported, and many controls were waitlist or inactive, which inflates g. The 2017 total N is small and its authors call for better-controlled studies. The 2020 outcome ranking is exploratory, and a 2021 erratum exists whose text was not retrieved.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "Evidence for HRV biofeedback specifically in ADHD or autistic people, or for executive function, is weak. Groeneveld et al. 2019 (39 adults and 100 children with ADHD classification) was an uncontrolled retrospective pre-post study of combined z-score neurofeedback plus HRV training, written by employees and consultants of the commercial provider. Its large dz (-1.21 in adults, -1.17 in children) cannot be attributed to HRV biofeedback, or to the treatment at all. Coulter et al. 2022 was an uncontrolled feasibility pilot in 20 autistic 13-24 year olds, with anxiety reductions in subgroups of about 7 and 8 completers. Tinello et al. 2022 reviewed 16 mixed-design studies (777 participants), and 56% reported a gain on at least one executive function, with no pooled effect size. Design implication: do not position HRV features as improving attention, executive function or ADHD symptoms. If HRV features are included, let the user track their own before-and-after ratings to judge personal value. POPULATION TRANSFER: the studies cover children, adolescents and young adults up to 24, and mixed clinical populations, none of which matches a working-age AuDHD engineer.",
+      "confidence": "low",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/31119405/",
+        "https://pubmed.ncbi.nlm.nih.gov/36018712/",
+        "https://pubmed.ncbi.nlm.nih.gov/35299845/"
+      ],
+      "evidence": "Merged claims 20-24, all 3-0 on what the studies did and reported. Confidence is low for efficacy. The studies have no control groups, tiny samples and a declared commercial conflict of interest (Neurocore). The executive-function review is a vote count that includes uncontrolled trials. Its authors frame the 56% positively; the word \"only\" is the claim's framing. In the Coulter study the larger t pairs with the smaller d, which suggests an inconsistent SD convention.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "WEAK, CONTESTED OR POP-PSYCHOLOGY: no verified claim gives empirical support for the \"dopamine menu\", \"dopamine detox\" or Dodson's \"interest-based nervous system\". The verified dopamine evidence, summarised in the findings above, is a set of modest group-level correlational PET and fMRI associations within a contested field of seven models, and it does not license these constructs. The same caution applies to reading the Neurocore neurofeedback-plus-HRV results as evidence of efficacy. Design implication: a user-curated list of energising activities or an interest tag on tasks is fine as a personal preference feature. Label these as heuristics, avoid neurochemical language in the UI, and do not build detox or abstinence mechanics.",
+      "confidence": "low",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/19738093/",
+        "https://pubmed.ncbi.nlm.nih.gov/20856250/",
+        "https://pubmed.ncbi.nlm.nih.gov/19944715/",
+        "https://pubmed.ncbi.nlm.nih.gov/23928090/",
+        "https://pubmed.ncbi.nlm.nih.gov/31119405/"
+      ],
+      "evidence": "This finding rests on absence of evidence. No surviving claim tested these constructs, and the verifiers explicitly warned against citing Volkow 2009 in support of the dopamine-menu idea. Gonon 2009 was named in the question and cited by verifiers as a critique, but no claim from it was independently verified. The pass did not run a systematic search for studies of these pop constructs, so the correct statement is \"no support found in this pass\", not \"shown to be false\"."
+    }
+  ],
+  "caveats": "- **Coverage gap.** Angles 4 and 5 produced zero surviving claims. Angle 4 covers Albulescu 2022 micro-breaks, Ohly 2016 and Stevenson 2018 on attention restoration, and break-reminder software. Angle 5 covers the Ahmad kanban reviews, WIP limits, Sailer and Homner 2020, Koivisto and Hamari 2019, goal-gradient, endowed progress, and digital or gamified interventions for adult ADHD. This report gives no evidence basis for break timers, nature-restoration features, kanban or WIP limits, progress bars or gamification.\n- **Angle 1 is only partly covered.** Nothing was verified from Annabi and Locke, from McChesney and Bond on dyslexia, from Gama's follow-ups or mapping studies, or from any study of autistic developers. For Morris et al., only the study design was verified, not its findings.\n- **Verification limits.** The verifiers' web search budget was exhausted, so most checks were made against abstracts through NCBI E-utilities and Europe PMC, without a search for contradicting literature. Several contextual points came from verifier memory and are unverified:\n  - Fusar-Poli 2012\n  - Cortese 2016\n  - Gonon 2009\n  - Lehrer's pooled g of about 0.37\n  - later mixed ventral-striatal results\n- **Full text.** Only the Liebel paper was read in full. Groeneveld's limitations section was also read in full.\n- **Population transfer applies to every finding.** No study sampled gifted, AuDHD adults, and none sampled autistic software engineers. The PET studies are adult ADHD, which matches on that one dimension. Everything else transfers from ADHD-only, child or adolescent, young-adult autistic, or general populations.\n- **Age of sources.** The neuroimaging sources date from 2009 to 2014 and may have been superseded by larger samples.\n- **Confidence ratings.** They describe how well each source is characterised and how strong its evidence is. They do not rate the design implications, which are inferences and have not been tested.",
+  "openQuestions": [
+    "What do the unreached angle 4 and 5 sources actually show: micro-break effect sizes (Albulescu 2022), attention restoration (Ohly 2016, Stevenson 2018), kanban and WIP-limit evidence (Ahmad et al.), gamification effects (Sailer and Homner 2020, Koivisto and Hamari 2019), goal-gradient and endowed progress, and digital or gamified interventions for adult ADHD?",
+    "Is there any empirical study of autistic, dyslexic or AuDHD software engineers (Annabi and Locke, McChesney and Bond, Gama and Liebel follow-ups) whose challenges and strategies differ from the ADHD-only findings? The areas to compare are sensory load, predictability and tolerance of interruptions.",
+    "Has any controlled trial isolated HRV biofeedback, without neurofeedback, in adults with ADHD or autistic adults, with attention or executive-function outcomes in addition to self-reported anxiety?",
+    "Has anyone tested \"dopamine menu\" style activity lists or interest-based task selection in adults with ADHD, and do later, larger reward-anticipation fMRI studies uphold the d of about 0.5 ventral-striatal finding?"
+  ],
+  "refuted": [],
+  "unverified": [],
+  "sources": [
+    {
+      "url": "https://doi.org/10.1145/2700648.2809841",
+      "quality": "primary",
+      "angle": "1. Neurodivergent software engineers",
+      "claimCount": 4
+    },
+    {
+      "url": "https://arxiv.org/abs/2312.05029",
+      "quality": "primary",
+      "angle": "1. Neurodivergent software engineers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/19738093/",
+      "quality": "primary",
+      "angle": "2. Dopamine account of ADHD motivation",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/20856250/",
+      "quality": "primary",
+      "angle": "2. Dopamine account of ADHD motivation",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/18986716/",
+      "quality": "secondary",
+      "angle": "2. Dopamine account of ADHD motivation",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/23928090/",
+      "quality": "primary",
+      "angle": "2. Dopamine account of ADHD motivation",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/19944715/",
+      "quality": "primary",
+      "angle": "2. Dopamine account of ADHD motivation",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/38966464/",
+      "quality": "secondary",
+      "angle": "2. Dopamine account of ADHD motivation",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32385728/",
+      "quality": "primary",
+      "angle": "3. HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/28478782/",
+      "quality": "primary",
+      "angle": "3. HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/31119405/",
+      "quality": "primary",
+      "angle": "3. HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/36018712/",
+      "quality": "primary",
+      "angle": "3. HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35299845/",
+      "quality": "primary",
+      "angle": "3. HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://europepmc.org/article/MED/41310318",
+      "quality": "primary",
+      "angle": "3. HRV biofeedback",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9432722/",
+      "quality": "primary",
+      "angle": "4. Breaks and attention restoration",
+      "claimCount": 5
+    },
+    {
+      "url": "https://europepmc.org/article/MED/27668460",
+      "quality": "primary",
+      "angle": "4. Breaks and attention restoration",
+      "claimCount": 5
+    },
+    {
+      "url": "https://europepmc.org/article/MED/30130463",
+      "quality": "primary",
+      "angle": "4. Breaks and attention restoration",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12164069/",
+      "quality": "primary",
+      "angle": "4. Breaks and attention restoration",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12969067/",
+      "quality": "secondary",
+      "angle": "5. Kanban, WIP limits, gamification, adult ADHD apps",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1016/j.jss.2017.11.045",
+      "quality": "unreliable",
+      "angle": "5. Kanban, WIP limits, gamification, adult ADHD apps",
+      "claimCount": 0
+    },
+    {
+      "url": "https://doi.org/10.1007/s10648-019-09498-w",
+      "quality": "primary",
+      "angle": "5. Kanban, WIP limits, gamification, adult ADHD apps",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1016/j.ijinfomgt.2018.10.013",
+      "quality": "primary",
+      "angle": "5. Kanban, WIP limits, gamification, adult ADHD apps",
+      "claimCount": 4
+    }
+  ],
+  "stats": {
+    "angles": 5,
+    "sourcesFetched": 22,
+    "claimsExtracted": 100,
+    "claimsVerified": 25,
+    "confirmed": 25,
+    "killed": 0,
+    "unverified": 0,
+    "afterSynthesis": 9,
+    "urlDupes": 0,
+    "budgetDropped": 4,
+    "agentCalls": 104
+  }
+}

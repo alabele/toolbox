@@ -1,0 +1,292 @@
+{
+  "question": "Research question: How should a personal, single-user software dashboard be designed so that it is both functional and nervous-system-regulating for a twice-exceptional (gifted + ADHD + autistic) software engineer with significant executive dysfunction, and what specific UI/UX/behavioral-design patterns should it use to reduce overwhelm from: (a) running multiple concurrent AI coding-agent sessions (Claude Code) at once, (b) juggling multiple projects across multiple git repositories, (c) priority setting and task initiation, (d) ticket management (Jira), and (e) communications triage (Slack, GitHub PR review, email)?\n\nScope and constraints:\n- Audience: one user, a senior engineer using macOS, Claude Code CLI (many parallel terminal sessions), GitHub (many repos, PRs), Jira, and Slack. Recommendations should be concrete against this stack but the underlying research should be generic.\n- Form factor is open: cover web dashboards, terminal/TUI, and native/menubar or ambient displays, and recommend a form factor with reasoning.\n- Evidence bar: broad. Include peer-reviewed HCI and accessibility research (WCAG 2.2, W3C COGA \"Making Content Usable for People with Cognitive and Learning Disabilities\", cognitive load theory, attention restoration, interruption/notification research), ADHD and autism UX research (sensory load, hyperfocus, time blindness, task switching costs, working memory limits, decision fatigue, demand avoidance), executive-function research (task initiation, prioritization, implementation intentions, externalizing working memory, body doubling), and clinical/neuroscience regulation literature (sensory modulation, interoception, autonomic regulation, polyvagal theory). Explicitly flag where evidence is weak, contested, or pop-psychology (e.g. polyvagal theory's contested scientific status; dopamine-menu framing).\n- Also cover: twice-exceptional (2e) specifics, monotropism, autistic inertia, ADHD paralysis/\"wall of awful\", perfectionism and RSD in engineers; design patterns for agent-supervision dashboards (multi-agent status, attention management, \"what needs me now\" queues); progressive disclosure, calm technology, single-focus modes, visual noise reduction, color/motion/typography guidance for sensory sensitivity; externalized priority systems (Eisenhower, MoSCoW, WIP limits/kanban, \"one next action\"); notification batching and interruption timing; and existing tools or prototypes built by/for neurodivergent developers.\n- Output: a cited research report with (1) generic findings ranked by confidence, (2) a design-principles section, (3) specific recommendations for each of the five overwhelm areas above mapped to the user's stack, (4) a recommended form factor, and (5) an explicit \"weak or contested evidence\" section.",
+  "summary": "The verified evidence supports a dashboard built around three principles. It should be interruption-minimal and user-controlled. It should externalize working memory so nothing depends on remembering (COGA cites a 1-3 item capacity for impaired working memory). For agent supervision it should be state-first and outcome-first: reduce each Claude Code session to a small set of discrete states, show a \"needs me / needs review\" queue, and keep traces collapsed until something looks wrong. The strongest sources are W3C guidance (COGA, WCAG 2.3.3 on motion) and an ICSE 2024 interview study of engineers with ADHD, which report expensive context rebuilds and that starting and finishing are hard for many. Agent-oversight HCI work (n=12-17) finds developers rarely watch agents live and feel overwhelmed by long traces; an outcome-checklist interface made error-finding faster but not more accurate, and raised over-trust. Evidence for the regulation-oriented features is weak: body doubling, monotropism-based interruption cost, gentle non-gamified nudges and \"Where was I?\" recall rest on self-report surveys, theory and unevaluated preprints. Build these as optional, user-tunable invitations. No surviving claim covers polyvagal theory, sensory color/typography, Eisenhower/MoSCoW/WIP limits, notification batching timing, or Jira/Slack/email specifically, so recommendations there must be labelled as extrapolation. On form factor, the verified precedent (fleet) is a terminal TUI cockpit. The evidence is consistent with a glanceable, low-motion, pull-based status surface (TUI or menubar) rather than a rich streaming web dashboard, but it does not establish one as better.",
+  "findings": [
+    {
+      "claim": "Interruptions should be minimised and put under the user's control. COGA pattern 4.6.1 advises avoiding interruptions and giving easy control over interruptions, reminders and content changes unless they are user-initiated or an emergency. It states that interruptions, including sounds and content that visually appears or changes, may cause people with memory or attention impairments to stop a task even when it is important. Design implication: the default is pull, not push. There should be no unsolicited popups, badges or changing content in the focus view. Everything else goes into a queue the user opens. Provide per-source mute and a separate path for emergencies only.",
+      "confidence": "high",
+      "sources": [
+        "https://www.w3.org/TR/coga-usable/"
+      ],
+      "evidence": "Merged claims [0] and [1], both 3-0 and verified verbatim against the primary W3C text (sections 4.6.1.2 and 4.6.1.3). COGA is an informative W3C Working Group Note (2021) based on expert consensus. It is not an empirical study or a normative standard. Its named example populations are dementia, stroke/brain injury and medication effects, so applying it to ADHD and autism is the report's extrapolation. That extrapolation is consistent with the wider interruption literature.",
+      "vote": "3-0, 3-0"
+    },
+    {
+      "claim": "For engineers with ADHD, rebuilding mental context after an interruption is reported as very expensive, and starting and finishing tasks are commonly reported as difficult. In an ICSE 2024 qualitative study of 19 software engineers with ADHD, one participant said loading a code structure into mind can take almost an hour and is destroyed by a casual interruption. 11 of 19 reported difficulty starting and finishing tasks (\"the first 5 percent are impossible... last 15 percent is like torture\"). Design implication: the dashboard should protect loaded context. It should put scaffolding at task entry (a single next action, a pre-loaded re-entry point) and at task exit (an explicit finish checklist, a visible \"last 15%\" list), not in the middle of the work.",
+      "confidence": "medium",
+      "sources": [
+        "https://arxiv.org/pdf/2312.05029"
+      ],
+      "evidence": "Merged claims [3] (3-0) and [4] (2-1). Quotes verified verbatim in Liebel, Langlois and Gama, ICSE 2024. Caveats: this is a single peer-reviewed study that relies on self-report. The hour figure comes from one participant. The authors say they did not reach saturation and cannot conclude the challenges are specific to ADHD. The paper says starting and finishing are difficult for 11 of 19; it does not rank them as the hardest parts, and \"rather than the middle\" is an inference from one quote plus the hyperfocus theme.",
+      "vote": "3-0, 2-1"
+    },
+    {
+      "claim": "The dashboard must externalize working memory and must not depend on the user remembering. COGA states that people with impaired working memory may hold only one to three items at once, and its Objective 6 requires that processes do not rely on memory from prior steps. Design implication: limit the simultaneously visible \"active\" items to about 1-3. Persist per-session and per-repo state (what this agent was asked to do, where I left off, what the next step is) so that re-entry never requires recall. Never require information to be carried between views.",
+      "confidence": "medium",
+      "sources": [
+        "https://www.w3.org/TR/coga-usable/"
+      ],
+      "evidence": "Claim [2], 3-0, verbatim in the primary source. COGA gives no citation for the 1-3 figure, so it should be attributed to COGA and not treated as a measured finding. It is broadly consistent with Cowan's roughly 4-chunk typical capacity. The sentence sits in COGA's introduction, not inside Objective 6, so the link between them is a reasonable inference. The 1-3 visible-items cap is this report's design extrapolation.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "Motion should be off or minimal by default, and the user should be able to disable it. WCAG SC 2.3.3 (Level AAA, unchanged in WCAG 2.2) requires that motion animation triggered by interaction can be disabled unless it is essential. W3C's guidance is to avoid unnecessary animation, provide a control to turn off non-essential animation, and honor the OS or user-agent reduce-motion setting (prefers-reduced-motion). Design implication: no spinners, pulsing indicators or animated transitions for agent status. Convey state changes with static glyphs and text. Respect the macOS Reduce Motion setting and provide an in-app toggle.",
+      "confidence": "high",
+      "sources": [
+        "https://www.w3.org/WAI/WCAG21/Understanding/animation-from-interactions"
+      ],
+      "evidence": "Merged claims [5] and [6], both 3-0 and verbatim from the primary W3C WAI page. The SC is Level AAA, so it is not part of the common AA conformance target. The three bullets are informative Understanding-doc guidance. \"Motion animation\" excludes color, blur and opacity changes that do not alter perceived size, shape or position. This is a standard and not an empirical sensory-sensitivity study. No surviving claim covers color or typography for sensory sensitivity.",
+      "vote": "3-0, 3-0"
+    },
+    {
+      "claim": "Agent supervision should be state-first and queue-first, not trace-streaming. A FAccT 2026 interview study of 17 experienced developers found four forms of oversight work: a priori control, co-planning, real-time monitoring and post hoc review. It found oversight is proactive as well as reactive. Developers rarely monitored in real time, most never proactively read reasoning traces, and any monitoring they did was perfunctory. Post hoc review was the most discussed form. Design implication: support all four modes (guardrails and permissions before launch, plan approval, a light glance, a review queue). Give most of the screen to the \"needs review / needs me\" states, not to live trace output.",
+      "confidence": "medium",
+      "sources": [
+        "https://arxiv.org/html/2606.05391v1"
+      ],
+      "evidence": "Merged claims [15] and [16], both 3-0 and near-verbatim from Dhanorkar, Passi and Vorvoreanu (arXiv 2606.05391, also listed in the FAccT 2026 proceedings). Caveats: the sample is small and qualitative, with 12 of 17 participants from one company (Microsoft). The authors note that participants delegated relatively small tasks, which made real-time monitoring optional. The finding may therefore not generalise to long-running parallel multi-agent sessions, which is this user's exact situation. The dashboard implication is the report's inference and not a finding of the paper.",
+      "vote": "3-0, 3-0"
+    },
+    {
+      "claim": "Agent output review has a granularity trade-off, and outcome-first disclosure with drill-down is the best-supported answer to it. It speeds review but does not make review more accurate. In a formative study (n=12), verbose step-by-step traces were cumbersome; participants missed small but impactful errors and felt overwhelmed. Detail sufficient to surface errors is overwhelmingly verbose, while high-level summaries can hide execution errors (an \"illusion of accountability\"). An interface that listed task requirements as a checklist plus the agent's assumptions, with drill-down, let participants find errors faster (Hedges' g = -0.65) but did not improve accuracy (g = 0.18). Confidence rose, including on incorrect answers. For code review specifically, the key challenge is cognitive distance from agent-generated code, and the recommended mitigation is to augment diffs with intent, reasoning and proposed tests. Design implication: for each session, show a requirements checklist with pass / unknown / fail marks and the agent's stated assumptions, with a one-keystroke drill-down to the diff and evidence. Treat this as an aid to speed and calm. It is not a correctness guarantee, so keep tests and CI as the gate.",
+      "confidence": "medium",
+      "sources": [
+        "https://arxiv.org/pdf/2602.16844",
+        "https://arxiv.org/html/2606.05391v1"
+      ],
+      "evidence": "Merged claims [17], [18], [19] and [20], all 3-0. Grunde-McLaughlin et al. (arXiv 2602.16844, Feb 2026 preprint) studied a computer-use agent on question-answering tasks, not coding agents, with n=12. The g = -0.65 applies only to time on correctly found errors; the overall duration effect was g = -0.29. Confidence rose by g = 0.56, and by g = 0.85 when wrong answers looked correct, which is an over-trust risk. The diff-augmentation recommendation from Dhanorkar et al. is untested. That paper also names the re-review burden after each agent fix as a second challenge.",
+      "vote": "3-0 x4"
+    },
+    {
+      "claim": "Progressive disclosure of agent status, and reduction of each session to a small discrete state vocabulary, are established design precedents for multi-agent supervision. They are not validated ones. OrchVis shows only top-level goals by default, with lower levels collapsed and expandable, and expands its planning panel when a conflict is detected. Its model is to review outcomes first and inspect process only when results look wrong. fleet is a tmux-based TUI cockpit for Claude Code, Codex and OpenCode. It reduces each session to five states (running, waiting, finished, idle, error) shown with compact glyphs, and has a key that jumps to the next session needing attention. Design implication: show one row per Claude Code session with a fixed glyph and word for one of about five states, ordered by \"needs me\". Expansion is always user-initiated, and auto-expansion is reserved for genuine conflict or error.",
+      "confidence": "low",
+      "sources": [
+        "https://arxiv.org/pdf/2510.24937",
+        "https://github.com/eylonronen/fleet"
+      ],
+      "evidence": "Merged claims [21], [22], [23] and [24], all 3-0 as descriptions of the designs. OrchVis is a single-author arXiv preprint with no user study; its outcome-first rationale is a self-citation and user studies are listed as future work. fleet is a personal repo with 0 stars, its currency could not be verified, and \"Stay sane\" is slogan wording. fleet's running and finished states share the ● glyph in plain text, so color presumably distinguishes them. A sensory-safe design should therefore not rely on color alone. These sources show that the patterns exist and are coherent with Findings 5 and 6. They do not show that the patterns reduce cognitive load.",
+      "vote": "3-0 x4"
+    },
+    {
+      "claim": "Body doubling is a widely reported strategy in the neurodivergent community for starting, staying on and finishing tasks. It does not require a live, co-located or known person: remote, recorded and stranger doubles are all in reported use. Its efficacy is not established. Design implication: an optional, ambient, non-evaluative \"presence\" mode is plausible as an initiation aid, but it must be opt-in and treated as an experiment. Examples are a quiet indicator that agents are working alongside you, or a link to a co-working stream.",
+      "confidence": "low",
+      "sources": [
+        "https://dl.acm.org/doi/full/10.1145/3689648"
+      ],
+      "evidence": "Merged claims [7], [8] and [9], all 3-0. Eagle, Baltaxe-Admony and Ringland, ACM TACCESS 2024, is a self-selected online survey of 220 people (87.7% neurodivergent) with no measured outcomes. Verifiers noted that efficacy evidence is weak and mixed. A small VR study (n=12) favoured both human and AI doubles. A CCSC 2025 BCI study found no significant effect, and one master's thesis found body doubling counterproductive. The community definition and the reported practice are high confidence. The claim that a software double works is low confidence.",
+      "vote": "3-0 x3"
+    },
+    {
+      "claim": "Monotropism models autistic attention as concentrated in one or a few highly aroused interests, and describes externally forced attention shifts as aversive (\"like a wrench each time\"). This supports single-focus modes and avoiding forced context switches, but only as theory and lived experience, not as quantified evidence. Design implication: provide a single-focus mode showing one project or session with everything else hidden. Never yank focus. Let the user choose when to switch, and make switching a deliberate act with saved state.",
+      "confidence": "low",
+      "sources": [
+        "https://monotropism.org/dinah/attention-tunnelling-and-autism/"
+      ],
+      "evidence": "Merged claims [11] (3-0) and [12] (2-1, medium verifier confidence). The source is Murray's 1992 conference paper, which is theoretical and contains no data. The 2005 Murray, Lesser and Lawson formulation softens \"one interest at a time\" to a tendency along a continuum. Empirical support is thin. The Monotropism Questionnaire (n=1,110, self-report) found the highest scores in people who are both autistic and ADHD. A 2025 ERP and laboratory study found limited convergence and no group difference in neural responses. \"High cost of interruptions\" is the report's inference.",
+      "vote": "3-0, 2-1"
+    },
+    {
+      "claim": "If-then implementation intentions have controlled evidence for improving inhibition in ADHD, but only in children on a lab task. In Gawrilow and Gollwitzer (2008) Study 1, children with ADHD who added an if-then plan to a suppression goal reached the Go/No-Go inhibition level of children without ADHD. Design implication: phrasing next actions as if-then triggers is a cheap, low-risk pattern, for example \"If session X shows waiting, then I review its checklist\" or \"When I open the dashboard, I do the top item only\". Applying it to adult task initiation is an extrapolation.",
+      "confidence": "low",
+      "sources": [
+        "https://link.springer.com/article/10.1007/s10608-007-9150-1"
+      ],
+      "evidence": "Claim [10], 3-0, near-verbatim from the abstract; the full text was not fetched. It is a single small lab study in children, from the lab that originated the construct, dating from the pre-replication-crisis era, using a Go/No-Go task with limited ecological validity. Later work by the same group and a meta-analysis of implementation intentions in children point in the same direction. There is no direct evidence for adult engineers or for task initiation.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "Formative evidence suggests ADHD professionals prefer quiet, non-judgmental, customizable support such as weekly summaries, gentle reminders and scheduled quiet check-ins. They reject intrusive automation and are wary of gamification, hard deadlines and performance tracking. A proposed (unbuilt) \"Where Was I?\" feature keeps a local buffer of the last N actions, surfaced on demand to help the user re-enter a task, and explicitly never acts as a performance ledger. Design implication: no streaks, scores or productivity metrics. Nudges are dismissible invitations with tunable frequency and quiet hours. Offer a re-entry panel on demand (last session touched, last repo, last ticket). Because one participant disliked suggestions entirely, even nudges must be possible to switch off completely, which also makes the design safe for demand avoidance.",
+      "confidence": "low",
+      "sources": [
+        "https://arxiv.org/pdf/2507.06864"
+      ],
+      "evidence": "Merged claims [13] (2-1, medium) and [14] (3-0). The source is Deshmukh, a single-author arXiv preprint (July 2025) based on a preliminary survey of about 25 people. The reported 59%, 55% and 54% do not divide cleanly into n=25, so they should not be presented as precise. Only intrusive automation is described as \"strongly rejected\"; the other items appear as \"rather than\" contrasts. \"Scheduled quiet check-ins\" is itself time-based, which is in tension with the stated preference for rhythm-based triggers over timers. The framework was never built or evaluated. \"Demand-avoidance\" is the report's label and not the paper's.",
+      "vote": "2-1, 3-0"
+    },
+    {
+      "claim": "Form-factor recommendation (synthesis, not a verified finding): the verified evidence is most consistent with a glanceable, pull-based, low-motion status surface that sits next to the terminal workflow. One option is a TUI cockpit in the fleet style; another is a menubar or ambient indicator showing only a count of \"needs me\" items. The surface should come with a single-focus detail view opened on demand. A rich, always-updating web dashboard fits the evidence less well. The terminal option avoids a context switch out of where the Claude Code sessions already live. The menubar option satisfies the requirement for no changing content in the focus area, provided it is static and carries no badges by default.",
+      "confidence": "low",
+      "sources": [
+        "https://github.com/eylonronen/fleet",
+        "https://www.w3.org/TR/coga-usable/",
+        "https://arxiv.org/html/2606.05391v1",
+        "https://www.w3.org/WAI/WCAG21/Understanding/animation-from-interactions"
+      ],
+      "evidence": "This is derived by inference from Findings 1, 4, 5 and 7. No surviving claim compares form factors, and no study of TUI, web or menubar surfaces for neurodivergent users was verified. fleet is the only verified tool precedent, and it is an obscure personal project. Treat the recommendation as a reasoned default to prototype and test with the user herself, not as an evidence-backed conclusion."
+    }
+  ],
+  "caveats": "**Coverage gaps.** Only 25 claims from 10 sources survived verification, and large parts of the requested scope have no surviving evidence. The uncovered topics are:\n- polyvagal theory, sensory modulation, interoception and autonomic regulation;\n- attention restoration and cognitive load theory;\n- color and typography for sensory sensitivity;\n- time blindness, decision fatigue, RSD, perfectionism and twice-exceptional specifics;\n- autistic inertia and the \"wall of awful\" (as named constructs);\n- Eisenhower, MoSCoW, WIP limits and \"one next action\";\n- notification batching and interruption timing (e.g. Mark, Iqbal and Bailey);\n- calm technology;\n- anything specific to Jira, Slack, GitHub PR review or email.\n\nThe final report must not imply verified support for recommendations in those areas. The mappings to areas (b) through (e) are extrapolated from generic principles: limit interruptions, externalize memory, protect context, scaffold start and finish, and use non-judgmental nudges. The contested status of polyvagal theory and the pop-psychology status of \"dopamine menu\" were flagged in the brief but were not examined by any surviving claim. They should be listed in the weak or contested section as unverified and contested, not as findings.\n\n**Source quality.**\n- The strongest sources are W3C COGA (an informative Note based on expert consensus, not an empirical study; its named populations are dementia and brain injury, not ADHD or autism) and WCAG 2.3.3 (Level AAA).\n- Two peer-reviewed sources follow: the ICSE 2024 ADHD-engineers study (n=19, qualitative) and the TACCESS 2024 body-doubling survey (n=220, self-selected, no outcome data).\n- The rest are arXiv preprints or design proposals with n between 12 and 25 or no evaluation at all (OrchVis, Deshmukh), a 1992 theoretical paper (monotropism), a 2008 lab study in children (implementation intentions), and a GitHub repo with 0 stars (fleet).\n- Several verifications relied on search-indexed abstracts or model-generated summaries because full text was blocked (ACM 403, Springer auth redirect, an unparseable PDF). Several verifiers also skipped the search for contradicting sources.\n\n**Generalisability.**\n- The agent-oversight findings come from small, mostly single-company samples delegating small tasks, or from computer-use agents on question-answering tasks. None studied a single operator running many long-running parallel coding agents, which is this user's situation.\n- The outcome-checklist interface increased confidence without increasing accuracy, which is an over-trust risk. It should be paired with objective gates such as tests and CI.\n- No source studied people who are both autistic and ADHD, or twice-exceptional, as a design population.\n\n**Time sensitivity.** The agent-supervision literature is from 2025-2026 and is moving fast. Tool precedents like fleet may be abandoned or superseded quickly.",
+  "openQuestions": [
+    "Do the oversight findings (developers rarely monitor in real time; post hoc review dominates) hold for one operator running roughly 5-10 long-running parallel Claude Code sessions? What is the right attention-queue ordering and interruption policy when an agent is blocked waiting on the user? Is that an acceptable interruption or a queued item?",
+    "What does peer-reviewed evidence say about sensory-safe visual design (color contrast and saturation, typography, density, dark mode) for autistic and ADHD adults, and about the timing and batching of notifications (Slack, PR, email)? No claims on either topic survived verification.",
+    "Which externalized priority scheme (single next action, WIP limits, Eisenhower, MoSCoW) helps task initiation in adults with ADHD or autistic inertia? Does any of them avoid triggering demand avoidance or perfectionism? Does if-then planning transfer from child lab tasks to adult engineering work?",
+    "Does an ambient or software body double, such as visible agent activity used as co-working presence, measurably help task initiation or regulation for this user, given that controlled studies give mixed or null results? What cheap self-experiment (n-of-1, start latency, subjective overwhelm rating) would tell her?"
+  ],
+  "refuted": [],
+  "unverified": [],
+  "sources": [
+    {
+      "url": "https://www.w3.org/TR/coga-usable/",
+      "quality": "primary",
+      "angle": "Accessibility standards and cognitive-load HCI (authoritative/academic)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/pdf/2312.05029",
+      "quality": "primary",
+      "angle": "Accessibility standards and cognitive-load HCI (authoritative/academic)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.w3.org/WAI/WCAG21/Understanding/animation-from-interactions",
+      "quality": "primary",
+      "angle": "Accessibility standards and cognitive-load HCI (authoritative/academic)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.pivotalaccessibility.com/2025/03/essential-wcag-2-2-success-criteria-for-neurodiverse-users/",
+      "quality": "blog",
+      "angle": "Accessibility standards and cognitive-load HCI (authoritative/academic)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://uxdesign.cc/designing-for-autistic-people-overview-of-existing-research-d6f6dc20710e",
+      "quality": "unreliable",
+      "angle": "Accessibility standards and cognitive-load HCI (authoritative/academic)",
+      "claimCount": 0
+    },
+    {
+      "url": "https://www.nngroup.com/articles/4-principles-reduce-cognitive-load/",
+      "quality": "secondary",
+      "angle": "Accessibility standards and cognitive-load HCI (authoritative/academic)",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.russellbarkley.org/factsheets/ADHD_EF_and_SR.pdf",
+      "quality": "secondary",
+      "angle": "Neurodivergent executive-function and regulation science (clinical/neuroscience)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://dl.acm.org/doi/full/10.1145/3689648",
+      "quality": "primary",
+      "angle": "Neurodivergent executive-function and regulation science (clinical/neuroscience)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://link.springer.com/article/10.1007/s10608-007-9150-1",
+      "quality": "primary",
+      "angle": "Neurodivergent executive-function and regulation science (clinical/neuroscience)",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/pii/S3050656525001555",
+      "quality": "unreliable",
+      "angle": "Neurodivergent executive-function and regulation science (clinical/neuroscience)",
+      "claimCount": 0
+    },
+    {
+      "url": "https://monotropism.org/dinah/attention-tunnelling-and-autism/",
+      "quality": "primary",
+      "angle": "Neurodivergent executive-function and regulation science (clinical/neuroscience)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/pdf/2507.06864",
+      "quality": "primary",
+      "angle": "Neurodivergent executive-function and regulation science (clinical/neuroscience)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/html/2606.05391v1",
+      "quality": "primary",
+      "angle": "Agent-supervision and multi-session status dashboards (state-of-the-art/technical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/pdf/2602.16844",
+      "quality": "primary",
+      "angle": "Agent-supervision and multi-session status dashboards (state-of-the-art/technical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/pdf/2510.24937",
+      "quality": "primary",
+      "angle": "Agent-supervision and multi-session status dashboards (state-of-the-art/technical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://github.com/eylonronen/fleet",
+      "quality": "primary",
+      "angle": "Agent-supervision and multi-session status dashboards (state-of-the-art/technical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://code.claude.com/docs/en/hooks-guide",
+      "quality": "primary",
+      "angle": "Agent-supervision and multi-session status dashboards (state-of-the-art/technical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0747563219302596",
+      "quality": "unreliable",
+      "angle": "Interruption, notification batching, and calm technology (practitioner/implementation)",
+      "claimCount": 0
+    },
+    {
+      "url": "https://dl.acm.org/doi/fullHtml/10.1145/3552327.3552328",
+      "quality": "primary",
+      "angle": "Interruption, notification batching, and calm technology (practitioner/implementation)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://caseorganic.com/post/principles-of-calm-technology/",
+      "quality": "blog",
+      "angle": "Interruption, notification batching, and calm technology (practitioner/implementation)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.joshmorony.com/effectively-manage-attention-across-multiple-coding-agents/",
+      "quality": "blog",
+      "angle": "Interruption, notification batching, and calm technology (practitioner/implementation)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/pii/S0301051123001060",
+      "quality": "primary",
+      "angle": "Contested evidence and neurodivergent-built tooling (skeptical + existing prototypes)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://theconversation.com/dopamine-menus-the-science-behind-the-trend-and-how-it-might-help-people-with-adhd-218970",
+      "quality": "secondary",
+      "angle": "Contested evidence and neurodivergent-built tooling (skeptical + existing prototypes)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://leantime.io/open-source-project-management-for-adhd-why-we-built-leantime-for-neurodivergent-productivity/",
+      "quality": "blog",
+      "angle": "Contested evidence and neurodivergent-built tooling (skeptical + existing prototypes)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://code.claude.com/docs/en/agent-view",
+      "quality": "primary",
+      "angle": "Contested evidence and neurodivergent-built tooling (skeptical + existing prototypes)",
+      "claimCount": 5
+    }
+  ],
+  "stats": {
+    "angles": 5,
+    "sourcesFetched": 25,
+    "claimsExtracted": 108,
+    "claimsVerified": 25,
+    "confirmed": 25,
+    "killed": 0,
+    "unverified": 0,
+    "afterSynthesis": 12,
+    "urlDupes": 0,
+    "budgetDropped": 5,
+    "agentCalls": 107
+  }
+}

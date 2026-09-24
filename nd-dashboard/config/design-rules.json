@@ -1,0 +1,115 @@
+{
+  "_meta": "Machine-checkable half of DESIGN_GOVERNANCE.md. Rule ids match the doc. Change both in one commit.",
+  "files": {
+    "css": "app/public/styles.css",
+    "html": "app/public/index.html",
+    "js": "app/public/app.js"
+  },
+  "I1": {
+    "tokenBlockPrefixes": [
+      ":root",
+      "[data-theme="
+    ],
+    "allowLiterals": [
+      "rgba(0,0,0,",
+      "rgba(255,255,255,",
+      "rgba(210,170,84,",
+      "rgba(200,210,235,",
+      "#15120a"
+    ]
+  },
+  "I2": {
+    "allowedFamilies": [
+      "Jost",
+      "IBM Plex Sans",
+      "IBM Plex Mono"
+    ]
+  },
+  "S1": {
+    "requiredRule": "*,*::before,*::after{transition:none!important;animation:none!important}",
+    "banned": [
+      "@keyframes"
+    ]
+  },
+  "M1": {
+    "states": [
+      "needs-permission",
+      "needs-answer",
+      "failed",
+      "finished",
+      "working",
+      "idle"
+    ]
+  },
+  "M2": {
+    "eachStateHas": [
+      "icon",
+      "word"
+    ]
+  },
+  "D1": {
+    "maxSidebarGroups": 4
+  },
+  "D4": {
+    "allowedRadii": [
+      "0",
+      "var(--r)",
+      "4px",
+      "999px",
+      "50%"
+    ]
+  },
+  "C2": {
+    "bannedInCopy": [
+      " \u00b7 ",
+      " \u2014 ",
+      "Great question",
+      "Sure,",
+      "Let me know if",
+      "\u2192"
+    ],
+    "emoji": true
+  },
+  "tells": [
+    {
+      "id": "T1",
+      "name": "cream-and-terracotta",
+      "hint": "warm cream ground near #F4F1EA with a serif display and a clay accent near #D97757"
+    },
+    {
+      "id": "T2",
+      "name": "black-with-acid-accent",
+      "hint": "near-black ground with a single acid green or vermilion pop"
+    },
+    {
+      "id": "T3",
+      "name": "broadsheet-hairlines",
+      "hint": "hairline rules and dense newspaper columns"
+    },
+    {
+      "id": "T4",
+      "name": "one-radius-everywhere",
+      "hint": "identical rounded cards with the same grey shadow on every block"
+    },
+    {
+      "id": "T5",
+      "name": "eyebrow-on-every-heading",
+      "hint": "tracked all-caps label above every heading"
+    },
+    {
+      "id": "T6",
+      "name": "middle-dot-meta",
+      "hint": "meta strings joined with middle dots"
+    },
+    {
+      "id": "T7",
+      "name": "mono-small-labels",
+      "hint": "a monospace face used for small data labels"
+    },
+    {
+      "id": "T8",
+      "name": "appended-arrows",
+      "hint": "an arrow character appended to link or button text"
+    }
+  ]
+}

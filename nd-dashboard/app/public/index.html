@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en" data-theme="stillroom" data-mode="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stillroom</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-512.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stillroom">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<svg hidden aria-hidden="true">
+  <symbol id="i-working" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="2" fill="currentColor"/></symbol>
+  <symbol id="i-permission" viewBox="0 0 16 16"><rect x="4" y="3" width="3" height="10" rx="1" fill="currentColor"/><rect x="9" y="3" width="3" height="10" rx="1" fill="currentColor"/></symbol>
+  <symbol id="i-answer" viewBox="0 0 16 16"><path d="M5.5 6a2.5 2.5 0 1 1 3.6 2.24c-.7.35-1.1.9-1.1 1.6V10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="12.6" r="1" fill="currentColor"/></symbol>
+  <symbol id="i-finished" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-failed" viewBox="0 0 16 16"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-idle" viewBox="0 0 16 16"><path d="M10.5 2.6a5.6 5.6 0 1 0 3 8.8A6 6 0 0 1 10.5 2.6z" fill="currentColor"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4L5 11M11 5l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <!-- repo shapes: each repo keeps one for good -->
+  <symbol id="s0" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/></symbol>
+  <symbol id="s1" viewBox="0 0 16 16"><path d="M8 2.5l6 11H2z"/></symbol>
+  <symbol id="s2" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.5"/></symbol>
+  <symbol id="s3" viewBox="0 0 16 16"><path d="M8 2l6 6-6 6-6-6z"/></symbol>
+  <symbol id="s4" viewBox="0 0 16 16"><path d="M8 2l5.7 4.1-2.2 6.7H4.5L2.3 6.1z"/></symbol>
+  <symbol id="s5" viewBox="0 0 16 16"><path d="M8 2l5.2 3v6L8 14 2.8 11V5z"/></symbol>
+  <symbol id="s6" viewBox="0 0 16 16"><path d="M2.5 3h11L8 13.5z"/></symbol>
+  <symbol id="s7" viewBox="0 0 16 16"><path d="M3 8a5 5 0 0 1 10 0v5H3z"/></symbol>
+  <symbol id="moons" viewBox="0 0 132 12"><g fill="none" stroke="currentColor" stroke-width="1"><circle cx="6" cy="6" r="4.5"/><path d="M30 1.5a4.5 4.5 0 1 0 0 9 3.2 4.5 0 1 1 0-9z" fill="currentColor"/><path d="M54 1.5a4.5 4.5 0 0 0 0 9z" fill="currentColor"/><circle cx="54" cy="6" r="4.5"/><circle cx="78" cy="6" r="4.5" fill="currentColor"/><path d="M102 1.5a4.5 4.5 0 0 1 0 9z" fill="currentColor"/><circle cx="102" cy="6" r="4.5"/><path d="M126 1.5a4.5 4.5 0 1 1 0 9 3.2 4.5 0 1 0 0-9z" fill="currentColor"/></g></symbol>
+  <symbol id="vine" viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6h78M122 6h78" stroke="currentColor" stroke-width=".8"/><path d="M84 6c4-6 8-6 12 0s8 6 12 0M96 6l-3-4M96 6l3 4M100 6l-3 4M100 6l3-4" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round"/><circle cx="100" cy="6" r="1.3" fill="currentColor"/></symbol>
+  <!-- the mark: a still, a glass vessel with a slender neck -->
+  <symbol id="mark" viewBox="0 0 24 24"><path d="M10 3h4M11 3v5.5L5.5 18.2A2 2 0 0 0 7.3 21h9.4a2 2 0 0 0 1.8-2.8L13 8.5V3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 15.5h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="11" cy="18" r=".9" fill="currentColor"/><circle cx="14" cy="17" r=".7" fill="currentColor"/></symbol>
+</svg>
+
+<header class="bar">
+  <span class="brand"><svg class="brand-mark" width="20" height="20"><use href="#mark"/></svg>Stillroom</span>
+  <span class="grow"></span>
+  <svg class="moons" width="132" height="12" aria-hidden="true"><use href="#moons"/></svg>
+  <div class="menu-wrap">
+    <button class="btn icon" id="gear" aria-haspopup="true" aria-expanded="false" aria-label="Appearance"><i data-lucide="settings-2" class="ic"></i></button>
+    <div class="menu" id="menu" hidden>
+      <div class="menu-title">Theme</div>
+      <div class="swatches" id="swatches"></div>
+      <div class="menu-row"><span>Mode</span><div class="seg" id="modes"></div></div>
+      <div class="menu-row"><span>Density</span><div class="seg" id="density"></div></div>
+      <p class="menu-note">Nothing here moves on its own. Sessions update when you open them or come back to the window.</p>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+<aside class="side" id="side">
+  <div class="side-top">
+    <a href="#" class="side-new" id="side-new"><i data-lucide="plus" class="ic"></i>New session</a>
+    <a href="#rounds" class="side-rounds" id="side-rounds" title="Read and answer everything that needs you, one after another"><i data-lucide="list-checks" class="ic"></i>Rounds <span id="rounds-n"></span></a>
+    <a href="#ledger" class="side-rounds side-ledger" id="side-ledger" title="What got done, day by day"><i data-lucide="book-open" class="ic"></i>Ledger</a>
+    <a href="#prs" class="side-rounds side-prs" id="side-prs" title="Every pull request of yours that is open"><i data-lucide="git-pull-request" class="ic"></i>Pull requests <span id="prs-n"></span></a>
+  </div>
+  <div id="side-groups"></div>
+  <div class="side-grip" id="side-grip" title="Drag to resize"></div>
+</aside>
+
+<main id="main">
+  <section id="home">
+    <form class="newsess" id="newsess">
+      <div class="ns-cwd"><label for="ns-cwd">cd</label><div class="typeahead"><input id="ns-cwd" placeholder="~/code/project    Tab completes, like a shell" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="cwd-list" aria-autocomplete="list"><ul id="cwd-list" role="listbox" hidden></ul></div></div>
+      <textarea id="ns-prompt" rows="3" placeholder="What should this session do? Enter to start, Shift+Enter for a new line."></textarea>
+      <div class="ns-foot"><span class="where">Runs without permission prompts. Ask for a plan in the prompt when you want one.</span><button class="btn primary" type="submit">Start</button></div>
+    </form>
+    <section class="next" id="next"></section>
+  </section>
+
+  <section id="tsess" class="tsess" hidden></section>
+
+  <section id="prs" class="prs" hidden>
+    <p class="hint" id="prs-note" hidden></p>
+    <div id="prs-groups"></div>
+  </section>
+  <section id="ledger" class="ledger" hidden>
+    <div id="ledger-now"></div>
+    <div class="lg-filter" id="ledger-filter"><button class="btn tiny" data-f="all" aria-pressed="true">All</button><button class="btn tiny" data-f="today">Today</button><button class="btn tiny" data-f="week">This week</button><input type="date" id="ledger-date" aria-label="Pick a day"></div>
+    <div id="ledger-days"></div>
+  </section>
+  <section id="rounds" class="rounds" hidden>
+    <div class="rounds-top"><a href="#" class="btn tiny">Back to sessions</a></div>
+    <div id="rounds-list"></div>
+  </section>
+
+  <section id="sess" class="sess" hidden>
+    <div class="sess-head">
+      <h1 class="sess-title" id="sess-title" title="Click to rename" tabindex="0"></h1>
+      <span class="pill" id="sess-pill"><i class="ic ic-sm"></i><span class="pill-t"></span></span>
+      <button class="btn tiny" id="earlier" hidden><i data-lucide="history" class="ic ic-sm"></i><span></span></button>
+      <div class="sess-ctl">
+      <label class="switch" title="Show the commands Claude ran and the files it read or changed"><input type="checkbox" id="show-steps"><i data-lucide="wrench" class="ic ic-sm"></i>Show Claude's work</label>
+      <button class="btn tiny" id="sess-park" title="Leave yourself a note that shows in the sidebar, so you can put this down and come back"><i data-lucide="pen-line" class="ic ic-sm"></i><span>Leave a note</span></button>
+      <button class="btn tiny" id="sess-stop" title="Interrupt what Claude is doing right now. The session stays open"><i data-lucide="square" class="ic ic-sm"></i>Stop this turn</button>
+      <button class="btn tiny" id="sess-end" title="Close this session and stop its process. The conversation stays on disk and can be reopened"><i data-lucide="x" class="ic ic-sm"></i>Close session</button>
+      </div>
+    </div>
+    <div class="jar hidden-jar" id="sess-jar" hidden><svg class="shape" width="14" height="14"><use/></svg><span class="jar-label" id="sess-repo"></span></div>
+    <div class="park" id="park" hidden>
+      <label for="park-note">Note to self, shown in the sidebar</label>
+      <div class="park-row"><input id="park-note" placeholder="e.g. waiting on a review; pick up the test file next"><button class="btn primary" id="park-save">Save</button><button class="btn ghost" id="park-clear">Clear</button></div>
+    </div>
+    <svg class="vine" height="12" aria-hidden="true"><use href="#vine"/></svg>
+    <ol class="transcript" id="transcript"></ol>
+    <p class="status" id="status" hidden></p>
+    <div class="pending" id="pending" hidden></div>
+    <form class="composer" id="composer">
+      <textarea id="reply" rows="5" placeholder="Reply. Enter to send, Shift+Enter for a new line."></textarea>
+      <button class="btn primary" type="submit">Send</button>
+    </form>
+  </section>
+
+  <p class="undo" id="undo" hidden><span id="undo-text"></span> <button class="btn tiny" id="undo-btn">Undo</button></p>
+  <p class="stale" id="stale" hidden>Something changed while you were reading. It will show when you next open or return to a session.</p>
+  <p class="errbox" id="error" hidden></p>
+</main>
+</div>
+
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/lucide.min.js"></script>
+<script src="/pack.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

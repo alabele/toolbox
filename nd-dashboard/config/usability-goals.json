@@ -1,0 +1,18 @@
+{
+  "days": [
+    { "id": "fresh-morning", "state": "Rested, coffee, three sessions running, one waiting." },
+    { "id": "mid-hyperfocus", "state": "Deep in one repo for two hours; a permission prompt is waiting in another session." },
+    { "id": "post-meeting", "state": "Just out of a hard meeting; four sessions moved while she was away." },
+    { "id": "bad-day", "state": "Slept badly, dreading a PR review, capacity at thirty percent." }
+  ],
+  "goals": [
+    { "id": "find-what-needs-me", "text": "Open the app and know what needs her, if anything." },
+    { "id": "answer-permission", "text": "Allow or deny a waiting permission prompt with enough context to decide." },
+    { "id": "answer-question", "text": "Answer a question Claude asked, by option or in her own words." },
+    { "id": "read-latest-reply", "text": "Read what a session concluded without reading its history." },
+    { "id": "start-work", "text": "Start a new session in a folder she names, without a mouse." },
+    { "id": "park-session", "text": "Put a session down with a note so she can come back tomorrow." },
+    { "id": "find-later", "text": "Find a session from last week and pick it up." },
+    { "id": "let-go", "text": "End a stale session without feeling judged." }
+  ]
+}

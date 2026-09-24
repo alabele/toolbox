@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Stillroom app icon: ink ground, antique gold still with a moon phase strip -->
+  <rect width="512" height="512" rx="112" fill="#0c0c11"/>
+  <g fill="none" stroke="#d2aa54" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M212 96h88"/>
+    <path d="M232 96v104L124 372a40 40 0 0 0 36 56h192a40 40 0 0 0 36-56L280 200V96"/>
+    <path d="M168 336h176"/>
+  </g>
+  <g fill="#d2aa54">
+    <circle cx="228" cy="382" r="10"/><circle cx="290" cy="366" r="8"/><circle cx="262" cy="400" r="6"/>
+  </g>
+  <g transform="translate(0,0)">
+    <circle cx="256" cy="56" r="0"/>
+  </g>
+  <g fill="none" stroke="#d2aa54" stroke-width="6" opacity=".9">
+    <circle cx="140" cy="452" r="12"/>
+    <path d="M204 440a12 12 0 1 0 0 24 8 12 0 1 1 0-24z" fill="#d2aa54" stroke="none"/>
+    <circle cx="256" cy="452" r="12" fill="#d2aa54"/>
+    <path d="M308 440a12 12 0 1 1 0 24 8 12 0 1 0 0-24z" fill="#d2aa54" stroke="none"/>
+    <circle cx="372" cy="452" r="12"/>
+  </g>
+</svg>

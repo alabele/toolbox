@@ -1,0 +1,298 @@
+{
+  "question": "Research question (gap-fill B: twice-exceptional adults and emotional factors): What does the evidence say about the emotional and identity factors that affect how a gifted, ADHD and autistic adult software engineer experiences work tools, as input to designing a personal work dashboard that avoids shame and overwhelm? Earlier passes already covered: the ICSE 2024 study of engineers with ADHD (Liebel et al.), autistic inertia, monotropism, sensory over-responsivity, body doubling. Do NOT re-research those. Cover exactly these five angles, one search angle each, and prioritise primary peer-reviewed sources:\n\n1. Autistic burnout and masking/camouflaging: Raymaker et al. 2020 on autistic burnout, Higgins et al. 2021 and Mantzalas et al. on defining burnout, Hull et al. 2017 and the CAT-Q on camouflaging, Cassidy et al. on camouflaging and mental health outcomes, and what is reported to cause, worsen and relieve burnout.\n\n2. Emotional dysregulation and rejection sensitivity in adult ADHD: evidence that emotional dysregulation is a core feature of adult ADHD (Shaw et al. 2014; Beheshti et al. 2020 meta-analysis; Hirsch et al.), the scientific status of \"rejection sensitive dysphoria\" (Dodson) versus the established rejection sensitivity construct (Downey and Feldman), and any empirical studies of rejection sensitivity in ADHD (e.g. Ginapp et al. 2023; Babinski et al.).\n\n3. Co-occurring autism and ADHD in adults (AuDHD): prevalence of co-occurrence, how executive function, attention and sensory profiles differ in the combined presentation versus either alone (e.g. Antshel and Russo 2019; Hours et al. 2022; Rong et al. 2021 meta-analysis; Craig et al. 2016 on executive function), and any qualitative studies of lived experience of having both.\n\n4. Twice-exceptional and gifted adults: evidence on giftedness with ADHD and/or autism in adults, the masking of difficulties by high ability, perfectionism in gifted adults (adaptive versus maladaptive; Stricker et al. 2020 meta-analysis), late diagnosis, and procrastination-perfectionism links (Sirois et al. 2017 meta-analysis). Flag where the giftedness literature is about children or students.\n\n5. Neurodivergent people in software engineering beyond the ICSE 2024 ADHD study: studies of autistic software developers and engineers (e.g. Morris, Begel and Wiedermann 2015; Annabi et al. on autism in IT work; Gama et al. and other ICSE/CHASE/FSE papers 2023-2026 on neurodiversity in software engineering; studies of dyslexic programmers), reported challenges, strengths, and workplace or tooling accommodations; plus evidence on how performance metrics, gamification, streaks and self-tracking affect people with ADHD or autism (including negative effects of self-tracking and quantified-self on anxiety).\n\nOutput: a cited report with findings ranked by confidence, each with a concrete dashboard design implication (for example what to never display, how to word stuck states, how to handle missed days), and an explicit \"weak, contested, or pop-psychology\" section. Flag every population transfer.",
+  "summary": "The surviving evidence covers four of the five angles, and Angle 5 is a blocking gap. Nothing on neurodivergent software engineers, or on gamification, streaks, metrics and self-tracking, survived verification, so the design rules on those topics are inferred and not evidenced. Masking was the life stressor participants named most often, recovery is tied to reduced expectations and unmasking, and the tested masking-burnout correlation is only moderate. A dashboard should therefore never add to cumulative load or demand \"normal\" output, and it needs a first-class low-capacity mode. Emotional dysregulation is large and well replicated in adult ADHD (g = 1.17), and work feedback is a reported trigger for rejection-sensitivity episodes, so evaluative displays are the main hazard. \"Rejection sensitive dysphoria\" remains an unvalidated lay term. The belief that gifted people are maladaptive perfectionists is not supported in students: perfectionistic concerns, not high standards, track procrastination. That points to softening self-criticism cues and leaving ambition alone. No surviving source studies gifted, AuDHD adult engineers, so every finding is a population transfer.",
+  "findings": [
+    {
+      "claim": "Autistic burnout is described consistently across two definitional studies as chronic exhaustion, loss of skills or reduced daily functioning, reduced tolerance to stimulus, withdrawal, executive-function problems, and increased manifestation of autistic traits. Authors conclude it is distinct from occupational burnout and depression and carries serious impacts, including suicidal behaviour. DESIGN IMPLICATION: provide a low-capacity mode that reduces information density and stimulus (fewer items, no motion, muted colour) and lowers the day's expectations without comment. Never label a reduced-output period as falling behind or compare it to the user's own previous peak. Skill loss is part of the phenomenon, so tasks that were easy last month may not be now.",
+      "confidence": "high",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/32851204/",
+        "https://journals.sagepub.com/doi/10.1177/13623613211019858"
+      ],
+      "evidence": "Merged claims 0, 3, 4. Raymaker et al. 2020, Autism in Adulthood: qualitative, 19 interviews plus 19 public internet sources, US autistic adults. Higgins et al. 2021, Autism: Grounded Delphi, n=23 autistic adults with lived experience. Both are primary and peer-reviewed, and all votes were 3-0. Both definitions are provisional, self-report and not clinically validated. POPULATION TRANSFER: general autistic adults, not AuDHD, gifted or software engineers.",
+      "vote": "3-0 on all merged claims"
+    },
+    {
+      "claim": "Participants attribute burnout to cumulative load, with long-term masking the most prominent stressor, combined with barriers to relief so that expectations outweigh abilities. They associate recovery with acceptance and social support, time off or reduced expectations, and doing things in an autistic way (unmasking). Higgins et al. repeat the masking and unaccommodating-world account as a suggestion only. DESIGN IMPLICATION: the dashboard is a private, unmasked space. Let the user record state and work in their own idiom, with no performative status or professional tone required. Treat missed days as neutral and resume with no backlog pile-up, no catch-up totals and no red. Offer an explicit action to reduce today's expectations that rescopes the day and does not mark items failed. Surface total load (meetings, context switches, open commitments) as something to shed, not as a score.",
+      "confidence": "medium",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/32851204/",
+        "https://journals.sagepub.com/doi/10.1177/13623613211019858"
+      ],
+      "evidence": "Merged claims 1, 2, 5. All votes were 3-0 and the sources are primary. The causal model is participant-reported and qualitative, and it has not been tested longitudinally or in a trial. The Higgins sentence is background framing, not a result of that study. Confidence is medium because the causes and reliefs are self-attributed associations, even though they are faithfully reported. POPULATION TRANSFER: general autistic adults.",
+      "vote": "3-0 on all merged claims"
+    },
+    {
+      "claim": "Quantitative evidence qualifies the qualitative picture. In 238 autistic adults, burnout scores correlated strongly with depression, anxiety, stress and fatigue. Whether burnout is distinct from depression was not cleanly resolved. Correlations with camouflaging were only moderate, which the authors did not expect. DESIGN IMPLICATION: the dashboard must not diagnose or name a state such as burnout, depression or masking from usage patterns. Use neutral capacity language the user sets themselves (for example 'low-capacity day'). Do not infer burnout from missed days, and do not build a masking meter. If low capacity persists, the most the tool should do is make a user-written note-to-self available, with no automated concern messaging.",
+      "confidence": "medium",
+      "sources": [
+        "https://onlinelibrary.wiley.com/doi/full/10.1002/aur.3129"
+      ],
+      "evidence": "Merged claims 6, 7. Mantzalas et al. 2024, Autism Research: single cross-sectional self-report sample using an unpublished 27-item measure. Verifiers could not access the full text, so exact coefficients were not seen. The statement that the link is weaker than the qualitative literature suggests is the claim's inference, not the authors' wording. A moderate correlation is still a real positive association. POPULATION TRANSFER: general autistic adults.",
+      "vote": "3-0 (one verifier medium confidence)"
+    },
+    {
+      "claim": "Camouflaging autistic traits is associated with feelings of defeat and entrapment, which the authors frame as a transdiagnostic suicidality risk factor. The measured effect is small: 3.2% additional variance beyond autistic traits (1.1%), after controlling for age, gender, depression and anxiety. DESIGN IMPLICATION: avoid anything that induces entrapment or defeat. That rules out inescapable backlogs, counters that only grow, overdue piles with no exit, and framing in which the only way out is to do everything. Every stuck state needs a visible, legitimate exit such as drop, defer, shrink or hand off, worded as a normal choice.",
+      "confidence": "low",
+      "sources": [
+        "https://onlinelibrary.wiley.com/doi/full/10.1111/sltb.12965"
+      ],
+      "evidence": "Merged claims 8, 9. Cassidy et al. 2023: cross-sectional online survey of 180 UK undergraduates, 76.7% female. It measured autistic traits in a non-clinical sample. Mediation in cross-sectional data cannot show causation. Defeat and entrapment predicted suicidal thoughts better than camouflaging did. MAJOR POPULATION TRANSFER: students with autistic traits to a diagnosed adult engineer. The design implication is a reasoned extrapolation from the defeat and entrapment construct.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "Emotional dysregulation is large and robust in adult ADHD. A meta-analysis of 13 studies (N=2,535) found general emotion dysregulation g = 1.17 versus controls. Emotional lability was g = 1.20, negative emotional responses g = 1.12 and emotion recognition g = 0.63. Qualitatively, intense 'zero to one hundred' reactions to stimuli the person regards as minor appeared in every one of nine focus groups, and participants felt unable to control responses they knew were disproportionate. The authors call emotion dysregulation a core feature. DSM-5 treats it as an associated feature, so 'core' is the authors' position, not settled nosology. DESIGN IMPLICATION: assume a small negative cue can produce a large reaction that insight will not prevent. There should be no red badges, no alarm iconography, no surprise negative deltas on load and no sudden state changes. Keep the opening view emotionally flat and predictable, and put anything evaluative behind a deliberate click. Word stuck states as observations with a next step ('This one hasn't moved. Want to shrink it or park it?'), never as judgments.",
+      "confidence": "high",
+      "sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC7069054/",
+        "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0292721"
+      ],
+      "evidence": "Merged claims 10, 11, 12, 15. Beheshti et al. 2020, BMC Psychiatry: a peer-reviewed meta-analysis, but with very high heterogeneity (I2 about 94%), funnel asymmetry suggesting publication bias, wide confidence intervals, and no moderator analysis for comorbidity or medication. The ranking of lability above negative responses is not statistically distinguishable. Ginapp et al. 2023, PLOS ONE: n=43, ages 18-35, 84% female, recruited from online ADHD communities, only 63% with a confirmed diagnosis. POPULATION TRANSFER: ADHD-only adults versus controls, not AuDHD or gifted people. Shaw 2014 and Hirsch were requested, but no claim from them survived verification.",
+      "vote": "3-0 on all merged claims"
+    },
+    {
+      "claim": "Work feedback is a reported trigger for rejection-sensitivity episodes in ADHD. Young adults with ADHD named negative feedback about work, academic underperformance and perceived rejection online as triggers, alongside social exclusion. They described the episodes as rumination, self-blame and somatised distress. Many endorsed the lay term 'rejection-sensitive dysphoria', but the study does not validate RSD as a clinical construct. DESIGN IMPLICATION: do not pull evaluative signals from other people into the default view. That means PR review comments, change-request counts, peer comparisons, and tallies of unanswered messages or people waiting. If review feedback has to appear, show it as a neutral task ('2 threads to respond to'), batched, opened on demand, without the reviewer's name and without sentiment. Never display team-relative metrics.",
+      "confidence": "medium",
+      "sources": [
+        "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0292721"
+      ],
+      "evidence": "Merged claims 13, 14. Ginapp et al. 2023: a single qualitative study whose self-selected online sample probably already knew the term RSD. It does not quantify how often each trigger occurred. POPULATION TRANSFER: mostly female young adults with ADHD in the US and Canada, mostly inattentive subtype, not AuDHD engineers.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "Co-occurring autism and ADHD is common. Pooled current prevalence of ADHD among autistic people is 38.5% (95% CI 34.0-43.2) and lifetime prevalence is 40.2%. Note the direction: this is ADHD within autism, not the reverse. The combination is associated with more severe cognitive and adaptive impairment than autism alone, across 34 studies in a narrative synthesis. DESIGN IMPLICATION: do not design for ADHD and autism as separate checklists that add together. Expect executive-function support needs to be higher than either literature alone suggests. Lean harder on externalised structure, a single next action and low decision counts, and make every support adjustable. No surviving evidence says which supports work for the combined profile.",
+      "confidence": "medium",
+      "sources": [
+        "https://www.researchgate.net/publication/349879321_Prevalence_of_attention-deficithyperactivity_disorder_in_individuals_with_autism_spectrum_disorder_A_meta-analysis",
+        "https://journals.sagepub.com/doi/abs/10.1177/13623613211065545"
+      ],
+      "evidence": "Merged claims 16, 19. Rong et al. 2021: meta-analysis of 63 articles with mixed-age, largely clinical samples, moderated by age, intellectual disability and setting, and with an emphasis on children. Rosello et al. 2022, Autism: the comparator is autism alone, not 'a single diagnosis', and the samples are children. It is a narrative synthesis with no pooled effect. MAJOR POPULATION TRANSFER: children and clinical samples to a gifted adult. High intellectual ability may change the picture in ways these studies do not address. Antshel and Russo, Hours et al. and Craig et al. were requested, but no claims from them survived.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "In a small study of six women diagnosed in adulthood, participants experienced autism and ADHD as contradictory ('two separate parts of my brain') and sometimes complementary ('two sides of the same coin'). Identities were fragmented and shaped more by societal narratives than by people close to them. DESIGN IMPLICATION: support needs that contradict each other and change from day to day. Novelty and variety conflict with sameness and predictability, and stimulation conflicts with low sensory load. Let the user switch modes easily instead of fixing one profile. Keep a stable frame (same places, same words) and allow variable content within it. Do not label features 'for your ADHD' or 'for your autism'. Keep diagnostic language out of the interface entirely.",
+      "confidence": "low",
+      "sources": [
+        "https://journals.sagepub.com/doi/10.1177/13634593251336163"
+      ],
+      "evidence": "Merged claims 17, 18. Craddock 2025, Health: Interpretative Phenomenological Analysis of email interviews, n=6 women, UK-based author. Verifiers could see only the abstract through Crossref because the full text returned 403. The author describes it as the first lived-experience study of adults diagnosed with both, so there is nothing to corroborate it or contradict it. Participants also resolved ambivalence by seeking an objective understanding of their conditions, so fragmentation is not the whole finding. POPULATION TRANSFER: six late-diagnosed women, not engineers. It is not generalisable.",
+      "vote": "3-0 (verifier confidence medium)"
+    },
+    {
+      "claim": "The popular claim that gifted people are maladaptive perfectionists is not supported in students. Gifted students did not differ from non-gifted students in perfectionistic concerns (g = -0.117, CI [-0.337, 0.103], not significant). They showed modestly higher perfectionistic strivings (g = 0.332). The authors conclude perfectionism is not a core characteristic of giftedness. DESIGN IMPLICATION: do not build in an assumption that the user's high standards are a pathology to be managed. Do not nag the user to lower the bar, and do not rely on 'good enough' messaging by default. Offer optional scoping aids instead, such as a definition of done or a time-box. The separate risk of 2e masking, where high ability hides difficulty, has no surviving evidence in this pass.",
+      "confidence": "medium",
+      "sources": [
+        "https://link.springer.com/article/10.1007/s10648-019-09504-1"
+      ],
+      "evidence": "Merged claims 20, 21, 22. Stricker et al. 2020, Educational Psychology Review: meta-analysis of 10 comparative studies, 32 effect sizes, N=4,340. The confidence interval on concerns is wide, so the result is 'no detectable difference', not proven equivalence. These are group means and do not exclude maladaptive perfectionism in individuals or in 2e subgroups. FLAG: EVERY SAMPLE IS STUDENTS, from childhood to college. There are no adults, no twice-exceptional participants and no workers. Transferring this to a gifted AuDHD adult engineer is a large jump.",
+      "vote": "3-0 on all merged claims"
+    },
+    {
+      "claim": "Procrastination tracks self-critical perfectionism, not high standards. Trait procrastination correlates positively with perfectionistic concerns (r = .23, k=43, N=10,000) and negatively with perfectionistic strivings (r = -.22, k=38, N=9,544). DESIGN IMPLICATION: aim interventions at evaluative threat, not ambition. When a task stalls, never imply a quality judgment or a personal failing. Offer rough-first-pass framing such as 'make a bad version' or 'draft nobody sees', private scratch states, and the smallest possible starting step. Do not show ageing indicators ('stuck 9 days') or counts of times deferred, because these feed self-criticism and do not inform action.",
+      "confidence": "medium",
+      "sources": [
+        "https://eprints.whiterose.ac.uk/id/eprint/112533/"
+      ],
+      "evidence": "Merged claims 23, 24. Sirois, Molnar and Hirsch 2017, European Journal of Personality: random-effects meta-analysis. The effects are small, about 5% shared variance each, and correlational with no causal direction. POPULATION TRANSFER: the samples are probably mostly students and general population, not ADHD, autistic or gifted adults. ADHD procrastination may also have executive-function drivers that this literature does not cover.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "WEAK, CONTESTED OR POP-PSYCHOLOGY.\n(a) 'Rejection sensitive dysphoria' (Dodson) has no validation evidence in the surviving set. The only empirical support is self-report endorsement of the lay term by an online-recruited qualitative sample, so use 'rejection sensitivity' descriptively and do not treat RSD as a diagnosis.\n(b) 'Emotion dysregulation is core to ADHD' is an authors' conclusion. DSM-5 classes it as an associated feature.\n(c) 'Masking causes burnout' rests on qualitative attribution, and the one quantitative test found only a moderate correlation.\n(d) 'Autistic burnout is distinct from depression' was not psychometrically resolved.\n(e) 'Gifted means perfectionist' is contradicted by the meta-analysis, in students.\n(f) Twice-exceptional adults, 2e masking by ability and late diagnosis have NO surviving evidence.\n(g) Angle 5 has NO surviving evidence. That covers autistic and dyslexic developers, Morris, Begel and Wiedermann, Annabi, Gama, and the effects of gamification, streaks, metrics and self-tracking on ADHD and autistic people.\nDESIGN IMPLICATION: design guidance on streaks, gamification, metrics and quantified-self displays is currently inferred from Findings 5, 6 and 10. Treat 'no streaks, no scores' as a precautionary default, not an evidence-backed rule, until Angle 5 is researched.",
+      "confidence": "low",
+      "sources": [
+        "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0292721",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC7069054/",
+        "https://onlinelibrary.wiley.com/doi/full/10.1002/aur.3129",
+        "https://link.springer.com/article/10.1007/s10648-019-09504-1"
+      ],
+      "evidence": "This is a synthesis-level assessment of what the 25 surviving claims do and do not establish. Items (f) and (g) are absences. No claim on those topics reached or survived the 3-vote verification in this pass, so nothing was refuted there. Verifiers repeatedly reported that the session's WebSearch budget (200 of 200) was exhausted, which may be why coverage stops short.",
+      "vote": "n/a (synthesis)"
+    }
+  ],
+  "caveats": "**Coverage gaps.** The 25 surviving claims cover Angles 1 and 2 well, and Angles 3 and 4 partly.\n- Angle 5 has no claims at all. That covers neurodivergent software engineers, and the effects of gamification, streaks, metrics and self-tracking.\n- Angle 4 has nothing on twice-exceptional adults, masking by ability or late diagnosis.\n- Angle 3 has nothing on executive-function, attention or sensory profile differences in adults.\n- Several named sources have no surviving claims: Shaw 2014, Hirsch, Downey and Feldman, Babinski, Hull 2017 and the CAT-Q, Antshel and Russo, Hours, and Craig.\n\nThe synthesis input does not show whether those claims were never extracted or were voted out. Verifiers repeatedly noted that the session WebSearch budget was exhausted at 200 of 200. That makes a resource limit the likely reason the rest was not fulfilled, not a lack of literature. A further pass is feasible. It needs a fresh search budget, and it should fetch Crossref, Europe PMC, PMC or Semantic Scholar directly, because the publisher sites returned 403 errors and cookie walls.\n\n**Verification limits.**\n- Most verifiers could not run the contradicting-evidence search, so '3-0' mostly confirms that each quote is faithful to its source. It does not confirm that no counter-evidence exists.\n- Several sources were checked only through abstracts or metadata: Mantzalas 2024, Cassidy 2023, Craddock 2025, Higgins 2021, Rong 2021 and Rosello 2022.\n\n**Population transfer applies to every finding.** No surviving source studies gifted adults, AuDHD adults in tech, or software engineers.\n- The giftedness evidence is entirely from students.\n- The AuDHD impairment review covers children.\n- The prevalence meta-analysis is mixed-age and largely clinical.\n- The camouflaging and suicidality study is of non-clinical undergraduates.\n- The ADHD qualitative study is 84% female, recruited online, with only 63% holding a confirmed diagnosis.\n- The AuDHD lived-experience study is six women.\n\n**Design implications are extrapolations.** None of the sources tested interface designs, so treat the implications as hypotheses for the user to validate against their own experience.\n\n**Time sensitivity.** Autistic burnout measurement and AuDHD lived-experience research are moving quickly (2024-2026), so these findings could be refined soon.\n\n**Safety note.** Several sources concern suicidality. The dashboard should not attempt detection or intervention.",
+  "openQuestions": [
+    "Angle 5, unanswered: what do studies of autistic and dyslexic developers report about challenges, strengths and tooling accommodations (Morris, Begel and Wiedermann 2015; Annabi et al.; Gama et al.; ICSE/CHASE/FSE 2023-2026)? Is there direct evidence that streaks, gamification, performance metrics or self-tracking harm or help people with ADHD or autism?",
+    "Is there any primary evidence on twice-exceptional ADULTS: high ability masking difficulties, late diagnosis, and whether perfectionistic concerns are elevated in 2e subgroups even though they are not in gifted students overall?",
+    "How do executive-function, attention and sensory profiles in adult AuDHD differ from either condition alone (Antshel and Russo 2019; Hours et al. 2022; Craig et al. 2016)? Does high IQ moderate the 'more severe impairment' finding from child samples?",
+    "What is the empirical status of rejection sensitivity in ADHD using the validated Downey and Feldman construct (for example Babinski et al.)? Does it replicate outside self-selected online samples, and does it occur in autistic or AuDHD adults?"
+  ],
+  "refuted": [],
+  "unverified": [],
+  "sources": [
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32851204/",
+      "quality": "primary",
+      "angle": "Autistic burnout and camouflaging",
+      "claimCount": 5
+    },
+    {
+      "url": "https://journals.sagepub.com/doi/10.1177/13623613211019858",
+      "quality": "primary",
+      "angle": "Autistic burnout and camouflaging",
+      "claimCount": 5
+    },
+    {
+      "url": "https://onlinelibrary.wiley.com/doi/full/10.1002/aur.3129",
+      "quality": "primary",
+      "angle": "Autistic burnout and camouflaging",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/pii/S1750946724001673",
+      "quality": "unreliable",
+      "angle": "Autistic burnout and camouflaging",
+      "claimCount": 0
+    },
+    {
+      "url": "https://onlinelibrary.wiley.com/doi/full/10.1111/sltb.12965",
+      "quality": "primary",
+      "angle": "Autistic burnout and camouflaging",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7069054/",
+      "quality": "primary",
+      "angle": "ADHD emotional dysregulation and rejection sensitivity",
+      "claimCount": 5
+    },
+    {
+      "url": "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0292721",
+      "quality": "primary",
+      "angle": "ADHD emotional dysregulation and rejection sensitivity",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.researchgate.net/publication/349879321_Prevalence_of_attention-deficithyperactivity_disorder_in_individuals_with_autism_spectrum_disorder_A_meta-analysis",
+      "quality": "primary",
+      "angle": "Co-occurring autism and ADHD in adults",
+      "claimCount": 5
+    },
+    {
+      "url": "https://link.springer.com/article/10.1007/s11920-019-1020-5",
+      "quality": "secondary",
+      "angle": "Co-occurring autism and ADHD in adults",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.dovepress.com/a-review-of-executive-function-deficits-in-autism-spectrum-disorder-an-peer-reviewed-fulltext-article-NDT",
+      "quality": "secondary",
+      "angle": "Co-occurring autism and ADHD in adults",
+      "claimCount": 4
+    },
+    {
+      "url": "https://journals.sagepub.com/doi/10.1177/13634593251336163",
+      "quality": "primary",
+      "angle": "Co-occurring autism and ADHD in adults",
+      "claimCount": 5
+    },
+    {
+      "url": "https://journals.sagepub.com/doi/abs/10.1177/13623613211065545",
+      "quality": "primary",
+      "angle": "Co-occurring autism and ADHD in adults",
+      "claimCount": 3
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12840745/",
+      "quality": "primary",
+      "angle": "Co-occurring autism and ADHD in adults",
+      "claimCount": 5
+    },
+    {
+      "url": "https://link.springer.com/article/10.1007/s10648-019-09504-1",
+      "quality": "primary",
+      "angle": "Twice-exceptional gifted adults and perfectionism",
+      "claimCount": 5
+    },
+    {
+      "url": "https://eprints.whiterose.ac.uk/id/eprint/112533/",
+      "quality": "primary",
+      "angle": "Twice-exceptional gifted adults and perfectionism",
+      "claimCount": 4
+    },
+    {
+      "url": "https://doi.org/10.1177/1087054708326113",
+      "quality": "primary",
+      "angle": "Twice-exceptional gifted adults and perfectionism",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.researchgate.net/publication/267746594_High_IQ_May_Mask_the_Diagnosis_of_ADHD_by_Compensating_for_Deficits_in_Executive_Functions_in_Treatment-Naive_Adults_With_ADHD",
+      "quality": "primary",
+      "angle": "Twice-exceptional gifted adults and perfectionism",
+      "claimCount": 3
+    },
+    {
+      "url": "https://arxiv.org/pdf/2411.13950",
+      "quality": "primary",
+      "angle": "Neurodivergent software engineers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/html/2511.02736",
+      "quality": "primary",
+      "angle": "Neurodivergent software engineers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.semanticscholar.org/paper/Understanding-the-Challenges-Faced-by-Neurodiverse-Morris-Begel/57bd04c675845ae2c795df738ba08134e368e68a",
+      "quality": "primary",
+      "angle": "Neurodivergent software engineers",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0950584924000399",
+      "quality": "unreliable",
+      "angle": "Neurodivergent software engineers",
+      "claimCount": 0
+    },
+    {
+      "url": "https://arxiv.org/pdf/2511.00706",
+      "quality": "primary",
+      "angle": "Neurodivergent software engineers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/pdf/2506.03840",
+      "quality": "primary",
+      "angle": "Neurodivergent software engineers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/pdf/2603.22609",
+      "quality": "primary",
+      "angle": "Metrics, gamification and self-tracking harms",
+      "claimCount": 5
+    },
+    {
+      "url": "https://dl.acm.org/doi/10.1145/3491102.3517592",
+      "quality": "primary",
+      "angle": "Metrics, gamification and self-tracking harms",
+      "claimCount": 4
+    },
+    {
+      "url": "https://academic.oup.com/jcr/article-abstract/42/6/967/2358309",
+      "quality": "primary",
+      "angle": "Metrics, gamification and self-tracking harms",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/28503678/",
+      "quality": "primary",
+      "angle": "Metrics, gamification and self-tracking harms",
+      "claimCount": 5
+    }
+  ],
+  "stats": {
+    "angles": 6,
+    "sourcesFetched": 27,
+    "claimsExtracted": 115,
+    "claimsVerified": 25,
+    "confirmed": 25,
+    "killed": 0,
+    "unverified": 0,
+    "afterSynthesis": 11,
+    "urlDupes": 1,
+    "budgetDropped": 8,
+    "agentCalls": 110
+  }
+}

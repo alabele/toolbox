@@ -1,0 +1,278 @@
+{
+  "question": "Research question (gap-fill D: developer work fragmentation, task methods, tracking and motivation claims): Earlier research passes ran out of web-search budget before reaching these topics, so they have zero verified claims. Cover exactly these five angles, one search angle each. To avoid paywalls and 403 errors, fetch through open sources wherever possible: PubMed, PubMed Central, Europe PMC, arXiv, Semantic Scholar, author-hosted PDFs on university sites, and ACM open-access pages, rather than publisher landing pages. Prioritise primary peer-reviewed sources. This is input to designing a personal work dashboard for an adult software engineer who is gifted, ADHD and autistic.\n\n1. Task switching, multitasking and resumption in software development: Parnin and Rugaber 2011 \"Resumption strategies for interrupted programming tasks\" and Parnin and DeLine 2010 on cues for resuming tasks; Meyer et al. (2014, 2017) on developer work fragmentation and perceptions of productivity; Vasilescu et al. 2016 \"The sky is not the limit: multitasking across GitHub projects\"; Abad et al. on task interruption in software development. What resumption cues help, and how many concurrent projects is too many?\n\n2. Work-in-progress limits and task-management methods: any empirical evaluation of WIP limits or kanban in software teams or for individuals (e.g. Ahmad et al. systematic reviews of kanban in software engineering); Masicampo and Baumeister 2011 \"Consider it done\" on plan-making reducing intrusive thoughts from unfulfilled goals, and its replication status; the Zeigarnik and Ovsiankina effects and their replication status; goal-gradient effect (Kivetz et al. 2006); evidence on to-do list design, Getting Things Done (Heylighen and Vidal 2008 is theoretical), and progress visualisation.\n\n3. Self-tracking, gamification, streaks and performance metrics, including harms: evidence on negative effects of self-tracking and quantified-self (e.g. Etkin 2016 \"The hidden cost of personal quantification\"; studies of tracking-related anxiety, guilt and abandonment such as Epstein et al. on lapses in self-tracking); gamification meta-analyses (e.g. Sailer and Homner 2020; Koivisto and Hamari 2019); streak effects and streak-loss demotivation (e.g. Silverman and Barasch 2023); and any studies of gamified or reward-based apps for adults with ADHD or autistic adults.\n\n4. The dopamine account of ADHD motivation and its popular derivatives: Volkow et al. 2009 (JAMA) and 2011 (Molecular Psychiatry) PET studies of the dopamine reward pathway and motivation deficit in adult ADHD; reviews and critiques of the dopamine hypothesis of ADHD (e.g. Gonon 2009; MacDonald et al. 2024 or other recent reviews); and whether any empirical work supports the popular \"dopamine menu\", \"dopamine detox\" or Dodson's \"interest-based nervous system\" concepts. Also HRV biofeedback efficacy (Lehrer et al. 2020 meta-analysis; Goessl et al. 2017 meta-analysis) and any HRV biofeedback trials in ADHD.\n\n5. Neurodivergent software engineers and breaks: studies of autistic software developers and IT workers (Morris, Begel and Wiedermann 2015 \"Understanding the challenges faced by neurodiverse software engineering employees\"; Annabi and Locke; Gama, Liebel and colleagues' 2024-2026 papers on neurodiversity in software engineering; studies of dyslexic programmers such as McChesney and Bond); plus micro-break evidence (Albulescu et al. 2022 meta-analysis) and attention restoration meta-analyses (Ohly et al. 2016; Stevenson et al. 2018).\n\nOutput: a cited report with findings ranked by confidence, each with a concrete dashboard design implication, and an explicit \"weak, contested, or pop-psychology\" section. Flag every population transfer (children to adults, neurotypical to neurodivergent, students to professionals, teams to individuals).",
+  "summary": "Only angles 1-3 of the five produced verified claims, and only partly. Angle 1 (developer fragmentation and resumption) is well covered. Angle 2 has verified claims only for the Zeigarnik/Ovsiankina effects and plan-making. Angle 3 has verified claims only for Etkin 2016 and Silverman and Barasch on streaks. Angle 4 (dopamine account of ADHD, HRV biofeedback) and angle 5 (neurodivergent engineers, micro-breaks, attention restoration) have zero verified claims, so they remain unverified and cannot support design decisions. Kanban/WIP limits, goal-gradient, GTD, gamification meta-analyses and ADHD or autism app studies are also unverified.\n\nThe strongest supported points for a personal dashboard are these:\n- Resuming interrupted programming work is slow and almost always needs context rebuilding. An automatically captured chronological activity trail beat manual notes in one small controlled lab study (Parnin and DeLine 2010).\n- Developers who work on many projects were more productive when they focused on few projects per day (Vasilescu et al. 2016, observational). No verified claim gives a hard threshold for \"too many\".\n- Self-initiated switches were more disruptive than external ones in one study's recorded task data, even though the developers surveyed in the same study believed the opposite.\n- The Zeigarnik memory effect does not hold up in a 2025 meta-analysis. The tendency to resume interrupted tasks (Ovsiankina) does. In one 2011 paper, an earnest, specific plan removed the intrusive thoughts caused by unfinished goals in lab studies.\n- Measurement can raise how much of an activity people do while lowering enjoyment and continued engagement. How a streak is displayed, independent of actual past behaviour, changes later behaviour.\n\nEvery finding comes from samples that are neurotypical or of unspecified neurotype: developers, students or consumers. Applying any of it to a gifted, ADHD and autistic engineer is an untested population transfer.",
+  "findings": [
+    {
+      "claim": "Resuming interrupted programming work is slow and almost always needs context rebuilding. In IDE logs from 86 programmers, 10% of sessions with editing activity had a first edit within 1 minute, and about 30% had an edit lag over 30 minutes. In a 1,213-session subset, only about 7% of sessions involved no navigation to other code before the first edit. When developers resumed in the last-edited method, they did so within 1 minute 35% of the time. DESIGN IMPLICATION: treat resumption as the most expensive moment in the day. The dashboard should reopen the user at the exact last-edited location for each task, with the surrounding context (files visited, last edits) one click away, instead of showing a bare task title. POPULATION TRANSFER: professional and volunteer developers of unspecified neurotype, 2005-2008 Eclipse and Visual Studio logs, applied to one ADHD/autistic individual.",
+      "confidence": "high",
+      "sources": [
+        "https://doi.org/10.1007/s11219-010-9104-9",
+        "https://chrisparnin.me/pdf/parnin-sqj11.pdf"
+      ],
+      "evidence": "Merges claims [2] and [3], both verified against the full text of Parnin and Rugaber 2011 (Software Quality Journal 19:5-34). Caveats:\n- 'About 10,000 sessions' is the abstract's rounding; the 10% and 30% figures use a denominator of about 5,175 sessions that contained edits.\n- A session boundary is any IDE inactivity gap of 15 minutes or more, so interruption is inferred and not observed.\n- The authors note that edit lag may include thinking about a new task or debugging, not only resumption cost.\n- 'Context rebuilding' is the authors' interpretation of navigation before editing.\n- The study is exploratory and observational, a single paper, with no replication known to the verifiers.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "An automatically captured resumption cue outperformed manual note-taking in a controlled lab study. Developers given either of two automated cues completed interrupted tasks at about twice the success rate of those using notes alone. The two cues performed similarly, but developers strongly preferred the chronological timeline of recent activity shown as code snippets over an aggregated view of program symbols. DESIGN IMPLICATION: capture a passive, chronological activity trail per task (recent edits, files, commits, commands) and show it as a timeline at resume time. Do not rely on the user remembering to write a hand-off note. Keep manual notes as an optional extra. POPULATION TRANSFER: professional developers of unspecified neurotype using Visual Studio prototypes, applied to an ADHD/autistic individual. For ADHD, removing the need to remember to take notes is plausibly more valuable, but this is untested.",
+      "confidence": "medium",
+      "sources": [
+        "https://doi.org/10.1145/1753326.1753342"
+      ],
+      "evidence": "Merges claims [6] and [7], verified verbatim against the abstract of Parnin and DeLine, CHI 2010, on the Microsoft Research publication page and Crossref. Confidence is medium and not high because this is a single 2010 study and no replication is known. The verifiers could not confirm the sample size from the abstract; they recalled about 15 participants but did not check it. The preference finding is self-reported.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "Developers already externalise task state, and deliberately leave 'roadblock cues' that force them to meet a reminder on return. In a survey of 414 programmers (371 at Microsoft), 77% reported actively tracking task status through note-taking across bug trackers, OneNote, code comments and paper. Participants estimated using intentional compile or build errors as a resumption aid in 43% of resumptions, when available. DESIGN IMPLICATION: offer a one-keystroke 'park this task' action that records a next-step note and surfaces it as an unavoidable first item on resume, the dashboard equivalent of a deliberate compile error. Consolidate the scattered note media into one place per task. POPULATION TRANSFER: mostly Microsoft professionals around 2009, self-report, neurotype unspecified.",
+      "confidence": "medium",
+      "sources": [
+        "https://doi.org/10.1007/s11219-010-9104-9",
+        "https://chrisparnin.me/pdf/parnin-sqj11.pdf"
+      ],
+      "evidence": "Merges claims [4] and [5], verified against the full text of Parnin and Rugaber 2011. Caveats:\n- The 43% is a self-reported estimate conditional on the strategy being available, not observed behaviour.\n- The Eclipse Problem View was used in 9% of logged sessions, but the authors say they cannot tell whether those errors were left intentionally. The 9% must not be read as a rate of roadblock-cue use.\n- The paper does not say whether the 77% is pooled across both survey groups.\n- These results describe what developers do. They do not show that roadblock cues improve outcomes.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "On 'how many concurrent projects is too many': no verified claim gives a hard threshold. The supported statement is that both the rate of switching and the breadth of projects matter. Developers who work on many projects were more productive when they focused on few projects per day. High within-day switching was associated with lower productivity as total project count rose. DESIGN IMPLICATION: put a soft WIP limit on projects per day, not per week. Show a 'today' view restricted to a small, user-chosen number of projects, and make within-day project switches visible. Do not hard-block switches, and do not present any specific number as evidence-based. POPULATION TRANSFER: open-source GitHub contributors applied to one salaried neurodivergent professional, and ecosystem-level regression applied to individual-level advice.",
+      "confidence": "medium",
+      "sources": [
+        "https://doi.org/10.1145/2884781.2884875"
+      ],
+      "evidence": "Merges claims [0] and [1], verified against the abstract of Vasilescu et al., ICSE 2016, via Semantic Scholar, Crossref and OpenAlex. The full text was blocked. The study is observational and uses mined GitHub data. Productivity is proxied by code output (lines of code or commits), not by quality. A verifier recalled from memory, without checking, that the paper reports productivity rising with moderate multitasking up to roughly 5 projects per week. If that is correct, 'fewer is always better' is the wrong reading; the figure should not be cited without checking the full text. No verified evidence on kanban or WIP limits (for example the Ahmad et al. reviews) reached this synthesis.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "Self-initiated task switches may be the more damaging kind, and developers misjudge this. In one study's recorded task data (4,910 tasks from 17 professional developers), self-interruptions were more disruptive than external interruptions and harmed performance on the interrupted task. Most of the 132 developers surveyed believed the opposite. Contextual factors (interruption type, time of day, task type and context) predicted disruptiveness more strongly than task-specific factors such as priority, level and temporal stage. DESIGN IMPLICATION: do not stop at blocking notifications. Add a low-friction capture inbox so that an impulse to switch can be recorded without acting on it. Log self-initiated switches by time of day and task type so the user can see their own pattern, and keep that log as private insight and never as a score (see the measurement finding). Time-of-day context deserves as much display weight as priority labels. POPULATION TRANSFER: 17 developers of unspecified neurotype applied to an ADHD individual. Self-interruption is plausibly more frequent in ADHD, but this study does not test that.",
+      "confidence": "medium",
+      "sources": [
+        "https://arxiv.org/abs/1805.05508"
+      ],
+      "evidence": "Merges claims [8], [9] and [10], all verbatim from the abstract of Abad et al. (arXiv 1805.05508; EASE 2018). Caveats:\n- Single study with a small longitudinal sample, retrospective and correlational.\n- Disruptiveness was operationalised from task-repository measures, not from cognitive measures.\n- No independent replication was verified. Verifiers noted from memory that it is consistent with Katidioti et al. and with Mark et al.\n- The finding should be stated as one study's result and not as a general law.",
+      "vote": "3-0 on all three merged claims"
+    },
+    {
+      "claim": "Developers' sense of a productive day comes from completing or progressing planned goals and from uninterrupted flow. It is only loosely tied to how fragmented the day actually was, and the cost of a switch is not uniform. In a survey of 379 professional developers, the top reasons given for a productive day were completing tasks or making progress on goals (53.2%) and getting into flow with few context switches or interruptions (50.4%). In 4-hour observations of 11 developers, participants switched tasks 13.3 times per hour (about 6.2 minutes per task, across 2-10 tasks), yet 8 of 11 still rated themselves fairly or very productive. Developers said switch cost depends on the switch's duration, its reason and how focused they were. Switching to a different task costs more than a quick email. DESIGN IMPLICATION: make visible progress on a small number of planned daily goals the main feedback signal. Do not show a raw switch count as a headline metric, because it does not track felt productivity and would penalise cheap switches. If switches are shown, distinguish long cross-task switches from brief ones. POPULATION TRANSFER: convenience sample of professionals (about 51% Microsoft) of unspecified neurotype. These are perceptions, not measured output.",
+      "confidence": "medium",
+      "sources": [
+        "https://doi.org/10.1145/2635868.2635892",
+        "https://thomas-zimmermann.com/publications/files/meyer-fse-2014.pdf"
+      ],
+      "evidence": "Merges claims [11], [12] and [13], verified against the full text of Meyer, Fritz, Murphy and Zimmermann, FSE 2014. Caveats:\n- The 53.2% denominator is about 361 respondents to the open-ended item, not all 379.\n- The observation sample was n=11, one day each, recruited through personal contacts, with a possible observer effect and large SDs (±8.5 switches per hour).\n- A 'task' included email and helping co-workers.\n- The email-versus-task comparison is a single participant's quote.\n- All measures are self-reported. Meyer et al. 2017 on work fragmentation was requested but produced no verified claims.",
+      "vote": "3-0 on all three merged claims"
+    },
+    {
+      "claim": "The Zeigarnik effect (better memory for unfinished tasks) is not reliable, but the Ovsiankina effect (a tendency to resume interrupted tasks) holds as a general tendency. A 2025 meta-analysis found no memory advantage for unfinished tasks when measures were synthesised across studies. It notes that the memory effect has proven particularly difficult to replicate, and it concludes that the Ovsiankina effect represents a general tendency whereas the Zeigarnik effect lacks universal validity. DESIGN IMPLICATION: do not assume open tasks will 'stay in mind' or that leaving work unfinished helps recall, so store everything externally. The pull to resume can be used: surfacing a clearly partly-done task with an obvious next step is a reasonable re-entry hook. The same pull is also an argument for limiting how many open loops are visible at once. POPULATION TRANSFER: mostly older laboratory experiments on non-clinical participants (often students) applied to a neurodivergent professional.",
+      "confidence": "medium",
+      "sources": [
+        "https://doi.org/10.1057/s41599-025-05000-w"
+      ],
+      "evidence": "Merges claims [14], [15] and [16], confirmed against the Crossref abstract of Ghibellini and Meier 2025, Humanities and Social Sciences Communications. The full text was inaccessible, so effect sizes, number of studies, heterogeneity and publication-bias statistics are unverified. The 'difficult to replicate' quote was not checked word for word but is weaker than the paper's own null result. The authors attribute the original effect to situational moderators (experimenter authority, task involvement), so the correct reading is 'lacks universal validity' and not 'proven non-existent'. It is a single meta-analysis, but recent and peer-reviewed.",
+      "vote": "3-0 on all three merged claims"
+    },
+    {
+      "claim": "In lab studies, making a specific plan for an unfinished goal removed its cognitive intrusion without the goal being completed, but only when the plan was earnest. Masicampo and Baumeister (2011) reported that unfinished goals caused intrusive thoughts during unrelated reading, heightened accessibility of goal-related words, and worse performance on an unrelated anagram task. Letting participants formulate specific plans eliminated these effects. The reduction was mediated by earnestness: participants who later executed their plans were the ones who showed no more intrusions. DESIGN IMPLICATION: when the user parks or defers a task, prompt for a concrete next action with a when and where, not just a title. Do not reward token plans, for example with auto-filled placeholders, because the benefit appears tied to plans the user intends to carry out. POPULATION TRANSFER: undergraduates, presumably neurotypical, in short lab tasks, applied to a professional adult with ADHD and autism. Intrusive thoughts and the gap between planning and execution may differ substantially in ADHD.",
+      "confidence": "low",
+      "sources": [
+        "https://europepmc.org/article/MED/21688924"
+      ],
+      "evidence": "Merges claims [17], [18] and [19], all verbatim from the Europe PMC abstract of PMID 21688924 (J Pers Soc Psychol 2011). Confidence is low despite the 3-0 votes, for these reasons:\n- Replication status was requested but could not be checked because the search budget was exhausted.\n- The paper is from the 2011 social-priming era, with small per-study samples.\n- The earnestness result is correlational within one study; later execution was used as a proxy and earnestness was not manipulated.\n- 'Eliminated' is the authors' wording and should not be treated as an established effect size.\n- The inference that a token plan will not work is a hedged extrapolation and is not stated by the authors.",
+      "vote": "3-0 on all three merged claims"
+    },
+    {
+      "claim": "Measuring an activity can increase how much of it is done while reducing enjoyment, continued engagement and wellbeing. Across six experiments (Etkin 2016), measurement increased output (for example walking or reading more) but could also reduce enjoyment. The proposed mechanism is that attention to output undermines intrinsic motivation by making enjoyable activities feel like work. Measurement could also decrease continued engagement and subjective wellbeing. DESIGN IMPLICATION: measure sparingly and on purpose. Keep quantification away from activities the user does for intrinsic enjoyment or interest, such as exploratory coding, learning and special-interest work. Make metrics opt-in, hideable and descriptive, not evaluative. Prefer qualitative progress views to counters. POPULATION TRANSFER: students and online general-population participants doing short leisure tasks (walking, reading, colouring), applied to long-run professional work by an ADHD/autistic adult. The effect may be weaker for tasks already framed as work.",
+      "confidence": "medium",
+      "sources": [
+        "https://doi.org/10.1093/jcr/ucv095"
+      ],
+      "evidence": "Merges claims [20], [21] and [22], all verbatim from the Crossref abstract of Etkin, Journal of Consumer Research 2016. The abstract hedges with 'can' throughout, and the claim should keep that hedge. A verifier recalled, without checking, that the enjoyment cost is attenuated for goal-directed or work-like activities. That boundary condition matters for a work dashboard and should be checked in the full text. The evidence is a single six-experiment paper by one author. Replication status and long-term effects are unverified. No verified claims reached the synthesis on tracking-related anxiety, guilt or abandonment (Epstein et al.), or on the gamification meta-analyses (Sailer and Homner; Koivisto and Hamari).",
+      "vote": "3-0 on all three merged claims"
+    },
+    {
+      "claim": "The streak display itself changes later behaviour, independently of what the person actually did. Across seven studies (Silverman and Barasch), highlighting an intact streak in a behavioural log increased subsequent engagement relative to highlighting a broken streak. The effect depended solely on how behaviour was represented in the log, not on actual past behaviour. Per the abstract, the effect is amplified when the break is self-attributed and attenuated when the streak can be repaired. DESIGN IMPLICATION: if streaks are used at all, make them forgiving. Offer repair or grace mechanisms such as rest days, freezes and 'N of the last 7 days' windows. Do not visually emphasise a break, and do not frame breaks as the user's fault. A cumulative or rolling view is safer than a consecutive-day counter that resets to zero. POPULATION TRANSFER: general consumers in mostly short-horizon online experiments, applied to long-run work behaviour in an ADHD/autistic adult. The source does not test the amplification from self-attributed breaks in ADHD or autistic adults.",
+      "confidence": "medium",
+      "sources": [
+        "https://doi.org/10.1093/jcr/ucac029"
+      ],
+      "evidence": "Merges claims [23] and [24], verbatim from the Crossref abstract of Silverman and Barasch, Journal of Consumer Research (online 2022, print 2023). The finding is a relative contrast between intact and broken streak displays. It does not establish that a broken streak reduces engagement below a baseline with no streak, or that streaks give an absolute benefit. No independent replication check was possible. No verified studies on streaks or gamification in ADHD or autistic adults reached this synthesis.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "WEAK, CONTESTED OR POP-PSYCHOLOGY, and UNVERIFIED in this pass. Do not base design decisions on the following, because no claims survived verification for them:\n- The dopamine account of ADHD motivation (Volkow 2009 and 2011 PET studies; Gonon 2009; MacDonald et al. 2024 critiques).\n- 'Dopamine menu', 'dopamine detox' and Dodson's 'interest-based nervous system'.\n- HRV biofeedback (Lehrer 2020; Goessl 2017) and any ADHD trials of it.\n- Gamification meta-analyses.\n- Gamified or reward apps for ADHD or autistic adults.\n- Kanban and WIP-limit evaluations.\n- The goal-gradient effect (Kivetz 2006).\n- GTD and to-do list design.\n- Studies of neurodivergent software engineers (Morris, Begel and Wiedermann 2015; Annabi and Locke; Gama and Liebel 2024-2026; McChesney and Bond).\n- Micro-breaks (Albulescu 2022) and attention restoration (Ohly 2016; Stevenson 2018).\nWithin the verified set, the contested items are these:\n- The Zeigarnik memory effect, now contradicted by meta-analysis.\n- Masicampo and Baumeister's 'plan eliminates intrusions', whose replication status is unknown and which dates from an era of small-sample social psychology.\n- Any specific number for 'how many projects is too many'.\nDESIGN IMPLICATION: label any dopamine-framed, streak-reward or biofeedback feature as experimental and removable by the user. Do not describe such features as evidence-based.",
+      "confidence": "low",
+      "sources": [
+        "https://doi.org/10.1057/s41599-025-05000-w",
+        "https://europepmc.org/article/MED/21688924",
+        "https://doi.org/10.1145/2884781.2884875"
+      ],
+      "evidence": "This finding records absence. The 25 surviving claims cover only Parnin and Rugaber 2011, Parnin and DeLine 2010, Vasilescu 2016, Abad 2018, Meyer 2014, Ghibellini and Meier 2025, Masicampo and Baumeister 2011, Etkin 2016, and Silverman and Barasch 2023. Angles 4 and 5 of the research question produced no verified claims. Most of angle 2 and part of angle 3 are also empty. Anything a reader remembers about those topics is background knowledge and was not verified here.",
+      "vote": "n/a (gap statement)"
+    }
+  ],
+  "caveats": "1. Coverage is partial. Of the five requested angles, only angle 1 is well covered. Angle 2 has verified claims only for the Zeigarnik/Ovsiankina effects and plan-making. Angle 3 has verified claims only for Etkin 2016 and Silverman and Barasch. Angles 4 (dopamine, HRV biofeedback) and 5 (neurodivergent engineers, micro-breaks, attention restoration) have none.\n2. No contradiction or replication searches were run. Every verifier reported that the web-search budget was exhausted, so '3-0' means the claim matches its source. It does not mean the literature agrees. Replication status is unknown for Masicampo and Baumeister, Etkin, Silverman and Barasch, Parnin and DeLine, and Abad et al.\n3. Several claims were verified against abstracts only: Vasilescu 2016, Parnin and DeLine 2010, Ghibellini and Meier 2025, Etkin 2016, Silverman and Barasch 2023, Masicampo and Baumeister 2011, and Abad 2018. Verifiers recalled further details from memory without checking them. These include the roughly 5 projects per week figure in Vasilescu, the sample of about 15 in Parnin and DeLine, and Etkin's work-framing boundary condition. None of these should be cited until checked against full text.\n4. Every finding is a population transfer. No verified source sampled ADHD, autistic or gifted adults. The samples were developers of unspecified neurotype (Microsoft-heavy, open-source GitHub), undergraduates and online consumers. Other transfers present are students to professionals (Masicampo; Etkin), ecosystem-level regression to individual advice (Vasilescu), leisure activities to professional work (Etkin), consumer decisions to work habits (Silverman and Barasch), and perception to measured productivity (Meyer).\n5. Several sources are dated. The IDE logs are from 2005-2008 and the surveys from 2009-2014. The behavioural findings probably still hold, but the tooling specifics do not.\n6. Most developer-study results are observational or self-report, so causal language should be avoided. The Parnin and DeLine cue comparison is the only controlled lab comparison of resumption cues in this set.\n7. Confidence ratings reflect both source quality and single-study status. Most findings rest on one paper, so they are rated medium despite unanimous votes.",
+  "openQuestions": [
+    "Does any of this transfer to ADHD or autistic developers? Specifically, are self-interruptions more frequent or more costly for them, do automated resumption cues help more or less, and what do the studies of neurodivergent engineers (Morris, Begel and Wiedermann 2015; Gama and Liebel 2024-2026; Annabi and Locke) actually report? Angle 5 produced no verified claims.",
+    "What is the replication status of Masicampo and Baumeister 2011 and of Etkin 2016? Does Etkin's enjoyment cost of measurement hold for work-framed, goal-directed tasks, or only for leisure activities?",
+    "Is there any empirical threshold for concurrent projects or WIP limits for individuals? This needs a full-text check of the curve in Vasilescu 2016 and of the Ahmad et al. kanban reviews. Do broken streaks reduce engagement below a baseline with no streak?",
+    "Angle 4 remains entirely open. What do the Volkow 2009 and 2011 PET studies and later critiques actually support about ADHD motivation? Is there any empirical basis for the 'dopamine menu' or 'interest-based nervous system' concepts? Does HRV biofeedback have trial evidence in ADHD?"
+  ],
+  "refuted": [],
+  "unverified": [],
+  "sources": [
+    {
+      "url": "https://doi.org/10.1145/2884781.2884875",
+      "quality": "primary",
+      "angle": "1. Developer task switching, interruption and resumption",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1007/s11219-010-9104-9",
+      "quality": "primary",
+      "angle": "1. Developer task switching, interruption and resumption",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1145/1753326.1753342",
+      "quality": "primary",
+      "angle": "1. Developer task switching, interruption and resumption",
+      "claimCount": 4
+    },
+    {
+      "url": "https://doi.org/10.1109/TSE.2017.2656886",
+      "quality": "secondary",
+      "angle": "1. Developer task switching, interruption and resumption",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/abs/1805.05508",
+      "quality": "primary",
+      "angle": "1. Developer task switching, interruption and resumption",
+      "claimCount": 4
+    },
+    {
+      "url": "https://doi.org/10.1145/2635868.2635892",
+      "quality": "primary",
+      "angle": "1. Developer task switching, interruption and resumption",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1057/s41599-025-05000-w",
+      "quality": "primary",
+      "angle": "2. WIP limits, kanban, and unfinished-goal psychology with replication status",
+      "claimCount": 4
+    },
+    {
+      "url": "https://europepmc.org/article/MED/21688924",
+      "quality": "primary",
+      "angle": "2. WIP limits, kanban, and unfinished-goal psychology with replication status",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1016/j.jss.2017.11.045",
+      "quality": "unreliable",
+      "angle": "2. WIP limits, kanban, and unfinished-goal psychology with replication status",
+      "claimCount": 0
+    },
+    {
+      "url": "https://doi.org/10.1093/jcr/ucv095",
+      "quality": "primary",
+      "angle": "3. Self-tracking, gamification and streak harms",
+      "claimCount": 4
+    },
+    {
+      "url": "https://doi.org/10.1093/jcr/ucac029",
+      "quality": "primary",
+      "angle": "3. Self-tracking, gamification and streak harms",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1145/2858036.2858045",
+      "quality": "primary",
+      "angle": "3. Self-tracking, gamification and streak harms",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1007/s10648-019-09498-w",
+      "quality": "primary",
+      "angle": "3. Self-tracking, gamification and streak harms",
+      "claimCount": 4
+    },
+    {
+      "url": "https://doi.org/10.1016/j.ijinfomgt.2018.10.013",
+      "quality": "primary",
+      "angle": "3. Self-tracking, gamification and streak harms",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11904913/",
+      "quality": "secondary",
+      "angle": "3. Self-tracking, gamification and streak harms",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2958516/",
+      "quality": "primary",
+      "angle": "4. Dopamine account of ADHD motivation, pop derivatives, HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3010326/",
+      "quality": "primary",
+      "angle": "4. Dopamine account of ADHD motivation, pop derivatives, HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11604610/",
+      "quality": "secondary",
+      "angle": "4. Dopamine account of ADHD motivation, pop derivatives, HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/18986716/",
+      "quality": "primary",
+      "angle": "4. Dopamine account of ADHD motivation, pop derivatives, HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32385728/",
+      "quality": "primary",
+      "angle": "4. Dopamine account of ADHD motivation, pop derivatives, HRV biofeedback",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/abs/2411.13950",
+      "quality": "primary",
+      "angle": "5. Neurodivergent software engineers, micro-breaks and attention restoration",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1145/2700648.2809841",
+      "quality": "primary",
+      "angle": "5. Neurodivergent software engineers, micro-breaks and attention restoration",
+      "claimCount": 3
+    },
+    {
+      "url": "https://arxiv.org/abs/2312.05029",
+      "quality": "primary",
+      "angle": "5. Neurodivergent software engineers, micro-breaks and attention restoration",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.1371/journal.pone.0272460",
+      "quality": "primary",
+      "angle": "5. Neurodivergent software engineers, micro-breaks and attention restoration",
+      "claimCount": 5
+    }
+  ],
+  "stats": {
+    "angles": 5,
+    "sourcesFetched": 24,
+    "claimsExtracted": 107,
+    "claimsVerified": 25,
+    "confirmed": 25,
+    "killed": 0,
+    "unverified": 0,
+    "afterSynthesis": 11,
+    "urlDupes": 0,
+    "budgetDropped": 6,
+    "agentCalls": 106
+  }
+}

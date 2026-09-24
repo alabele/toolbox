@@ -1,0 +1,318 @@
+<title>Quiet Dashboard Research</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Familjen+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --sat:1; --gap:1;
+  --bg:hsl(195 calc(16%*var(--sat)) 93%);
+  --surface:hsl(195 calc(20%*var(--sat)) 98%);
+  --ink:hsl(200 calc(22%*var(--sat)) 16%);
+  --muted:hsl(200 calc(11%*var(--sat)) 39%);
+  --line:hsl(198 calc(15%*var(--sat)) 83%);
+  --accent:hsl(186 calc(50%*var(--sat)) 27%);
+  --accent-soft:hsl(186 calc(38%*var(--sat)) 88%);
+  --warn:hsl(34 calc(76%*var(--sat)) 30%);
+  --warn-soft:hsl(38 calc(62%*var(--sat)) 87%);
+  --body:"Atkinson Hyperlegible",Verdana,"Segoe UI",sans-serif;
+  --head:"Familjen Grotesk","Trebuchet MS","Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:hsl(200 calc(16%*var(--sat)) 10%);
+    --surface:hsl(200 calc(15%*var(--sat)) 14%);
+    --ink:hsl(195 calc(14%*var(--sat)) 88%);
+    --muted:hsl(198 calc(10%*var(--sat)) 64%);
+    --line:hsl(200 calc(13%*var(--sat)) 25%);
+    --accent:hsl(184 calc(42%*var(--sat)) 66%);
+    --accent-soft:hsl(186 calc(32%*var(--sat)) 19%);
+    --warn:hsl(38 calc(64%*var(--sat)) 68%);
+    --warn-soft:hsl(34 calc(38%*var(--sat)) 19%);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:hsl(200 calc(16%*var(--sat)) 10%);
+  --surface:hsl(200 calc(15%*var(--sat)) 14%);
+  --ink:hsl(195 calc(14%*var(--sat)) 88%);
+  --muted:hsl(198 calc(10%*var(--sat)) 64%);
+  --line:hsl(200 calc(13%*var(--sat)) 25%);
+  --accent:hsl(184 calc(42%*var(--sat)) 66%);
+  --accent-soft:hsl(186 calc(32%*var(--sat)) 19%);
+  --warn:hsl(38 calc(64%*var(--sat)) 68%);
+  --warn-soft:hsl(34 calc(38%*var(--sat)) 19%);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.6;padding-inline:20px;padding-block:28px 80px}
+.shell{max-width:1080px;margin-inline:auto;display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px}
+nav.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 20px);align-self:start;display:flex;flex-direction:column;gap:2px;font-family:var(--mono);font-size:13px}
+nav.rail a{color:var(--muted);text-decoration:none;padding:6px 10px;border-left:2px solid var(--line)}
+nav.rail a:hover,nav.rail a:focus-visible{color:var(--ink);border-left-color:var(--accent)}
+main{display:flex;flex-direction:column;gap:calc(64px*var(--gap));min-width:0}
+section{display:flex;flex-direction:column;gap:calc(18px*var(--gap));scroll-margin-top:24px}
+h1,h2,h3{font-family:var(--head);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(30px,5vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:600}
+h3{font-size:18px;font-weight:600}
+p{margin:0;max-width:65ch}
+.lede{font-size:20px;line-height:1.5}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,pre{font-family:var(--mono);font-size:14px}
+pre{background:var(--surface);border:1px solid var(--line);padding:12px 14px;margin:0;overflow-x:auto}
+.tally{display:flex;flex-wrap:wrap;gap:8px 28px;font-family:var(--mono);font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tally b{color:var(--ink);font-weight:500;font-size:20px;margin-right:6px}
+/* comfort panel */
+.comfort{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-block:12px;font-size:15px}
+.comfort label{display:flex;align-items:center;gap:10px;color:var(--muted)}
+.comfort input[type=range]{accent-color:var(--accent);width:140px}
+/* buttons */
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;font-size:15px;color:var(--ink);background:transparent;border:1px solid var(--line);padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button[aria-pressed="true"],button[aria-selected="true"]{background:var(--accent-soft);border-color:var(--accent)}
+/* coverage */
+.legend{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:15px;color:var(--muted)}
+.cov{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px}
+.chip{display:flex;gap:10px;align-items:baseline;text-align:left;padding:8px 10px;font-size:15px;line-height:1.35;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.chip.none{background:transparent;color:var(--muted);cursor:default;border-style:dashed}
+.chip.none:hover{border-color:var(--line)}
+.chip.contested{border-color:var(--warn)}
+.mark{font-family:var(--mono);flex:none}
+.tag{font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+/* findings */
+.filters{display:flex;flex-direction:column;gap:10px}
+.filters .row{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.filters .lbl{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);min-width:92px}
+.list{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+details{border-bottom:1px solid var(--line)}
+summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:44px 96px minmax(0,1fr);gap:12px;align-items:baseline;padding-block:calc(12px*var(--gap))}
+summary::-webkit-details-marker{display:none}
+summary .id{font-family:var(--mono);font-size:13px;color:var(--muted)}
+summary .t{font-weight:700}
+summary:hover .t{color:var(--accent)}
+.conf{font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.conf i{font-style:normal;letter-spacing:1px;color:var(--ink);margin-right:5px}
+.body{display:flex;flex-direction:column;gap:10px;padding:0 0 18px 152px}
+.body dl{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 14px;margin:0;font-size:16px}
+.body dt{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-top:4px}
+.body dd{margin:0;max-width:62ch}
+details.hit{background:var(--accent-soft)}
+.count{font-family:var(--mono);font-size:13px;color:var(--muted)}
+/* principles */
+ol.pr{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:calc(20px*var(--gap)) 36px;counter-reset:p}
+ol.pr li{counter-increment:p;display:flex;flex-direction:column;gap:4px;border-top:2px solid var(--ink);padding-top:10px}
+ol.pr li h3::before{content:counter(p) ". ";color:var(--muted);font-family:var(--mono);font-size:14px;font-weight:400}
+.refs{display:flex;flex-wrap:wrap;gap:4px}
+.refs button{font-family:var(--mono);font-size:12px;padding:1px 7px}
+/* recs */
+.panel{display:flex;flex-direction:column;gap:14px;background:var(--surface);border:1px solid var(--line);padding:calc(20px*var(--gap)) 22px}
+.panel ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:calc(10px*var(--gap));max-width:68ch}
+.basis{display:flex;gap:10px;align-items:baseline;font-size:15px;color:var(--muted)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:9px 12px 9px 0;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:400}
+td.n{font-family:var(--mono);font-size:14px;white-space:nowrap}
+ul.plain{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;max-width:68ch}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px 40px}
+.cols>div{display:flex;flex-direction:column;gap:10px}
+body.compact{--gap:.6;font-size:16px}
+@media (max-width:820px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:24px}
+  nav.rail{position:static;flex-direction:row;flex-wrap:wrap;gap:4px}
+  nav.rail a{border-left:0;border-bottom:2px solid var(--line);padding:4px 8px}
+  summary{grid-template-columns:40px minmax(0,1fr)}
+  summary .conf{grid-column:2;grid-row:2}
+  summary .t{grid-column:2}
+  .body{padding-left:0}
+  .body dl{grid-template-columns:minmax(0,1fr)}
+}
+</style>
+
+<div class="shell">
+<nav class="rail" aria-label="Sections">
+  <a href="#top">Short version</a>
+  <a href="#coverage">What got checked</a>
+  <a href="#findings">Findings</a>
+  <a href="#principles">Principles</a>
+  <a href="#recs">Recommendations</a>
+  <a href="#builtin">Already built in</a>
+  <a href="#bench">Agent bench</a>
+  <a href="#gaps">Open questions</a>
+</nav>
+
+<main>
+<section id="top">
+  <span class="eyebrow">Research report · 21 Sep 2026 · {{RUNS}} research runs · for one reader</span>
+  <h1>A work dashboard that regulates instead of overwhelms</h1>
+  <p class="lede">Make it pull, not push. Hold everything until a task boundary. Never make you remember anything. Help with the first five percent and the last fifteen. Keep the opening view emotionally flat. Give every stuck state a way out.</p>
+  <p>That is what the checked evidence supports. Most of the topics you asked about have now been checked. The map below shows which, and what is still open.</p>
+  <div class="tally">
+    <span><b>{{EXTRACTED}}</b>claims pulled from sources</span>
+    <span><b>{{CHECKED}}</b>fact-checked</span>
+    <span><b>0</b>refuted</span>
+    <span><b>{{SOURCES}}</b>sources behind them</span>
+  </div>
+  <div class="comfort" role="group" aria-label="Reading comfort">
+    <span class="eyebrow">Reading comfort</span>
+    <label for="sat">Color intensity <input id="sat" type="range" min="0" max="1.6" step="0.1" value="1"></label>
+    <div class="seg" role="group" aria-label="Spacing">
+      <button id="roomy" aria-pressed="true">Roomy</button>
+      <button id="compact" aria-pressed="false">Compact</button>
+    </div>
+    <span style="color:var(--muted);font-size:14px">Nothing on this page moves.</span>
+  </div>
+</section>
+
+<section id="coverage">
+  <span class="eyebrow">How much of what you asked for is covered</span>
+  <h2>What got checked, and what did not</h2>
+  <p>The research tool pulls claims out of sources, then sends each one to three independent fact-checkers. It only has budget to check 25 claims per run. The first two runs left most of your topics unchecked, which is what I meant by “thinner than you asked for.” There was no barrier to fixing that except cost, so I ran it {{RUNS}} times in all, each aimed at a different set of empty boxes.</p>
+  <p>An empty box does not mean the research is missing or negative. It means nobody checked. Where a recommendation touches an empty box, it is my reasoning from the checked principles, and it is labeled that way.</p>
+  <div class="legend">
+    <span><span class="mark">■</span> Checked, decent evidence</span>
+    <span><span class="mark">◧</span> Checked, evidence is weak</span>
+    <span><span class="mark">□</span> Never checked</span>
+    <span><span class="tag warn">contested</span> Researchers disagree</span>
+  </div>
+  <div class="cov" id="cov"></div>
+  <p class="count">Select a filled box to jump to its findings.</p>
+</section>
+
+<section id="findings">
+  <span class="eyebrow">{{NF}} findings</span>
+  <h2>What the evidence says</h2>
+  <div class="filters">
+    <div class="row"><span class="lbl">Confidence</span><div class="seg" id="fconf"></div></div>
+    <div class="row"><span class="lbl">Topic</span><div class="seg" id="ftopic"></div></div>
+  </div>
+  <p class="count" id="fcount"></p>
+  <div class="list" id="flist"></div>
+</section>
+
+<section id="principles">
+  <span class="eyebrow">{{NP}} design principles</span>
+  <h2>What to build toward</h2>
+  <p>Each principle lists the findings it rests on. Select one to open it.</p>
+  <ol class="pr" id="plist"></ol>
+</section>
+
+<section id="recs">
+  <span class="eyebrow">Your five overwhelm areas, plus form factor</span>
+  <h2>Specific recommendations</h2>
+  <div class="seg" role="tablist" id="rtabs"></div>
+  <div class="panel" id="rpanel" role="tabpanel"></div>
+</section>
+
+<section id="builtin">
+  <span class="eyebrow">Confirmed on your machine</span>
+  <h2>Claude Code already does part of this</h2>
+  <p>Claude Code 2.1.278 ships a multi-session view that sorts sessions by what needs you. It lets you answer a session's question in place, and it posts a recap when you reattach. There is also a machine-readable version.</p>
+  <pre>claude agents          # the built-in view
+claude agents --json   # live sessions with state and folder, no terminal needed</pre>
+  <p>When I ran it, it listed four live sessions. One was a background session in <code>global-sdlc</code> that had been blocked for about three months. That is exactly the kind of thing this dashboard should surface gently.</p>
+  <p>Lifecycle hooks can also push events from every repo to one place. They distinguish "waiting on permission" from "finished and idle". You already have one hook configured, so new ones go alongside it.</p>
+  <p><b>So do not rebuild the session list.</b> Build what it lacks: a trustworthy quiet state, intensity controls, release at boundaries, and merging with Jira, GitHub, and Slack.</p>
+</section>
+
+<section id="bench">
+  <span class="eyebrow">Ten draft agents · toolbox/nd-dashboard/agents</span>
+  <h2>The expert bench</h2>
+  <p>Each agent is modelled on the published work of one expert, in the same format as your <code>docs-*</code> agents. The last column is the honest part: whether this research checked the framework the agent stands on.</p>
+  <div class="tw"><table id="btable"></table></div>
+  <p>Suggested order of work: the auditor grades the four unchecked frameworks. Then the coach and sensory specialist turn findings into requirements. Then the flow specialist and architect define the model. Then the designer and accessibility engineer build. Then the simulator and advocate try to break it.</p>
+</section>
+
+<section id="gaps">
+  <span class="eyebrow">Where to be careful</span>
+  <h2>Overturned, contested, and worth testing on yourself</h2>
+  <div class="cols">
+    <div>
+      <h3>Popular ideas the evidence did not support</h3>
+      <ul class="plain">
+        <li>“More options is always worse.” The average effect is near zero.</li>
+        <li>“Decision fatigue” as a draining willpower budget. It did not replicate across 36 labs.</li>
+        <li>Unfinished tasks staying in mind better. They do not.</li>
+        <li>“Gifted means perfectionist.” Not in the studies checked.</li>
+        <li>Dyslexia fonts, nature photos for attention, and “autistic people dislike yellow.”</li>
+        <li>Polyvagal theory is openly disputed. “Rejection sensitive dysphoria” is an unvalidated popular term.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>What I changed my mind about</h3>
+      <ul class="plain">
+        <li>I first said to show at most three items. The choice research does not support a fixed cap, so it is now a setting.</li>
+        <li>I first said to show how long your own tasks have been stuck. That feeds self-criticism. Age now shows only for agent sessions.</li>
+        <li>I first said to sort messages by who is waiting on you. The order can stay. A visible tally of people waiting should not.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Experiments only you can run</h3>
+      <ul class="plain">
+        <li>Is a blocked agent worth interrupting you for, or should it wait in the queue?</li>
+        <li>What cap on things in progress helps, and does any cap trigger demand avoidance?</li>
+        <li>Does seeing agents work beside you act as a body double? Track time to start and a one-tap overwhelm rating, two weeks each way.</li>
+        <li>Light or dark? Legibility favors light. Your comfort was never studied.</li>
+      </ul>
+    </div>
+  </div>
+  <p>Keep one limit in mind. Nearly every study used neurotypical people, children, or students. No checked source studied the exact profile this tool is built for. The findings are the best available starting defaults, and your own reaction outranks them.</p>
+  <p class="count">Full report with every source: toolbox/nd-dashboard/research/REPORT.md</p>
+</section>
+</main>
+</div>
+
+<script>
+/*DATA*/
+const $=s=>document.querySelector(s);
+const CONF={high:["■■■","High"],medium:["■■□","Medium"],low:["■□□","Low"]};
+let fc="all",ft="all";
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function renderFindings(){
+  const rows=F.filter(f=>(fc==="all"||f.c===fc)&&(ft==="all"||f.k===ft));
+  $("#fcount").textContent="Showing "+rows.length+" of "+F.length+". Select a finding to see the study and its limits.";
+  $("#flist").innerHTML=rows.map(f=>`<details id="f${f.id}"><summary><span class="id">F${f.id}</span><span class="conf"><i aria-hidden="true">${CONF[f.c][0]}</i>${CONF[f.c][1]}</span><span class="t">${esc(f.t)}${f.x?' <span class="tag warn">contested</span>':''}</span></summary><div class="body"><dl><dt>What it found</dt><dd>${esc(f.w)}</dd><dt>The limits</dt><dd>${esc(f.v)}</dd><dt>Source</dt><dd><a href="${f.u}" target="_blank" rel="noopener">${esc(f.s)}</a></dd></dl></div></details>`).join("")||'<p style="padding-block:14px;color:var(--muted)">Nothing matches both filters. Set one back to All.</p>';
+}
+function seg(el,opts,cur,on){
+  el.innerHTML=Object.entries(opts).map(([k,v])=>`<button data-k="${k}" aria-pressed="${k===cur}">${v}</button>`).join("");
+  el.onclick=e=>{const b=e.target.closest("button");if(!b)return;on(b.dataset.k);[...el.children].forEach(c=>c.setAttribute("aria-pressed",c===b));renderFindings();};
+}
+function openFindings(ids){
+  fc="all";ft="all";
+  seg($("#fconf"),{all:"All",high:"High",medium:"Medium",low:"Low"},fc,k=>fc=k);
+  seg($("#ftopic"),TOPICS,ft,k=>ft=k);
+  renderFindings();
+  document.querySelectorAll("details.hit").forEach(d=>d.classList.remove("hit"));
+  ids.forEach(i=>{const d=$("#f"+i);if(d){d.open=true;d.classList.add("hit");}});
+  const first=$("#f"+ids[0]);if(first){first.scrollIntoView({block:"start"});first.querySelector("summary").focus({preventScroll:true});}
+}
+$("#cov").innerHTML=COV.map(([n,st,ids,x],i)=>{
+  const m=st==="ok"?"■":st==="weak"?"◧":"□";
+  const lab=st==="ok"?"checked":st==="weak"?"checked, weak":"never checked";
+  return st==="none"?`<div class="chip none"><span class="mark" aria-hidden="true">${m}</span><span>${esc(n)}<span hidden> (${lab})</span></span></div>`
+  :`<button class="chip${x?" contested":""}" data-ids="${ids.join(",")}" aria-label="${esc(n)}, ${lab}${x?", contested":""}"><span class="mark" aria-hidden="true">${m}</span><span>${esc(n)}${x?' <span class="tag warn">contested</span>':""}</span></button>`;
+}).join("");
+$("#cov").onclick=e=>{const b=e.target.closest("button");if(b)openFindings(b.dataset.ids.split(",").map(Number));};
+seg($("#fconf"),{all:"All",high:"High",medium:"Medium",low:"Low"},fc,k=>fc=k);
+seg($("#ftopic"),TOPICS,ft,k=>ft=k);
+renderFindings();
+$("#plist").innerHTML=PR.map(([h,t,r])=>`<li><h3>${esc(h)}</h3><p>${esc(t)}</p><div class="refs">${r.map(i=>`<button data-id="${i}" aria-label="Open finding ${i}">F${i}</button>`).join("")}</div></li>`).join("");
+$("#plist").onclick=e=>{const b=e.target.closest("button");if(b)openFindings([Number(b.dataset.id)]);};
+function renderRec(i){
+  const r=RECS[i];
+  $("#rtabs").innerHTML=RECS.map((x,j)=>`<button role="tab" data-i="${j}" aria-selected="${j===i}">${x.n}</button>`).join("");
+  $("#rpanel").innerHTML=`<div class="basis"><span class="tag${r.b==="ext"?" warn":""}">${r.b==="ext"?"reasoning":"evidence"}</span><span>${esc(r.bt)}</span></div><ol>${r.i.map(x=>`<li>${esc(x)}</li>`).join("")}</ol>`;
+  try{localStorage.setItem("qd-tab",i)}catch(e){}
+}
+$("#rtabs").onclick=e=>{const b=e.target.closest("button");if(b)renderRec(Number(b.dataset.i));};
+let tab=0;try{tab=Number(localStorage.getItem("qd-tab"))||0}catch(e){}
+renderRec(Math.min(tab,RECS.length-1));
+$("#btable").innerHTML="<thead><tr><th>Agent</th><th>Modelled on</th><th>Role</th><th>Owns</th><th>Evidence standing</th></tr></thead><tbody>"+BENCH.map(r=>`<tr><td><b>${esc(r[0])}</b></td><td>${esc(r[1])}</td><td class="n">${esc(r[2])}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td></tr>`).join("")+"</tbody>";
+const sat=$("#sat");
+function setSat(v){document.documentElement.style.setProperty("--sat",v);try{localStorage.setItem("qd-sat",v)}catch(e){}}
+function setDense(d){document.body.classList.toggle("compact",d);$("#compact").setAttribute("aria-pressed",d);$("#roomy").setAttribute("aria-pressed",!d);try{localStorage.setItem("qd-dense",d?"1":"0")}catch(e){}}
+sat.oninput=()=>setSat(sat.value);
+$("#compact").onclick=()=>setDense(true);$("#roomy").onclick=()=>setDense(false);
+try{const s=localStorage.getItem("qd-sat");if(s!==null){sat.value=s;setSat(s);}if(localStorage.getItem("qd-dense")==="1")setDense(true);}catch(e){}
+</script>

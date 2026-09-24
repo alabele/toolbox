@@ -1,0 +1,11 @@
+{
+  "_meta": "Stillroom usability rubric, adapted from the docs project's. Scored 0 to 4 per (day, goal). Per-goal score = mean over days; composite = weighted mean of the three dimensions. Every score below 3 carries a located gap with an owner.",
+  "scale": { "min": 0, "max": 4 },
+  "dimension_weights": { "findability": 0.34, "completion": 0.33, "fit": 0.33 },
+  "dimensions": {
+    "findability": { "question": "Can she find the thing that needs her, or the session she wants, without hunting?", "anchors": { "0": "Not visible anywhere she would look; she gives up or goes to the terminal.", "1": "Buried behind a collapsed group or a second screen; a bad day abandons.", "2": "Findable with effort: two steps, or two candidates that look alike.", "3": "One glance at the sidebar or Next card and she knows.", "4": "It is the first thing on screen, and she can act on it from there." } },
+    "completion": { "question": "Can she finish the goal from what the screen gives her, without opening anything else?", "anchors": { "0": "The goal cannot be completed in the app.", "1": "Possible only by reading a full transcript or leaving the app.", "2": "Possible, but she must remember something from another screen or decide among options first.", "3": "Everything needed is on the card or in the header; one action finishes it.", "4": "Pre-picked and one keystroke, with the outcome confirmed in place." } },
+    "fit": { "question": "Does the form suit how she reads on that day?", "anchors": { "0": "The form defeats her: a wall of text, a stack of tool lines, a count of things undone.", "1": "The answer is there but she would likely miss it or look away.", "2": "Readable but the presentation fights her: too dense, too many competing marks, a label she has to decode.", "3": "Answer first, one next action, details folded, nothing moving.", "4": "That, plus the screen feels like hers and she wants to stay in it." } }
+  },
+  "bands": [ { "min": 3.5, "label": "Excellent" }, { "min": 2.5, "label": "Good" }, { "min": 1.5, "label": "Needs work" }, { "min": 0.0, "label": "Poor" } ]
+}

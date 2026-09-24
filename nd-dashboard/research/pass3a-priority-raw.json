@@ -1,0 +1,263 @@
+{
+  "question": "Research question (gap-fill A: priority, task initiation, and time): What does the evidence say about externalized priority and task-initiation systems for ADULTS with executive dysfunction (ADHD and/or autism), as input to designing a personal work dashboard for a software engineer? Earlier passes already covered: W3C COGA, interruption timing (Iqbal and Bailey, Mark), autistic inertia (Buckle 2021), implementation intentions in children, body doubling, monotropism. Do NOT re-research those. Cover exactly these five angles, one search angle each, and prioritise extracting claims from primary peer-reviewed sources:\n\n1. Time perception in adult ADHD (\"time blindness\"): meta-analyses and reviews of time estimation, time reproduction and temporal discounting deficits in adults with ADHD (e.g. Weissenberger et al. 2021; Zheng et al. 2022; Marx et al.), and any evidence that external time aids (visual timers, time-timer, elapsed-time displays, calendar blocking) improve outcomes.\n\n2. Psychosocial treatments for adult ADHD that teach planning and organisation: Safren's CBT for adult ADHD RCTs, Solanto's meta-cognitive therapy RCT, organisational skills training, goal management training, and meta-analyses (e.g. Cochrane review Lopez et al. 2018; Young et al. 2020). What specific planning, prioritising, task-chunking and reminder techniques do they teach, and what effect sizes do they achieve?\n\n3. Choice overload and decision fatigue, including replication status: Iyengar and Lepper 2000, Scheibehenne et al. 2010 meta-analysis, Chernev et al. 2015 meta-analysis, ego depletion replication failures (Hagger et al. 2016; Vohs et al. 2021), and any evidence on choice overload or decision paralysis specifically in ADHD or autistic adults (e.g. Luke et al. 2012 on decision-making in autism).\n\n4. Work-in-progress limits, kanban, and multitasking costs for individual knowledge workers and software developers: empirical evidence on WIP limits and personal kanban, task-switching and multitasking cost in software engineering (e.g. Meyer et al. on developer work fragmentation; Vasilescu et al. on multitasking across GitHub projects; Parnin and Rugaber on resumption strategies for interrupted programming tasks), and cues that help programmers resume interrupted tasks.\n\n5. Prioritisation and task-management methods: any empirical evaluation of Getting Things Done, \"next action\" framing, Eisenhower matrix, MoSCoW, to-do list design, the Zeigarnik/Ovsiankina effect and plan-making to offload unfinished goals (Masicampo and Baumeister 2011), goal-gradient effect, progress visualisation, and task chunking. Include replication status where known.\n\nOutput: a cited report with findings ranked by confidence, each with a concrete dashboard design implication, and an explicit \"weak, contested, or pop-psychology\" section. Flag every population transfer (children to adults, neurotypical to neurodivergent, students to professionals).",
+  "summary": "Only three of the five requested angles produced verified claims. Nothing survived verification for angle 4 (WIP limits, kanban, developer task-switching and resumption cues), angle 5 (GTD, next-action framing, Eisenhower, Zeigarnik and plan-making, goal-gradient, progress visualisation), or the external-time-aid half of angle 1. This report cannot support design decisions on those topics, and they need a further pass.\n\nThe strongest support for a dashboard is for externalised planning and organisation as a package. Two RCTs against active controls in adults with ADHD, a Cochrane review and a further meta-analysis all find that programmes teaching calendar-plus-task-list systems, prioritising, task chunking, distraction capture and self-reward reduce symptoms. The pooled effect is SMD about 0.8 against waiting list and about 0.4 against active controls. No trial isolates any single technique.\n\nPeople with ADHD show reliable perceptual timing deficits and steeper discounting of delayed rewards. Both meta-analyses pool children with adults, and no verified claim shows that timers or elapsed-time displays improve outcomes.\n\nTwo pop-psychology premises are not supported as stated. \"More options is always worse\" has a mean effect near zero; choice overload appears only under specific moderators: complex option sets, difficult decisions, uncertain preferences and an effort-minimising goal. Ego depletion (\"decision fatigue\") was d = 0.06 in a 36-lab preregistered test.\n\nThe only evidence specific to neurodivergent adults on decision paralysis is one small self-report study (38 autistic and 40 non-autistic adults), which found more decision problems and more decision avoidance in the autistic group.",
+  "findings": [
+    {
+      "claim": "Externalised planning and organisation skills programmes work for adults with ADHD as a package, with moderate effects against active controls and larger effects against waiting list. Safren 2010 was an RCT of 86 medicated adults with residual symptoms, comparing 12 individual CBT sessions with relaxation plus educational support. It found a blinded-assessor ADHD rating difference of -4.63 (95% CI -8.30 to -0.96, P=.02, d about 0.60). Solanto 2010 was an RCT of 88 adults, comparing 12-week group Meta-Cognitive Therapy with attention-matched supportive therapy. Blind-rated inattention responders were 42% vs 12%, OR 5.41 (95% CI 1.77-16.55). Young et al. meta-analysis: SMD 0.76 vs waiting list (4 trials, N=160) and SMD 0.43 vs active control (3 trials, N=191). Cochrane (Lopez 2018): 14 RCTs, 700 adults, SMD -0.84 for self-reported symptoms vs waiting list (5 studies, n=251, moderate quality); the overall conclusion is low-quality evidence of short-term benefit. DESIGN IMPLICATION: the dashboard's core job (one external calendar plus one task list, with explicit prioritising) matches the best-evidenced intervention class for this population. Expect a modest benefit and plan on the active-control figure of about 0.4, not the waitlist figure. Population transfer: none for adults with ADHD. Untested for autistic adults and for software engineers specifically. The Safren sample was all medicated; the Solanto sample had above-average IQ.",
+      "confidence": "high",
+      "sources": [
+        "https://jamanetwork.com/journals/jama/fullarticle/186469",
+        "https://psychiatryonline.org/doi/10.1176/appi.ajp.2009.09081123",
+        "https://pubmed.ncbi.nlm.nih.gov/27554190/",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC6494390/"
+      ],
+      "evidence": "Merged claims 3, 4, 6, 9, 12, 13, all 3-0 and all checked against primary full text or abstract with exact numeric matches. Qualifiers: both RCTs are single-site and run by the treatment developers. The Safren CI lower bound is near zero. The Solanto CI is wide, dropout was uneven (37% vs 16%), and observer-rated effects lost significance among completers. Waiting-list comparators and unblinded self-report inflate effects. Outcomes were measured post-treatment only, with little long-term follow-up. Cochrane rates the evidence very low to moderate. The Young et al. searches predate 2016.",
+      "vote": "3-0 on all six merged claims"
+    },
+    {
+      "claim": "What those effective programmes actually teach. (a) A calendar plus task-list system as the first module (Safren). (b) Goal setting, sequencing and prioritising, scheduling, to-do lists, progress monitoring, planned breaks and rewards (Cochrane description of the programmes). (c) Task chunking: breaking overwhelming or complex tasks into manageable steps (Safren and Solanto). (d) Generating alternatives and picking the best (Safren). (e) Distraction management: write the distraction down instead of acting on it, return to task, use cues or alarms, time your own attention span. (f) Contingent self-reward for aversive tasks, and visualising long-term rewards (Solanto). (g) Time-awareness, task initiation and scheduling/prioritising sessions (Solanto MCT sessions 2-6). Solanto's control was designed to match non-specific support, so the contrast isolates the skills package from generic support. Home-exercise completion predicted response. DESIGN IMPLICATIONS: make calendar and task list the single source of truth; support breaking a task into sub-steps at the point of overwhelm; provide a one-keystroke 'park this distraction' inbox that returns you to the current task; show progress; let the user attach a small reward to an aversive task; size work blocks to a self-measured attention span, not a fixed interval. Population transfer: none for adults with ADHD; untested for autistic adults.",
+      "confidence": "high",
+      "sources": [
+        "https://jamanetwork.com/journals/jama/fullarticle/186469",
+        "https://psychiatryonline.org/doi/10.1176/appi.ajp.2009.09081123",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC6494390/"
+      ],
+      "evidence": "Merged claims 5, 7, 8, 10, 11, all 3-0, each verified verbatim against the primary methods sections. High confidence applies to the description of content only. No trial isolates a component, so there is no component-level efficacy evidence for chunking, self-reward, distraction capture or any other single technique. 'Externalised' is the report's gloss, not the authors' word; MCT also includes internal strategies (self-instruction, cognitive restructuring). The Cochrane passage is the review authors' narrative description, not a coded content analysis of every trial.",
+      "vote": "3-0 on all five merged claims"
+    },
+    {
+      "claim": "People with ADHD show a broad range of perceptual timing deficits. Marx et al. (JAACAP 2022) meta-analysed 55 studies from 2,266 records. They found deficits across time discrimination, estimation, production and reproduction, more variability when estimating durations of several seconds, and accuracy errors that the authors interpret as an accelerated internal clock. DESIGN IMPLICATION: do not rely on the user's felt sense of elapsed time. Show elapsed time on the current task and time remaining to the next commitment, persistently and without requiring an action. POPULATION TRANSFER (flagged): the meta-analysis pools children and adults, is weighted towards child studies, and reports no adult-only effect. Adult-only studies are scarcer and some found no clear estimation deficit (Weissenberger 2021, noted by a verifier but not independently verified in this pass). SCALE TRANSFER (flagged): the deficits are measured at milliseconds to several seconds, not the minutes-to-hours scale of workday 'time blindness'.",
+      "confidence": "medium",
+      "sources": [
+        "https://www.sciencedirect.com/science/article/abs/pii/S0890856721020451"
+      ],
+      "evidence": "Merged claims 0 and 1, both 3-0, with abstract wording and counts confirmed; full text was not accessible (403). Rated medium, not high, for three reasons. It rests on a single meta-analysis. Applying it to an adult engineer needs two transfers (child-weighted sample to adults; seconds to hours). The 'accelerated internal clock' is the authors' interpretation, not a measured mechanism. No verified claim in this pass shows that visual timers, elapsed-time displays or calendar blocking improve outcomes, so the design implication is an inference from the deficit, not from intervention evidence.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "People with ADHD choose small immediate rewards over larger delayed ones more often than controls. Marx et al. 2021, J Atten Disord, was a random-effects meta-analysis of 37 group comparisons (22 simple-choice, 15 temporal-discounting) with 3,763 participants, 53% ADHD. Effects were small-to-medium in both paradigms. DESIGN IMPLICATION: a far-off deadline is weak motivation on its own. Surface the next concrete step and give immediate, real feedback on completing it (visible completion state, progress on today's list), not only a distant due date. POPULATION TRANSFER (flagged): the pooled sample is mostly children and adolescents. The effect depends on reward type: real rewards almost doubled the odds ratio in the simple-choice paradigm, and hypothetical rewards weaken it, so purely symbolic rewards may do less than real ones.",
+      "confidence": "medium",
+      "sources": [
+        "https://journals.sagepub.com/doi/10.1177/1087054718772138"
+      ],
+      "evidence": "Claim 2, 3-0, abstract figures confirmed exactly. Direction is consistent with later literature according to a verifier. Medium because it is a single meta-analysis, requires a child-to-adult transfer, and the link from lab reward choice to work-task prioritisation is an extrapolation.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "'More options is always worse' is not supported as an unconditional effect. Scheibehenne, Greifeneder and Todd (2010) concluded that more options do not reliably reduce satisfaction, preference or motivation. In their later self-published reply the mean effect stays near zero under stricter inclusion: D = 0.04 (56 conditions), 0.07 (51), 0.03 (47), and 0.14 (37) with a CI that still includes zero. Researchers who aimed or expected to find the effect, including direct replications, often did not. Chernev, Böckenholt and Goodman (2015; 99 observations, N = 7,202) reproduce the nonsignificant mean in a model without moderators (t(20) = -.10, p = .48), with large unexplained heterogeneity. DESIGN IMPLICATION: do not justify a hard cap on visible items (for example 'show only 3 tasks') by citing the jam study or choice overload as a general effect. If a cap is wanted, make it a user-adjustable setting and justify it on other grounds. POPULATION TRANSFER (flagged): samples are neurotypical consumers and students choosing products; there are no ADHD or autistic samples and no work-task selection.",
+      "confidence": "high",
+      "sources": [
+        "https://scheibehenne.com/ReplyToChernevBoeckenholdtGoodman2010.pdf",
+        "https://chernev.com/wp-content/uploads/2017/02/ChoiceOverload_JCP_2015.pdf"
+      ],
+      "evidence": "Merged claims 14, 15, 16, 18, all 3-0, with quotes and numbers checked against the PDFs. The Scheibehenne source is a self-published, non-peer-reviewed author reply that restates the peer-reviewed JCR meta-analysis. It is partisan, and the robustness re-analyses exist only in the reply. Two independent author teams agree on the null mean when moderators are left out. A near-zero mean does not show that overload never occurs; see the next finding.",
+      "vote": "3-0 on all four merged claims"
+    },
+    {
+      "claim": "Choice overload does occur under identifiable conditions. Chernev et al. 2015 found four moderators, each of which reliably increases overload: choice set complexity, decision task difficulty, preference uncertainty, and an effort-minimising decision goal. For studies of choosing from an already-given assortment, larger assortments significantly increased overload (b = .17); b = .41 in studies without moderators and b = .04 (ns) in studies with moderators. The authors suggest that aggregating across moderator levels attenuates the effect. DESIGN IMPLICATION: target the moderators, not the raw count. Reduce set complexity (consistent item format, few attributes per task, no near-duplicates). Reduce decision difficulty (no time pressure at the point of choosing, a default ordering). Resolve preference uncertainty ahead of time (priorities set in a calm planning session, not at task-start). When the user's goal is simply to start something, offer a single pre-selected next task. POPULATION TRANSFER (flagged): neurotypical consumers and students to ND adults, and product choice to work-task selection. Both are extrapolations.",
+      "confidence": "medium",
+      "sources": [
+        "https://chernev.com/wp-content/uploads/2017/02/ChoiceOverload_JCP_2015.pdf"
+      ],
+      "evidence": "Merged claims 17 and 19, both 3-0. One verifier read the PDF text directly for claim 19; claim 17 was verified from the supplied quote plus a verifier's recall of the abstract. Medium for four reasons. It is a single meta-analysis. The moderators were coded retrospectively by the authors, so the evidence is correlational at the meta-analytic level and publication bias may apply. The authors hedge the cancellation account as 'suggesting... likely to attenuate'; they do not state it as a cause. They attribute the disagreement with Scheibehenne to a different study subset and model, so read it as 'differs under a different model', not as a refutation.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "Ego depletion, the usual mechanism offered for 'decision fatigue', did not replicate in a large preregistered test. Vohs et al. 2021 (36 labs, N = 3,531) found a confirmatory d = 0.06 (95% CI -0.02 to 0.14), nonsignificant. The Bayesian meta-analysis found the data about 4 times more likely under the null than under an informed alternative of delta = 0.30. The authors, who include proponents of the original theory, state that neither preregistered analysis showed a depletion effect. DESIGN IMPLICATION: do not build features on a depleting 'willpower budget' or 'decision budget' model (for example rationing decisions per day or scheduling by assumed depletion). Reducing decisions at task-start can still be justified by the CBT evidence and the choice-overload moderators, but not by ego depletion. POPULATION TRANSFER (flagged): general, mostly student, neurotypical samples doing lab tasks. Whether ADHD or autistic adults experience something different is untested here.",
+      "confidence": "high",
+      "sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC12422598/"
+      ],
+      "evidence": "Merged claims 20, 21, 22, all 3-0, numbers confirmed against the PMC full text. It is a single source, but a preregistered 36-lab study is about as strong as a primary source gets. Nuances: a Bayes factor of about 4 is only moderate evidence for the null. An exploratory full-sample analysis gave a small significant d = 0.08, moderated by self-reported fatigue, which the authors rate as low confidence. The result supports 'near zero or very small', not 'disproven'. Hagger et al. 2016 (d about 0.04) was cited by a verifier from background knowledge only and was not verified in this pass.",
+      "vote": "3-0 on all three merged claims"
+    },
+    {
+      "claim": "Autistic adults self-report more decision-making difficulty and more decision avoidance. Luke et al. 2012 compared 38 adults with autism spectrum conditions and 40 without. The autistic group reported several decision-making problems more often and scored higher on the avoidant style of the General Decision Making Style inventory. DESIGN IMPLICATION (tentative): treat 'avoiding the choice of what to do next' as a likely failure mode. Offer a low-stakes default next task that the user can accept without deciding, and avoid forcing an explicit choice before work can start. No population transfer is needed for autistic adults. It is not evidence about ADHD, and not evidence that set size causes the difficulty.",
+      "confidence": "low",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/21846664/"
+      ],
+      "evidence": "Merged claims 23 and 24, both 3-0 on accuracy. Low confidence because this is a single 2012 study with a small sample, self-report only, a novel unvalidated questionnaire alongside the GDMS, no effect size in the abstract, and abstract-level verification only. This is the only verified evidence on decision paralysis specific to neurodivergent adults in the whole pass. No verified claim covers choice overload in ADHD adults.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "WEAK, CONTESTED, OR POP-PSYCHOLOGY. (1) 'More choices is always worse' and the jam study as a general law: contested, with a mean effect near zero and dependence on moderators. (2) 'Decision fatigue' or willpower as a depleting resource: failed preregistered multilab replication. (3) 'Time blindness' as a workday, minutes-to-hours phenomenon in adults: the verified evidence is perceptual timing over seconds in child-weighted samples; the everyday construct and the accelerated-clock mechanism are interpretations. (4) Visual timers, Time Timer, elapsed-time displays and calendar blocking: no verified evidence in this pass. (5) Any single CBT technique (chunking, self-reward, distraction list) as individually proven: only the package has been tested. (6) Angle 4 (WIP limits, personal kanban, developer task-switching, Meyer, Vasilescu, Parnin and Rugaber resumption cues) and angle 5 (GTD, next-action framing, Eisenhower matrix, MoSCoW, to-do list design, Zeigarnik/Ovsiankina, Masicampo and Baumeister 2011, goal-gradient, progress visualisation): zero claims survived verification. They are unevidenced in this report, neither supported nor refuted. DESIGN IMPLICATION: build features resting on items 3 to 6 as optional and user-adjustable, and do not describe them as evidence-based.",
+      "confidence": "low",
+      "sources": [
+        "https://scheibehenne.com/ReplyToChernevBoeckenholdtGoodman2010.pdf",
+        "https://chernev.com/wp-content/uploads/2017/02/ChoiceOverload_JCP_2015.pdf",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC12422598/",
+        "https://www.sciencedirect.com/science/article/abs/pii/S0890856721020451"
+      ],
+      "evidence": "Items 1 to 3 and 5 follow from the verified claims above. Items 4 and 6 report what is absent from the 25 surviving claims; they are not findings about the literature. Several verifier notes record that the session's WebSearch budget (200 of 200) ran out. That plausibly explains why later angles produced no surviving claims and why many contradiction searches were skipped."
+    }
+  ],
+  "caveats": "Coverage: only angles 2 and 3 and half of angle 1 are answered. No verified claim covers external time aids, angle 4 (WIP limits, kanban, developer multitasking, interruption resumption cues) or angle 5 (GTD, next action, Eisenhower, MoSCoW, Zeigarnik and plan-making, goal-gradient, progress visualisation, plus their replication status). Verifier notes repeatedly record that the WebSearch budget was exhausted at 200 of 200. That is the likely reason these angles are empty; it does not show that the literature is empty. A separate run with a fresh search budget, limited to those angles, should be able to fill them.\n\nVerification limits: for many claims the contradiction search was skipped for the same budget reason, and verification rests on the primary source alone. Several items were verified at abstract level only: the Marx timing meta-analysis, Young et al., Luke et al. and the Chernev moderator claim. Some verifier remarks came from background knowledge and are not verified findings: Weissenberger 2021, Hagger 2016, Vella 2018, Doidge 2021 and Liu 2023.\n\nSource weaknesses:\n- The Scheibehenne reply is self-published and partisan.\n- Both CBT RCTs are single-site trials run by the treatment developers.\n- The Cochrane review dates from 2018 and has not been updated; Young et al.'s searches predate 2016.\n- Luke et al. is a small self-report study using an unvalidated questionnaire.\n\nPopulation transfers:\n- Both ADHD meta-analyses (timing and discounting) are child-weighted.\n- The choice-overload and ego-depletion evidence comes from neurotypical student and consumer samples doing product or lab tasks.\n- Nothing in this pass was measured in software engineers or in a workplace.\n- Almost nothing addresses autistic adults.\n- Apart from the two 2010 RCTs' programme content, every design implication is an inference from a deficit or an effect. None is a tested dashboard intervention.\n\nTime-sensitivity is low because these literatures move slowly, but adult-ADHD CBT meta-analyses published after 2020 are not reflected.",
+  "openQuestions": [
+    "Do external time aids (visual timers, elapsed-time displays, calendar blocking) measurably improve outcomes for adults with ADHD, and do the seconds-scale timing deficits extend to minutes-to-hours estimation in adults (Weissenberger 2021 and any adult-only analyses)?",
+    "What does the primary evidence show for angle 4: WIP limits and personal kanban for individuals, developer work fragmentation (Meyer et al.), multitasking across GitHub projects (Vasilescu et al.), and which resumption cues help programmers restart interrupted tasks (Parnin and Rugaber)?",
+    "What is the replication status of the angle 5 mechanisms: Masicampo and Baumeister 2011 plan-making to offload unfinished goals, Zeigarnik/Ovsiankina, goal-gradient, and progress visualisation? Is there any empirical evaluation of GTD, next-action framing or the Eisenhower matrix?",
+    "Which components of CBT or MCT for adult ADHD drive the effect (calendar and task list, chunking, distraction capture, self-reward), and does any of it transfer to autistic adults or to ADHD adults choosing among work tasks, where no choice-overload data exist?"
+  ],
+  "refuted": [],
+  "unverified": [],
+  "sources": [
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9962130/",
+      "quality": "secondary",
+      "angle": "Time perception in adult ADHD and external time aids",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0890856721020451",
+      "quality": "primary",
+      "angle": "Time perception in adult ADHD and external time aids",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8293837/",
+      "quality": "secondary",
+      "angle": "Time perception in adult ADHD and external time aids",
+      "claimCount": 5
+    },
+    {
+      "url": "https://journals.sagepub.com/doi/10.1177/1087054718772138",
+      "quality": "primary",
+      "angle": "Time perception in adult ADHD and external time aids",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6494390/",
+      "quality": "primary",
+      "angle": "Psychosocial treatments teaching planning and organisation",
+      "claimCount": 5
+    },
+    {
+      "url": "https://jamanetwork.com/journals/jama/fullarticle/186469",
+      "quality": "primary",
+      "angle": "Psychosocial treatments teaching planning and organisation",
+      "claimCount": 5
+    },
+    {
+      "url": "https://psychiatryonline.org/doi/10.1176/appi.ajp.2009.09081123",
+      "quality": "primary",
+      "angle": "Psychosocial treatments teaching planning and organisation",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/27554190/",
+      "quality": "primary",
+      "angle": "Psychosocial treatments teaching planning and organisation",
+      "claimCount": 4
+    },
+    {
+      "url": "https://scheibehenne.com/ReplyToChernevBoeckenholdtGoodman2010.pdf",
+      "quality": "primary",
+      "angle": "Choice overload and decision fatigue replication status, plus ND-specific decision-making",
+      "claimCount": 5
+    },
+    {
+      "url": "https://chernev.com/wp-content/uploads/2017/02/ChoiceOverload_JCP_2015.pdf",
+      "quality": "primary",
+      "angle": "Choice overload and decision fatigue replication status, plus ND-specific decision-making",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12422598/",
+      "quality": "primary",
+      "angle": "Choice overload and decision fatigue replication status, plus ND-specific decision-making",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/21846664/",
+      "quality": "primary",
+      "angle": "Choice overload and decision fatigue replication status, plus ND-specific decision-making",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.researchgate.net/publication/299470397_A_Multilab_Preregistered_Replication_of_the_Ego-Depletion_Effect",
+      "quality": "unreliable",
+      "angle": "Choice overload and decision fatigue replication status, plus ND-specific decision-making",
+      "claimCount": 0
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/25477020/",
+      "quality": "primary",
+      "angle": "Choice overload and decision fatigue replication status, plus ND-specific decision-making",
+      "claimCount": 5
+    },
+    {
+      "url": "https://link.springer.com/article/10.1007/s11219-010-9104-9",
+      "quality": "primary",
+      "angle": "WIP limits, multitasking cost and task resumption in software engineering",
+      "claimCount": 4
+    },
+    {
+      "url": "https://cmustrudel.github.io/papers/icse16focus.pdf",
+      "quality": "primary",
+      "angle": "WIP limits, multitasking cost and task resumption in software engineering",
+      "claimCount": 5
+    },
+    {
+      "url": "https://gwern.net/doc/psychology/writing/2017-meyer.pdf",
+      "quality": "primary",
+      "angle": "WIP limits, multitasking cost and task resumption in software engineering",
+      "claimCount": 5
+    },
+    {
+      "url": "https://dl.acm.org/doi/10.1145/3239235.3239238",
+      "quality": "primary",
+      "angle": "WIP limits, multitasking cost and task resumption in software engineering",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/pdf/1805.05508",
+      "quality": "primary",
+      "angle": "WIP limits, multitasking cost and task resumption in software engineering",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.researchgate.net/publication/282053925_An_empirical_study_of_work_fragmentation_in_software_evolution_tasks",
+      "quality": "unreliable",
+      "angle": "WIP limits, multitasking cost and task resumption in software engineering",
+      "claimCount": 0
+    },
+    {
+      "url": "https://www.nature.com/articles/s41599-025-05000-w",
+      "quality": "primary",
+      "angle": "Empirical evaluation of prioritisation and task-management methods",
+      "claimCount": 4
+    },
+    {
+      "url": "https://users.wfu.edu/masicaej/MasicampoBaumeister2011JPSP.pdf",
+      "quality": "primary",
+      "angle": "Empirical evaluation of prioritisation and task-management methods",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.researchgate.net/publication/320573778_The_Effects_of_Bedtime_Writing_on_Difficulty_Falling_Asleep_A_Polysomnographic_Study_Comparing_To-Do_Lists_and_Completed_Activity_Lists",
+      "quality": "primary",
+      "angle": "Empirical evaluation of prioritisation and task-management methods",
+      "claimCount": 4
+    },
+    {
+      "url": "https://home.uchicago.edu/ourminsky/Goal-Gradient_Illusionary_Goal_Progress.pdf",
+      "quality": "primary",
+      "angle": "Empirical evaluation of prioritisation and task-management methods",
+      "claimCount": 5
+    }
+  ],
+  "stats": {
+    "angles": 5,
+    "sourcesFetched": 24,
+    "claimsExtracted": 102,
+    "claimsVerified": 25,
+    "confirmed": 25,
+    "killed": 0,
+    "unverified": 0,
+    "afterSynthesis": 9,
+    "urlDupes": 0,
+    "budgetDropped": 6,
+    "agentCalls": 106
+  }
+}

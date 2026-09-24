@@ -1,0 +1,252 @@
+{
+  "question": "Research question (gap-fill C: visual and sensory interface design, and popular regulation claims): What empirical evidence exists for specific visual interface choices for autistic adults and adults with ADHD, and what is the scientific status of popular regulation and motivation claims, as input to designing a personal low-stimulation work dashboard? Earlier passes already covered: WCAG 2.3.3 motion, W3C COGA interruptions and memory, Tavassoli 2014 on sensory over-responsivity in autistic adults, Jurek 2025 meta-analysis of ADHD sensory profiles, polyvagal theory's contested status, slow breathing and HRV (Laborde 2022), interoception in autism (Williams 2022). Do NOT re-research those. Cover exactly these five angles, one search angle each, prioritising primary peer-reviewed sources and clearly separating empirical studies from practitioner guidelines:\n\n1. Empirical UI and web design studies with autistic participants: eye-tracking and usability studies of web pages with autistic adults (e.g. Eraslan, Yaneva, Yesilada and Harper), systematic reviews of interface design guidelines for autistic users (e.g. Valencia et al. 2019; Pavlov 2014; the UK Home Office \"designing for users on the autistic spectrum\" poster and its evidence base), and what these say about clutter, density, colour, imagery, navigation consistency and predictability.\n\n2. Visual clutter, density, colour and typography evidence relevant to ADHD and autism: visual crowding and clutter effects on attention in ADHD adults, colour preference and colour aversion studies in autism (e.g. Grandgeorge and Masataka 2016 on yellow aversion, noting it is in children), dark mode versus light mode legibility and fatigue evidence (e.g. Piepenbrock et al. 2013; NN/g summary), typeface legibility evidence including Atkinson Hyperlegible and dyslexia fonts (e.g. Wery and Diliberto 2017; Kuster et al. 2018), and line length and spacing.\n\n3. Peripheral, ambient and glanceable displays and calm technology: empirical evaluations of ambient and peripheral displays (e.g. Matthews et al. on glanceable peripheral displays; Pousman and Stasko taxonomy of ambient information systems; Mankoff et al. heuristics), Weiser and Brown's calm technology, and evidence on whether peripheral status displays reduce interruption cost or monitoring load compared with notifications, including in control-room or supervisory-control settings with alarm flooding.\n\n4. Attention restoration and nature exposure: meta-analyses of attention restoration theory (e.g. Ohly et al. 2016; Stevenson et al. 2018), evidence for nature images or virtual nature specifically (not real outdoor exposure), micro-breaks meta-analysis (Albulescu et al. 2022), and any evidence in ADHD (e.g. Kuo and Faber Taylor, noting children).\n\n5. Popular ADHD motivation and regulation claims: the scientific basis for the \"dopamine deficit\" account of ADHD motivation (Volkow et al. 2009, 2011 PET studies; critiques and the current status of the dopamine hypothesis), the \"dopamine menu\" and \"interest-based nervous system\" (Dodson) concepts and whether any empirical work supports them, HRV biofeedback efficacy for stress and for ADHD specifically (e.g. Lehrer et al. 2020 meta-analysis; Goessl et al. 2017), and evidence for or against gamification and reward-based apps for adults with ADHD.\n\nOutput: a cited report with findings ranked by confidence, each with a concrete dashboard design implication (specific defaults where evidence allows, and an explicit statement where it does not), and an explicit \"weak, contested, or pop-psychology\" section. Flag every population transfer (children to adults, neurotypical to neurodivergent, dyslexia to ADHD or autism).",
+  "summary": "Only parts of the five-angle question are answered. The 25 verified claims cover angles 1 and 2 reasonably well, give only definitional material for angle 3, give one study for angle 4, and give nothing for angle 5 (dopamine deficit, dopamine menu, interest-based nervous system, HRV biofeedback, gamification). The gap has a concrete cause: verifiers repeatedly reported the session web-search budget exhausted (200 of 200) and publisher pages returning 403. Nothing prevents a rerun of the missing angles with a fresh search budget.\n\nThe strongest dashboard-relevant evidence is two small eye-tracking studies of autistic adults (Eraslan, Yaneva, Yesilada, Harper). Autistic users viewed more elements, made more transitions and looked at more task-irrelevant elements, especially on visually complex or poorly distinguishable pages. This supports low density and clear element separation. A controlled experiment in neurotypical adults shows dark-on-light text is more legible than light-on-dark. Dyslexia fonts show no benefit in children. One 2026 study finds stronger visual crowding in ADHD adults, reduced by colour-marking the target.\n\nThe ambient-display literature (Mankoff 2003; Pousman and Stasko 2006) is design theory and expert heuristics, not outcome evidence. One 2025 EEG study found 10 minutes of nature photographs did nothing for attention or error monitoring. Yellow aversion in autism rests on one study of French boys. Valencia 2019 cannot be cited for any visual default.",
+  "findings": [
+    {
+      "claim": "Autistic adults spend more visual effort on web pages, and page complexity and poorly distinguishable elements make this worse. Across two eye-tracking studies, autistic participants looked at more elements, made more gaze transitions, made shorter but more frequent fixations on task-irrelevant elements, and looked at more irrelevant elements on synthesis tasks when pages were visually complex or elements were hard to tell apart. One study also found lower search-task success, although a related W4A 2019 paper from the same group found similar accuracy with higher cognitive effort. The authors conclude that complexity and low distinguishability give a 'non-equivalent experience' and endorse 'keep it simple'. DESIGN IMPLICATION: default to low element count per view, remove decorative and task-irrelevant elements, and make each region clearly distinguishable with strong grouping, whitespace and consistent boundaries. The studies do not give a numeric density threshold, so no specific element count can be evidence-based. POPULATION FLAGS: verbal, highly independent autistic adults only. The findings do not transfer to ADHD. 'Higher scanning cost' and 'clutter captures attention' are inferences from gaze metrics, not measured outcomes.",
+      "confidence": "high",
+      "sources": [
+        "https://www.tandfonline.com/doi/full/10.1080/0144929X.2018.1551933",
+        "https://www.researchgate.net/publication/339004894_Keep_it_simple_an_eye-tracking_study_for_exploring_complexity_and_distinguishability_of_web_pages_for_people_with_autism",
+        "https://doi.org/10.1007/s10209-020-00708-9",
+        "https://doi.org/10.1145/3315002.3317563"
+      ],
+      "evidence": "Merges claims 0-5, all 3-0. Eraslan et al. 2019 (Behaviour & Information Technology) had 18 autistic and 18 neurotypical adults doing search tasks. Eraslan et al. 2021 (Universal Access in the Information Society, 'Keep it simple!') had 19 and 19 on 8 pages with synthesis and browsing tasks. Both are peer-reviewed primary studies, but from the same research group, with small samples and few pages. Verification rested on abstracts because the full texts returned 403. Correction carried from verification: the extra fixations and transitions were found for synthesis tasks in general, and the result specific to complex or low-distinguishability pages is more irrelevant elements viewed. Effects were reported for synthesis tasks, not browsing. The authors' causal wording ('causes') is stronger than the design warrants.",
+      "vote": "3-0 on all six merged claims"
+    },
+    {
+      "claim": "Dark text on a light background is more legible than light text on dark. Piepenbrock et al. 2013 found a positive-polarity advantage for both visual acuity and proofreading in younger and older adults, and the authors 'strongly recommend' dark-on-light at any age. DESIGN IMPLICATION: make light mode the default for text-heavy reading, and because a low-stimulation dashboard should lower glare, use a dimmed off-white background in place of pure white. Offer dark mode as a user option, not as the default, and do not claim a legibility benefit for it. The evidence says nothing about fatigue, comfort, sensory overload or preference, so a personal preference for dark mode is a legitimate reason to override. POPULATION FLAG: neurotypical adults to autistic or ADHD adults. Dark mode may still suit dim rooms or photophobia (noted by NN/g, a practitioner source).",
+      "confidence": "high",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/23654206/"
+      ],
+      "evidence": "Merges claims 8-9, both 3-0. It is a peer-reviewed controlled experiment (Ergonomics 2013), verified through the Europe PMC record. It is consistent with the same lab's other work (Buchner and Baumgartner 2007; Piepenbrock 2014), which the verifier cited from recall. The proposed mechanism is higher luminance giving a smaller pupil and a sharper retinal image. The outcome was legibility only, under normal lab lighting. Confidence is high for the legibility finding in neurotypical adults. The transfer to a sensory-sensitive user is untested."
+    },
+    {
+      "claim": "Dyslexia-specific fonts (Dyslexie, OpenDyslexic) give no reading benefit over Arial or Times New Roman. Kuster et al. 2018 ran two experiments with Dutch children (170 with dyslexia; then 102 with dyslexia and 45 without) and found no difference in speed or accuracy, and children tended to prefer Arial. Wery and Diliberto 2017 (n=12, grades 3-6) found no improvement from OpenDyslexic for any individual or for the group, with negative effect sizes. DESIGN IMPLICATION: do not adopt a dyslexia font. A standard clean sans-serif is an adequate default. This shows absence of benefit, not that Arial is optimal. No verified claim covers Atkinson Hyperlegible, line length or spacing, so there is no evidence-based default for those here. POPULATION FLAGS: a double transfer, from children to adults and from dyslexia to ADHD or autism. The tasks were word and text reading on paper-style materials, not dashboard reading.",
+      "confidence": "high",
+      "sources": [
+        "https://link.springer.com/article/10.1007/s11881-017-0154-6",
+        "https://pubmed.ncbi.nlm.nih.gov/26993270/"
+      ],
+      "evidence": "Merges claims 14-17, all 3-0. Both are peer-reviewed primary studies in Annals of Dyslexia, verified against open-access PMC full text (PMC5934461, PMC5629233). The two studies are independent and agree. Verifiers also cited Marinus et al. 2016, from recall and not re-checked, which attributes any Dyslexie gain to spacing, not letterforms. In Kuster Experiment 1, the accuracy difference at Time 2 was a non-significant trend (p=.08)."
+    },
+    {
+      "claim": "Valencia et al. 2019 cannot be used as evidence for autism UI guidelines. It is a systematic review of 94 studies (January 2009 to June 2019, five databases) on technology for teaching and intervention with people with ASD. It issues no guidelines on clutter, colour, imagery or navigation. Only 23 of the 94 studies (about 24%) gave any detail on usability, UX or accessibility, and the authors note that accessibility claims 'were not supported by empirical evidence'. DESIGN IMPLICATION: treat widely circulated autism design guidance as practitioner consensus, not as tested findings. Do not cite Valencia for any specific visual default. Its positive contribution is documenting the evidence gap. POPULATION FLAG: the reviewed studies are mostly children in educational settings. No verified claim covered Pavlov 2014 or the UK Home Office poster, so their evidence base remains unassessed.",
+      "confidence": "high",
+      "sources": [
+        "https://doi.org/10.3390/s19204485",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC6832622/"
+      ],
+      "evidence": "Merges claims 6-7, both 3-0. Verified against the PMC full text (Sensors 19(20):4485). The count of 23 uses a loose inclusion criterion ('in some way used and/or provided detail'). The Eraslan 2021 abstract independently describes itself as 'the first empirical behavioural study which evaluates these guidelines', which supports the conclusion that guidelines predate the evidence."
+    },
+    {
+      "claim": "Adults with ADHD show stronger visual crowding in central vision, and colour-marking the target reduces it. In a 2026 psychophysics study, 22 ADHD adults showed significantly stronger foveal crowding and slower responses than 23 controls when judging a tumbling-E target surrounded by flankers. In a subset of 26 (14 ADHD, 12 controls), showing the target in red among black flankers improved performance in both groups. DESIGN IMPLICATION (extrapolated): use generous spacing around key glyphs, numbers and status indicators. Avoid tight clusters of similar-looking items. Use a single salient colour cue to mark the one item that matters, and use it sparingly so it stays distinctive. The study gives no spacing values that apply to UI. POPULATION AND TASK FLAG: the participants are adults with ADHD, which is the right population, but the task is 30-240 ms foveal letter identification, not interface use. Transfer to dashboard clutter is an inference the study did not test.",
+      "confidence": "medium",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/42308563/"
+      ],
+      "evidence": "Merges claims 10-11, both 3-0. The source is Ifrah-Tsruya, Lev, Epstein and Polat, Vision Research 2026;246:108862, a peer-reviewed primary study with no declared conflicts of interest. It is a single small lab study, with no replication located and no effect sizes in the abstract. That colour pop-out reduces crowding is well established in the general crowding literature (verifier recall). Confidence is medium, not high, because there is one source and a large gap between the task and a UI."
+    },
+    {
+      "claim": "The ambient and peripheral display literature covered here is design theory and expert heuristics, not outcome evidence. Pousman and Stasko 2006 define ambient systems by five characteristics, including information that is important but not critical and subtle, non-distracting updates. They classify 19 systems on four dimensions from published descriptions. Their notification scale is adapted from Matthews et al. (user poll, change blind, make aware, interrupt, demand attention), and they place the 'core' of ambient design at change-blind and make-aware. Notification level is coded as designer-intended, not verified. Mankoff et al. 2003 derived their heuristics from Nielsen's and had 7 experts rate them. The key heuristics are 'Sufficient information design' (just enough information) and 'Peripherality' (unobtrusive unless attention is needed). Their 16-evaluator study tested how well the heuristics find usability problems, not what the displays do for users. They also state that most published ambient displays had never been evaluated. DESIGN IMPLICATION: it is reasonable to adopt the vocabulary as a design framework. Keep status at change-blind or make-aware levels, show just enough information, update it slowly and subtly, and reserve interrupt and demand-attention for critical items. Present this as a reasoned design stance. None of the verified claims supports saying that peripheral status displays reduce interruption cost or monitoring load compared with notifications. POPULATION FLAG: expert and neurotypical guidance applied to neurodivergent users. No neurodivergent users were involved.",
+      "confidence": "high",
+      "sources": [
+        "https://dl.acm.org/doi/10.1145/1133265.1133277",
+        "https://faculty.washington.edu/garyhs/docs/mankoff-CHI2003-heuristics.pdf",
+        "https://faculty.cc.gatech.edu/~john.stasko/papers/avi06.pdf"
+      ],
+      "evidence": "Merges claims 18-22, all 3-0. Both PDFs were downloaded and their text searched by verifiers. High confidence applies to the description of what these papers contain and do not contain, not to any efficacy claim. No claims were verified on Matthews et al.'s empirical glanceability work, Weiser and Brown's calm technology, or control-room and alarm-flooding studies. That part of angle 3 is unanswered. The 'as of 2003' statement about unevaluated displays says nothing about later evaluations."
+    },
+    {
+      "claim": "WEAK OR CONTESTED: brief exposure to nature images showed no attentional benefit in the one study verified. Collins et al. 2025 (N=60, ages 18-40) found that 10 minutes of 2D nature photographs versus urban photographs made no significant difference to ERN amplitude (p=0.62), flanker accuracy (p=0.65) or reaction time (p=0.72). Reaction-time gains across sessions were practice effects. DESIGN IMPLICATION: do not add nature imagery on the grounds that it restores attention. It may be included as an optional aesthetic preference. Imagery also adds visual elements, which conflicts with the first finding. POPULATION FLAG: neurotypical young adults, mostly female and White. There is no ADHD or autism evidence here. This is a single, possibly underpowered null result with a task that may be insensitive. It does not show that nature imagery never helps. The attention-restoration meta-analyses (Ohly 2016; Stevenson 2018), Albulescu 2022 on micro-breaks, and Kuo and Faber Taylor were named in the brief but produced no verified claims.",
+      "confidence": "low",
+      "sources": [
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC12209298/"
+      ],
+      "evidence": "Merges claims 23-24, both 3-0. The source is a peer-reviewed primary study (Frontiers in Human Neuroscience 2025), fetched in full. The manipulation was between-subjects and applied in session 2 only. Low confidence reflects a single source and a null result. Verifiers recalled that Stevenson 2018 reports small positive effects mainly on working memory and cognitive flexibility, with mixed results for virtual nature, but this was not re-checked in this pass."
+    },
+    {
+      "claim": "WEAK OR POP-PSYCHOLOGY RISK: 'autistic people dislike yellow' rests on one study of children. Grandgeorge and Masataka 2016 used forced-choice comparison of six coloured cards. Boys with ASD were significantly less likely than typically developing boys to prefer yellow (F(1,61)=49.60, p<.001) and more likely to prefer green and brown. The sample was 29 French boys with ASD and 38 typically developing boys aged 4-17 (ASD mean 8.8), with no adults, no girls and no ADHD group. DESIGN IMPLICATION: there is no evidence-based colour rule for an autistic or ADHD adult. At most, avoid large fields of saturated, high-luminance yellow as a cheap precaution, and let the user's own preference decide the palette. The authors' explanation, that yellow's luminance causes sensory overload, is speculative. POPULATION FLAGS: children to adults, boys only, a single culture, and autism to ADHD. The study measured preference among physical cards, not on-screen tolerance or performance.",
+      "confidence": "low",
+      "sources": [
+        "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5179595/"
+      ],
+      "evidence": "Merges claims 12-13, both 3-0. The source is a peer-reviewed primary study (Frontiers in Psychology), fetched in full. No independent replication is known to the verifiers, and the search for contradicting work could not be run. The reporting of the study is accurate. Low confidence applies to any use of it for adult design."
+    },
+    {
+      "claim": "NOT ANSWERED IN THIS PASS: no claims survived for angle 5 or for several named items in angles 2-4. Angle 5 covers the dopamine-deficit account (Volkow 2009 and 2011), Dodson's 'interest-based nervous system', the 'dopamine menu', HRV biofeedback (Lehrer 2020; Goessl 2017), and gamification for adult ADHD. The missing items in angles 2-4 are Atkinson Hyperlegible, line length and spacing, the NN/g dark mode summary, Pavlov 2014, the Home Office poster, Matthews' glanceability studies, Weiser and Brown, control-room alarm flooding, Ohly 2016, Stevenson 2018, Albulescu 2022, and Kuo and Faber Taylor. DESIGN IMPLICATION: this report gives no support for or against dopamine-menu features, reward or gamification mechanics, HRV biofeedback widgets or break-timing defaults. Those decisions should wait for a rerun of the search or be labelled as unevidenced. The cause is operational. Multiple verifiers reported the session web-search budget exhausted (200 of 200) and publisher pages (Taylor & Francis, MDPI, Springer, ResearchGate) returning 403 or login walls. There is no substantive reason these angles cannot be researched. A rerun with a fresh search budget, fetching through PubMed, PMC, Europe PMC and Semantic Scholar instead of publisher pages, should fill them.",
+      "confidence": "high",
+      "sources": [],
+      "evidence": "This finding comes from the claim set itself. None of the 25 claims address angle 5, and the verifier notes on claims 4, 5, 6, 10, 11, 12, 13, 15, 20, 21 and 22 explicitly report the search budget exhausted. High confidence applies to the statement about coverage, not to any of the underlying topics."
+    }
+  ],
+  "caveats": "- **Coverage is partial.** Angle 5 has no verified claims. Angles 3 and 4 are thin, and the finding list names every missing source. The gap comes from an exhausted web-search budget (200 of 200) and publisher paywalls or 403 responses. It does not show that evidence is absent.\n- **Contradiction checks were mostly skipped.** Most verifiers could not search for contradicting evidence for the same reason. Several \"consistent with\" statements rest on verifier recall and were not re-checked. These include Marinus 2016, Buchner and Baumgartner 2007, and Stevenson 2018.\n- **Several verifications used abstracts only.** Both Eraslan papers and Piepenbrock 2013 were checked against abstracts, so effect sizes and per-condition statistics were not checked.\n- **The autism web-usability evidence is narrow.** It comes from one research group, with 18-19 participants per group and a handful of web pages. The participants were verbal, highly independent autistic adults.\n- **Every finding involves at least one transfer.** These are neurotypical to neurodivergent (polarity, ambient heuristics, nature imagery), children to adults (yellow, fonts), dyslexia to ADHD or autism (fonts), and lab psychophysics to UI (crowding). No study tested a dashboard, and none tested a user who is both autistic and ADHD.\n- **No numeric defaults can be drawn from this evidence.** That covers element counts, spacing, line length, font size and colour values. The design implications give direction only.\n- **Time-sensitivity is low.** The crowding study (2026) and the nature-imagery study (2025) are recent and unreplicated, and both could be revised. The ambient-display papers date from 2003 and 2006, and later empirical evaluations may exist that were not retrieved.",
+  "openQuestions": [
+    "What is the current scientific status of the dopamine-deficit account of ADHD motivation (Volkow 2009 and 2011 and critiques)? Do the 'interest-based nervous system' and 'dopamine menu' concepts have any empirical support, and what do trials show for gamification and HRV biofeedback in adults with ADHD? Angle 5 is entirely unanswered and needs a rerun with a fresh search budget.",
+    "Does any controlled study show that peripheral or glanceable status displays reduce interruption cost or monitoring load compared with notifications (Matthews et al., post-2006 ambient display evaluations, control-room alarm-flooding research)? Only design-theory sources were verified.",
+    "What do the attention-restoration meta-analyses (Ohly 2016; Stevenson 2018) and the micro-breaks meta-analysis (Albulescu 2022) conclude for virtual or image-based nature and for break timing, and is there any evidence for adults with ADHD beyond the Kuo and Faber Taylor studies of children?",
+    "Is there any empirical evidence on Atkinson Hyperlegible, line length or spacing in ADHD or autistic adults, and any evidence on dark versus light mode for comfort, fatigue or sensory over-responsivity, as distinct from legibility, in these populations?"
+  ],
+  "refuted": [],
+  "unverified": [],
+  "sources": [
+    {
+      "url": "https://www.tandfonline.com/doi/full/10.1080/0144929X.2018.1551933",
+      "quality": "primary",
+      "angle": "Autism web UI empirical studies and guideline reviews",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.researchgate.net/publication/339004894_Keep_it_simple_an_eye-tracking_study_for_exploring_complexity_and_distinguishability_of_web_pages_for_people_with_autism",
+      "quality": "primary",
+      "angle": "Autism web UI empirical studies and guideline reviews",
+      "claimCount": 4
+    },
+    {
+      "url": "https://ukhomeoffice.github.io/accessibility-posters/autism",
+      "quality": "secondary",
+      "angle": "Autism web UI empirical studies and guideline reviews",
+      "claimCount": 5
+    },
+    {
+      "url": "https://doi.org/10.3390/s19204485",
+      "quality": "primary",
+      "angle": "Autism web UI empirical studies and guideline reviews",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.tandfonline.com/doi/abs/10.1080/0144929X.2020.1856927",
+      "quality": "secondary",
+      "angle": "Autism web UI empirical studies and guideline reviews",
+      "claimCount": 3
+    },
+    {
+      "url": "https://www.sigaccess.org/newsletter/2020-10/eraslan.html",
+      "quality": "secondary",
+      "angle": "Autism web UI empirical studies and guideline reviews",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/23654206/",
+      "quality": "primary",
+      "angle": "Clutter, colour, dark mode and typeface legibility evidence",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42308563/",
+      "quality": "primary",
+      "angle": "Clutter, colour, dark mode and typeface legibility evidence",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5179595/",
+      "quality": "primary",
+      "angle": "Clutter, colour, dark mode and typeface legibility evidence",
+      "claimCount": 5
+    },
+    {
+      "url": "https://link.springer.com/article/10.1007/s11881-017-0154-6",
+      "quality": "primary",
+      "angle": "Clutter, colour, dark mode and typeface legibility evidence",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/26993270/",
+      "quality": "primary",
+      "angle": "Clutter, colour, dark mode and typeface legibility evidence",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.researchgate.net/publication/221441473_Designing_and_Evaluating_Glanceable_Peripheral_Displays",
+      "quality": "unreliable",
+      "angle": "Ambient, peripheral and glanceable displays; calm technology",
+      "claimCount": 0
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S1071581903000223",
+      "quality": "unreliable",
+      "angle": "Ambient, peripheral and glanceable displays; calm technology",
+      "claimCount": 0
+    },
+    {
+      "url": "https://faculty.washington.edu/garyhs/docs/mankoff-CHI2003-heuristics.pdf",
+      "quality": "primary",
+      "angle": "Ambient, peripheral and glanceable displays; calm technology",
+      "claimCount": 5
+    },
+    {
+      "url": "https://dl.acm.org/doi/10.1145/1133265.1133277",
+      "quality": "primary",
+      "angle": "Ambient, peripheral and glanceable displays; calm technology",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/pii/S027249442500115X",
+      "quality": "unreliable",
+      "angle": "Attention restoration, virtual nature and micro-breaks",
+      "claimCount": 0
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12209298/",
+      "quality": "primary",
+      "angle": "Attention restoration, virtual nature and micro-breaks",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.tandfonline.com/doi/full/10.1080/10937404.2016.1196155",
+      "quality": "primary",
+      "angle": "Attention restoration, virtual nature and micro-breaks",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/30130463/",
+      "quality": "primary",
+      "angle": "Attention restoration, virtual nature and micro-breaks",
+      "claimCount": 3
+    },
+    {
+      "url": "https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0272460",
+      "quality": "primary",
+      "angle": "Attention restoration, virtual nature and micro-breaks",
+      "claimCount": 5
+    },
+    {
+      "url": "https://journals.sagepub.com/doi/10.1177/1087054708323000",
+      "quality": "primary",
+      "angle": "Attention restoration, virtual nature and micro-breaks",
+      "claimCount": 4
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/20856250/",
+      "quality": "primary",
+      "angle": "Scientific status of popular ADHD motivation and regulation claims",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11604610/",
+      "quality": "secondary",
+      "angle": "Scientific status of popular ADHD motivation and regulation claims",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/28478782/",
+      "quality": "primary",
+      "angle": "Scientific status of popular ADHD motivation and regulation claims",
+      "claimCount": 4
+    }
+  ],
+  "stats": {
+    "angles": 5,
+    "sourcesFetched": 24,
+    "claimsExtracted": 93,
+    "claimsVerified": 25,
+    "confirmed": 25,
+    "killed": 0,
+    "unverified": 0,
+    "afterSynthesis": 9,
+    "urlDupes": 0,
+    "budgetDropped": 6,
+    "agentCalls": 106
+  }
+}

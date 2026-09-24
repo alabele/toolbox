@@ -1,0 +1,18 @@
+{
+  "name": "app",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.278",
+    "lucide": "0.475.0",
+    "marked": "16"
+  },
+  "scripts": {
+    "validate": "bun ../scripts/validate-design.js"
+  }
+}

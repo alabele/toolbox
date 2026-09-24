@@ -1,0 +1,293 @@
+{
+  "question": "Research question (second pass, gap-filling): What does the evidence say about the following five topics, as they apply to designing a personal, low-overwhelm work dashboard for an adult software engineer who is gifted, ADHD and autistic with significant executive dysfunction? A first research pass already covered W3C COGA interruption and memory guidance, WCAG 2.3.3 motion, the ICSE 2024 study of engineers with ADHD, body doubling, monotropism, implementation intentions, and AI coding-agent oversight interfaces. Do NOT re-research those. Cover exactly these five angles, one search angle each:\n\n1. Interruption timing and notification batching. Empirical HCI findings on interruption cost and recovery time, breakpoint-based or task-boundary deferral of notifications (Iqbal and Bailey; Adamczyk and Bailey), Gloria Mark's field studies of attention and task switching, email/notification batching experiments (e.g. Kushlev and Dunn; Fitz et al. batching notifications study), and self-interruption. What batching intervals and deferral rules have measured support, and what is known for ADHD or autistic adults specifically?\n\n2. Sensory-safe visual design for autistic and ADHD adults. Peer-reviewed or guideline evidence on color saturation and contrast, dark mode, visual density and clutter, typography, animation, and predictability or layout stability for autistic adults and adults with ADHD. Include sensory over-responsivity evidence in autistic adults, Dunn's sensory processing model in adults, and any empirical UI studies with autistic or ADHD participants. Distinguish empirical studies from practitioner guidelines.\n\n3. Scientific status of nervous-system-regulation frameworks. The evidentiary status of polyvagal theory (including published critiques by Grossman and by Taylor and colleagues, and Porges's replies), interoception differences in autism and ADHD, heart-rate-variability biofeedback and paced breathing evidence, attention restoration theory and nature imagery, and the \"dopamine menu\" / dopamine-deficit popular framing of ADHD motivation. For each: what is well supported, what is contested, what is pop-psychology.\n\n4. Externalized priority and task-initiation systems for adults with executive dysfunction. Evidence for WIP limits and kanban on individual knowledge-work performance, choice overload and decision fatigue (including replication status), Eisenhower and MoSCoW style prioritization, \"one next action\" / Getting Things Done, goal-setting and planning interventions in adult ADHD (e.g. CBT for adult ADHD by Safren or Solanto, organizational skills training), time-blindness or time-perception deficits in adult ADHD and external time aids, and autistic inertia research (e.g. Buckle et al. 2021).\n\n5. Twice-exceptional adults and emotional factors in engineers. Evidence on twice-exceptional (gifted plus ADHD and/or autism) adults: masking and camouflaging costs, autistic burnout (Raymaker et al. 2020), perfectionism, rejection sensitive dysphoria and its contested diagnostic status, emotional dysregulation in adult ADHD, and AuDHD co-occurrence. Include any studies of neurodivergent software developers beyond the ICSE 2024 ADHD study (e.g. autistic developers, dyslexic developers, neurodiversity in software engineering surveys).\n\nOutput: a cited report with findings ranked by confidence, each with a concrete dashboard design implication, and an explicit \"weak, contested, or pop-psychology\" section. Flag population transfers (children to adults, neurotypical to neurodivergent) wherever they occur.",
+  "summary": "Only a subset of the five angles survived verification: interruption timing and batching (angle 1), sensory over-responsivity (part of angle 2), polyvagal theory, slow breathing and autistic interoception (part of angle 3), and autistic inertia (part of angle 4). Nothing survived for angle 5 (twice-exceptional adults, masking, burnout, RSD, neurodivergent developers), and nothing survived for UI-level visual design studies, attention restoration theory, the dopamine-menu framing, WIP limits, choice overload, GTD, CBT for adult ADHD, or time blindness. The best-supported design direction is: hold non-urgent notifications until a natural task boundary (measured cost about 90 seconds of delay), and treat the stress cost of interruptions as the thing to limit, because lab evidence shows people keep up their speed under interruption but report significantly more stress and frustration within 20 minutes. Evidence for fixed batching intervals is mixed: one 12-day field study found no stress benefit from email batching, and that study's verifier cited two experiments pointing the other way from memory without checking them. Sensory over-responsivity is well documented in autistic adults including the visual domain, and ADHD shows a mixed sensory profile (sensitive, avoiding, under-registering and seeking), which argues for user-adjustable intensity and against one fixed 'calm' theme. Autistic inertia is described as outside conscious control, helped by careful prompts and nearby compatible activity, and worsened by stress and badly timed prompts; this is qualitative self-report from one study. Polyvagal theory is actively contested as of 2026 and should not be used as a design rationale, whereas slow paced breathing has solid meta-analytic support for raising HRV during and after practice, though not for downstream stress or cognition outcomes. Almost every interruption finding comes from neurotypical or unscreened samples, so applying them to an AuDHD engineer is a population transfer.",
+  "findings": [
+    {
+      "claim": "Defer non-urgent notifications to task breakpoints, not immediate delivery. In a controlled study (16 users, programming and diagram editing), the authors concluded breakpoint scheduling reduced frustration and reaction time. The cost was a mean deferral of 88.6 s (SD 139.3 s), which they judged an acceptable balance. Design implication: the dashboard should queue incoming items and release them at detected or user-declared boundaries (commit, test run finished, task marked done, timer end), with a maximum-wait cap so nothing is held indefinitely. POPULATION TRANSFER: neurotypical lab participants.",
+      "confidence": "medium",
+      "sources": [
+        "https://dl.acm.org/doi/10.1145/1357054.1357070"
+      ],
+      "evidence": "Merged claims 0 and 1. Iqbal and Bailey, CHI 2008, full text checked. The body of the paper is weaker than its abstract. The frustration effect was significant only for diagram editing (p<0.037); for programming, trends were in the expected direction but not significant, which matters for a software engineer. There was no main effect on reaction time; the faster reaction appeared only in a follow-up analysis of task-relevant notifications. There was no effect on resumption time. The deferral distribution is right-skewed (SD larger than mean) and is partly bounded by the scheduler's timeout cap; 170 of 192 scheduled notifications were delivered. Single small lab study, consistent with Adamczyk and Bailey 2004 and the 2010 TOCHI OASIS paper per the verifier.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "Interruptions cost affect more than output. In a lab experiment (N=48, mostly German university students, email task, interruptions about every 2 minutes), interrupted work was completed in less net time than uninterrupted work (22.77 min baseline vs 20.31 and 20.60), with no significant difference in errors. After about 20 minutes participants reported significantly higher stress (6.92 vs 9.46/9.13 on a 20-point scale, p<.001), frustration, time pressure, effort and workload. Design implication: measure and cap interruption load over time (a daily interruption budget or a visible count) and do not judge success by throughput, because a user can look productive while their stress climbs. POPULATION TRANSFER: unscreened students, not ADHD or autistic adults, not software engineers.",
+      "confidence": "medium",
+      "sources": [
+        "https://ics.uci.edu/~gmark/chi08-mark.pdf"
+      ],
+      "evidence": "Merged claims 3 and 4. Mark, Gudith and Klocke, CHI 2008, full text checked. Task time was computed net of time spent on the interruptions, so interrupted work was not faster in wall-clock terms. The 'shorter emails' compensation is only partly supported (baseline vs same-context p<.05; baseline vs different-context p<.15). Pairwise results are weaker for mental workload and time pressure. The authors wrote that technology 'could be used' to track and control interruptions, which is softer than a recommendation. They could not say whether effects persist over time. Single 4-page CHI note; the verifier ran no search for contradicting studies.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "Two verified studies conflict on whether relevant notifications should get through. Iqbal and Bailey recommend delivering task-relevant notifications at medium or fine breakpoints and general-interest ones only at coarse breakpoints. Mark et al. found that same-topic and different-topic interruptions carried the same measured disruption cost, though same-context interruptions may be perceived as beneficial. Design implication: relevance can justify an earlier breakpoint, but it should not justify bypassing deferral altogether; only urgency should break through immediately. POPULATION TRANSFER: both samples neurotypical.",
+      "confidence": "medium",
+      "sources": [
+        "https://dl.acm.org/doi/10.1145/1357054.1357070",
+        "https://ics.uci.edu/~gmark/chi08-mark.pdf"
+      ],
+      "evidence": "Merged claims 2 and 5. The Iqbal and Bailey rule rests mainly on qualitative user-stated preferences in a 16-person study, not a significant quantitative effect by breakpoint type, and the authors' own models detected breakpoint type poorly (recall for fine breakpoints 15% in programming, 1.7% in diagram editing), so the rule is hard to automate; they also note urgency should be considered. In Mark et al., mental workload was nominally highest for different-context interruptions but the D vs S contrast was not significant (p<.16); non-significance at n=48 is not proof of equivalence. 'Same context' meant same topic only. The authors note the wider literature is mixed (Czerwinski et al. 2000 found task-consistent interruptions facilitating; Gillie and Broadbent 1989 found similarity more disruptive). Mark et al. measured total task time, not resumption lag.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "Less time in email is associated with better outcomes, but batching by itself showed no stress benefit in the one verified field study. Over 12 workdays with 40 information workers (logging, biosensors, daily surveys), more daily email time was associated with lower perceived productivity and higher measured stress. Batching was associated with higher rated productivity only at longer email durations, and the authors found no evidence it lowers stress. Workers who checked email mainly by self-interruption reported higher productivity at longer email durations than those who relied on notifications. Design implication: favor pull over push (the user opens the inbox panel when they choose, not in response to alerts) and limit total time in communication surfaces. Do not promise that a fixed batching schedule will reduce stress; no specific batching interval has verified support in this pass. POPULATION TRANSFER: neurotypical-presumed information workers at one organization.",
+      "confidence": "medium",
+      "sources": [
+        "https://dl.acm.org/doi/10.1145/2858036.2858262"
+      ],
+      "evidence": "Merged claims 6, 7 and 8. Mark, Iqbal, Czerwinski, Johns, Sano and Lutchyn, CHI 2016. Verifiers checked the abstract and listings, not the full paper, and one verifier reconstructed the batching sentence from memory. Observational and correlational; productivity is self-reported. The self-interruption result is an interaction effect inside an overall negative association between email time and outcomes. 'No evidence' is a null finding, not proof of no effect. Verifiers noted from memory, without verifying in this pass, that Kushlev and Dunn (2015) and Fitz et al. (2019) found benefits from limiting checks or batching to three times a day, so the question is unsettled across the literature.",
+      "vote": "3-0 on all three merged claims"
+    },
+    {
+      "claim": "Notification alerts raise self-reported inattention and hyperactivity in non-clinical young adults. In a randomized counterbalanced within-subject field experiment, one week with phone alerts on and the phone within reach produced higher self-reported inattention (d=.44) and hyperactivity (d=.45) than one week with alerts off and the phone away. Design implication: default to silent, badge-free, no-sound operation with the dashboard as the single pull surface. This is reasonable as a precaution but is not evidence about ADHD adults. POPULATION TRANSFER: the sample was 221 University of British Columbia undergraduates (mean age about 20, 74% female, course credit), not diagnosed with ADHD and not a working adult population, so this is a transfer on diagnosis, age and occupation.",
+      "confidence": "medium",
+      "sources": [
+        "https://dl.acm.org/doi/10.1145/2858036.2858359"
+      ],
+      "evidence": "Merged claims 9 and 10. Kushlev, Proulx and Dunn, CHI 2016, full-text PDF checked. The abstract's 'general population' overstates the sample. Analyzed n was about 190 (df=189). Raw mean differences are small (about 0.1 scale points: inattention 2.38 vs 2.27, hyperactivity 2.11 vs 2.01). The manipulation bundled alerts-off with phone-out-of-sight, so the notification effect cannot be isolated. The outcome was a self-report 18-item DSM-5-based symptom scale. ADHD diagnosis was not screened out, only not recruited for. The authors explicitly do not claim notifications cause ADHD or that reducing them treats it. No direct replication was located.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "Autistic adults report more sensory over-responsivity than non-autistic adults in every domain assessed, including the visual domain, and over-responsivity scales with autistic traits within both groups (a dimensional relationship). Design implication: treat visual intensity as a real load factor and not a matter of taste. Provide user controls for saturation, contrast, density and motion, and default to the low-stimulation end. No population transfer: adult autistic sample. This supports the general need, but it is not evidence for any specific UI parameter (no verified study in this pass tested color, dark mode, typography or layout with autistic or ADHD participants).",
+      "confidence": "high",
+      "sources": [
+        "https://doi.org/10.1177/1362361313477246"
+      ],
+      "evidence": "Merged claims 11 and 12. Tavassoli, Miller, Schoen, Nielsen and Baron-Cohen, Autism 2014;18(4):428-432; 221 autistic and 181 non-autistic adults; abstract confirmed against Crossref metadata. Online self-report survey with self-reported diagnosis and no objective sensory measurement; both measures share method variance. The 'dimensional not categorical' reading is the claimant's inference from within-group correlations, not the abstract's wording, though it is a standard inference. Verifiers noted the finding is consistent with later literature and DSM-5's inclusion of sensory hyper-reactivity. Rated high because the population matches and the result is replicated in direction, even though it is one source.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "The ADHD sensory profile is mixed, not purely hypersensitive. A 2025 meta-analysis (30 questionnaire studies, 5,374 participants) found large elevations over controls on all four Dunn quadrants: sensory sensitivity (SMD 1.17), sensory avoiding (1.15), low registration (1.22) and sensory seeking (1.23). Design implication: a single muted, minimal theme may under-serve a user who also under-registers and seeks stimulation. Offer an adjustable intensity range, and make important signals salient enough to register without being startling, rather than assuming quieter is always better. POPULATION TRANSFER: 23 of the 30 studies are in children and only 7 in adults.",
+      "confidence": "medium",
+      "sources": [
+        "https://www.sciencedirect.com/science/article/pii/S0890856725002096"
+      ],
+      "evidence": "Merged claims 13 and 14. Jurek et al., JAACAP 2025 (PMID 40250555). Verified against the PubMed abstract only; ScienceDirect returned HTTP 403. Heterogeneity is very high (I2 87-97%), only 9 studies were rated low risk of bias, the sensory-seeking interval is wide (0.48-1.97), and measures are mostly self- or parent-report Sensory Profile questionnaires. ADHD samples may include undiagnosed co-occurring autism. The data show association, not causation. The original supporting quote contained a typo ('5% CI' for '95% CI').",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "Autistic inertia: autistic adults describe difficulty starting, stopping and switching activities that they experience as outside conscious control, affecting even enjoyed activities and basic needs. External prompting and compatible activity happening nearby promoted action; stress and mental health difficulties made it worse. Prompts are double-edged: the authors advise delivering them sensitively, at natural breaks in attention, without nagging toward others' priorities, and separately advise avoiding interruptions by giving all the information needed for a decision at the moment the question is asked. Alarms and reminders were described as typically not overcoming inertia. Design implication: frame stuck states neutrally and never as a motivation failure; offer one low-pressure start prompt at a boundary, not repeated escalating reminders; make every prompt self-contained so acting on it requires no lookup; support stopping and switching as well as starting; and reduce demands when the user signals high stress. No child-to-adult transfer, but the sample is autistic adults only and says nothing about ADHD.",
+      "confidence": "low",
+      "sources": [
+        "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2021.631596/full"
+      ],
+      "evidence": "Merged claims 21, 22, 23 and 24. Buckle, Leadbitter, Poliakoff and Gowen, Frontiers in Psychology 2021, 12:631596, full text fetched. Qualitative study: 6 focus groups, 32 autistic adults aged 23-64 with clinical diagnoses, able to express internal experiences in words, recruited largely via Autscape and self-selected; single-coder reflexive thematic analysis; comorbidities including ADHD and depression were not analyzed separately. It is the first empirical study of the phenomenon and establishes lived-experience reports, not prevalence, mechanism or intervention efficacy. The recommendations in Table 4 are the authors' inferences and were not tested. The 'body doubling' parallel is the claimant's gloss; the paper does not use the term. The prompt advice and the interruption advice are separate rows of Table 4. Verifiers said later work (Phung et al. 2021; Rapaport et al.) is consistent, from memory. Rated low because it is a single exploratory qualitative source, although votes were unanimous.",
+      "vote": "3-0 on all four merged claims"
+    },
+    {
+      "claim": "Voluntary slow breathing reliably raises vagally-mediated HRV during a session, immediately after a single session, and after multi-session interventions (systematic review and meta-analysis, 223 studies). Design implication: an optional, user-initiated paced-breathing aid is defensible as a regulation tool, provided its copy claims only what is shown (a physiological shift) and does not promise improved focus or reduced stress. POPULATION TRANSFER: general populations; nothing specific to ADHD or autistic adults.",
+      "confidence": "medium",
+      "sources": [
+        "https://www.sciencedirect.com/science/article/abs/pii/S0149763422002007"
+      ],
+      "evidence": "Claim 17. Laborde et al. 2022, Neuroscience and Biobehavioral Reviews (PMID 35623448); abstract read on an institutional repository copy. The evidence base is uneven: 172 studies for the during-session effect, 49 for multi-session interventions, only 16 for the immediately-after effect. 223 is the count included in the systematic review; meta-analytic subsets may be smaller. HRV is a surrogate outcome; the review does not show downstream benefits for stress or cognition. No retraction or contradicting meta-analysis found. HRV biofeedback specifically was not separately verified in this pass.",
+      "vote": "3-0"
+    },
+    {
+      "claim": "Interoceptive differences in autism are small, specific and of uncertain validity, not a global deficit. A Bayesian meta-analysis of 15 case-control studies (467 autistic, 478 neurotypical) found reduced heartbeat counting performance (g = -0.333) alongside higher confidence in that ability (g = 0.430), with groups equivalent on heartbeat discrimination and self-reported interoceptive attention. Design implication: do not rely on the user noticing their own state as the only trigger for breaks or regulation. Offer optional external cues (elapsed time, time since last break, scheduled check-ins). The evidence does not justify assuming the user cannot sense their own state, so self-report check-ins remain valid. POPULATION TRANSFER: samples mix children and adults, though meta-regression found evidence against moderation by age group. Nothing on ADHD interoception survived verification.",
+      "confidence": "medium",
+      "sources": [
+        "https://link.springer.com/article/10.1007/s10803-022-05656-2"
+      ],
+      "evidence": "Merged claims 18, 19 and 20. Williams et al., J Autism Dev Disord 2022/2023, checked against PMC9832174 full text. The confidence estimate rests on about four samples, which the authors call imprecise and potentially biased (interval 0.12 to 0.75). The heartbeat counting task has widely criticized validity (influenced by heart-rate knowledge and time estimation); IQ matching explained about 38% of heterogeneity (not significant), and the authors lean toward the counting difference being possibly artifactual. The self-reported attention result was driven by one outlier study and not robust to its exclusion. 'Confidence-accuracy mismatch' is a group-level interpretation, not a computed metacognitive index.",
+      "vote": "3-0 on all three merged claims"
+    },
+    {
+      "claim": "WEAK, CONTESTED OR POP-PSYCHOLOGY: Polyvagal theory is actively contested in the peer-reviewed literature as of 2026 and should not be used as a design rationale or in dashboard copy. In February 2026 Grossman and co-signatories (38 per secondary coverage) published 'Why the Polyvagal Theory Is Untenable' in Clinical Neuropsychiatry, challenging its claims about autonomic organization, respiratory sinus arrhythmia and evolutionary framing. Porges's same-issue reply offers no new empirical data in its abstract; it argues the critics attack a reconstructed proxy of the theory built on category errors. Design implication: avoid 'vagal state', 'ventral/dorsal' or 'nervous system ladder' framings and state models. Regulation features that work (such as paced breathing) can be kept on their own evidence without the polyvagal explanation.",
+      "confidence": "high",
+      "sources": [
+        "https://www.clinicalneuropsychiatry.org/download/when-a-critique-becomes-untenable-a-scholarly-response-to-grossman-et-al-s-evaluation-of-polyvagal-theory/"
+      ],
+      "evidence": "Merged claims 15 and 16. Porges's reply was fetched directly; the critique was confirmed via the journal's site and search summaries, not read in full. The quoted description of the critique is Porges's own characterization, though the critique's title and secondary coverage agree with it. Clinical Neuropsychiatry is a modest-impact journal. The finding is that the theory is contested, not that either side has prevailed; secondary coverage includes pieces arguing the theory has 'not been debunked'. The dispute is unresolved and the literature is moving, so this is time-sensitive. High confidence applies to the 'contested' status only.",
+      "vote": "3-0 on both merged claims"
+    },
+    {
+      "claim": "WEAK, CONTESTED OR POP-PSYCHOLOGY (coverage gap): no claim survived verification on the following topics, so this pass provides no evidential basis for design decisions that rest on them. Treat any dashboard feature justified by them as unsupported by this report until researched: the 'dopamine menu' and dopamine-deficit framing of ADHD motivation; attention restoration theory and nature imagery; HRV biofeedback as distinct from paced breathing; interoception in ADHD; empirical UI studies of color saturation, dark mode, density, typography, animation and layout stability with autistic or ADHD participants; WIP limits and personal kanban; choice overload and decision fatigue and their replication status; Eisenhower and MoSCoW prioritization; Getting Things Done and 'one next action'; CBT and organizational skills training for adult ADHD (Safren, Solanto); time-perception deficits and external time aids; and all of angle 5 (twice-exceptional adults, masking and camouflaging costs, autistic burnout, perfectionism, rejection sensitive dysphoria, emotional dysregulation in adult ADHD, AuDHD co-occurrence, and studies of neurodivergent software developers).",
+      "confidence": "high",
+      "sources": [],
+      "evidence": "This is a statement about the verified claim set, not about the literature. The 25 surviving claims come from 9 distinct sources covering angle 1, the sensory part of angle 2, three of five items in angle 3, and one item (autistic inertia) in angle 4. Absence here means no claim passed 3-vote verification, not that the literature is empty or negative. In particular, Kushlev and Dunn 2015 and Fitz et al. 2019 on batching were named in the question and mentioned by verifiers from memory, but were not verified.",
+      "vote": "n/a (synthesis observation)"
+    }
+  ],
+  "caveats": "Coverage: the 25 verified claims draw on only 9 sources and leave most of angles 2, 4 and all of angle 5 uncovered. The requested output (a finding per topic with a design implication) cannot be fully delivered from this claim set; the gap is listed explicitly as a finding so it is not mistaken for negative evidence.\n\nPopulation transfer: every interruption and notification finding (Iqbal and Bailey 2008; Mark et al. 2008; Mark et al. 2016; Kushlev et al. 2016) comes from neurotypical or unscreened samples, and two of them from university students. No verified study in this pass tested interruption timing, batching or notification design with ADHD or autistic adults, so that part of the question is unanswered. The ADHD sensory meta-analysis is mostly child studies (23 of 30). The autism interoception meta-analysis mixes children and adults. Only the Tavassoli sensory study and the Buckle inertia study use adult autistic samples, and neither includes ADHD analysis.\n\nStrength of individual sources: several headline results are weaker in the paper body than in the abstract. Iqbal and Bailey's frustration effect was not significant for programming tasks, and there was no effect on resumption time. Mark et al. 2008 timed work net of interruption time. Kushlev et al.'s raw differences are about 0.1 scale points and the manipulation confounds alerts with phone proximity. The autistic inertia findings are exploratory qualitative self-report from 32 self-selected participants, and the design recommendations drawn from them were never tested as interventions.\n\nVerification depth: three sources were checked only against abstracts or search summaries, not full text (Mark et al. 2016; Jurek et al. 2025, where the publisher returned HTTP 403; the Grossman et al. critique). Some verifier statements were made from memory and not checked, including the existence and direction of the Kushlev and Dunn 2015 and Fitz et al. 2019 batching experiments. Several verifiers ran no search for contradicting evidence.\n\nConfidence ratings: all claims passed 3-0, so votes do not discriminate. Ratings were therefore based on number of sources, population match, study design and how far the design implication stretches beyond what was measured. Most findings rest on a single primary source and were rated medium or low accordingly. All design implications are the synthesizer's inferences; none was tested in any cited study.\n\nTime sensitivity: the polyvagal exchange is from 2026 and ongoing. The Jurek meta-analysis is from 2025. The interruption studies date from 2008 to 2016 and predate current notification ecosystems and AI coding agents, though the underlying attention findings are not fast-moving.",
+  "openQuestions": [
+    "Do breakpoint deferral and notification batching help, harm or make no difference for adults with ADHD or autism specifically? No verified study tested these populations, and monotropism and autistic inertia findings suggest the cost of a badly timed interruption could be larger than in neurotypical samples.",
+    "What do the batching experiments (Kushlev and Dunn 2015; Fitz et al. 2019) actually show about interval length, and how do they reconcile with the Mark et al. 2016 null result on stress? No specific batching interval has verified support in this pass.",
+    "Is there any empirical UI research with autistic or ADHD adult participants on color saturation, dark mode, density, typography, animation or layout stability, or does visual design guidance for this population rest entirely on practitioner guidelines and sensory-questionnaire data?",
+    "What is the evidence for the uncovered angle 4 and angle 5 topics most likely to drive dashboard structure: WIP limits and single-next-action systems, CBT-derived planning skills for adult ADHD, time-perception aids, and masking, burnout and emotional dysregulation in AuDHD or twice-exceptional adults, including studies of neurodivergent software developers?"
+  ],
+  "refuted": [],
+  "unverified": [],
+  "sources": [
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0747563219302596",
+      "quality": "unreliable",
+      "angle": "Interruption timing and notification batching (HCI empirical)",
+      "claimCount": 0
+    },
+    {
+      "url": "https://dl.acm.org/doi/10.1145/1357054.1357070",
+      "quality": "primary",
+      "angle": "Interruption timing and notification batching (HCI empirical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://ics.uci.edu/~gmark/chi08-mark.pdf",
+      "quality": "primary",
+      "angle": "Interruption timing and notification batching (HCI empirical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://dl.acm.org/doi/10.1145/2858036.2858262",
+      "quality": "primary",
+      "angle": "Interruption timing and notification batching (HCI empirical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://dl.acm.org/doi/10.1145/2858036.2858359",
+      "quality": "primary",
+      "angle": "Interruption timing and notification batching (HCI empirical)",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S1071581920300641",
+      "quality": "unreliable",
+      "angle": "Sensory-safe visual design for autistic and ADHD adults",
+      "claimCount": 0
+    },
+    {
+      "url": "https://doi.org/10.1177/1362361313477246",
+      "quality": "primary",
+      "angle": "Sensory-safe visual design for autistic and ADHD adults",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0924933817327529",
+      "quality": "unreliable",
+      "angle": "Sensory-safe visual design for autistic and ADHD adults",
+      "claimCount": 0
+    },
+    {
+      "url": "https://www.researchgate.net/publication/391869659_A_Mapping_Review_to_Understand_Web_and_Mobile_Apps_Accessibility_for_Adults_with_Autism",
+      "quality": "unreliable",
+      "angle": "Sensory-safe visual design for autistic and ADHD adults",
+      "claimCount": 0
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/pii/S0890856725002096",
+      "quality": "primary",
+      "angle": "Sensory-safe visual design for autistic and ADHD adults",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.researchgate.net/publication/301552021_Towards_Web_Accessibility_Guidelines_of_Interaction_and_Interface_Design_for_People_with_Autism_Spectrum_Disorder",
+      "quality": "unreliable",
+      "angle": "Sensory-safe visual design for autistic and ADHD adults",
+      "claimCount": 0
+    },
+    {
+      "url": "https://www.researchgate.net/profile/Paul-Grossman/publication/400718181_THE_POLYVAGAL_THEORY_IS_UNTENABLE_An_international_expert_evaluation_of_the_polyvagal_theory_and_commentary_upon_Porges/links/698def9112f837212a1a47f2/THE-POLYVAGAL-THEORY-IS-UNTENABLE-An-international-expert-evaluation-of-the-polyvagal-theory-and-commentary-upon-Porges.pdf",
+      "quality": "unreliable",
+      "angle": "Scientific status of nervous-system-regulation frameworks (skeptical)",
+      "claimCount": 0
+    },
+    {
+      "url": "https://www.clinicalneuropsychiatry.org/download/when-a-critique-becomes-untenable-a-scholarly-response-to-grossman-et-al-s-evaluation-of-polyvagal-theory/",
+      "quality": "primary",
+      "angle": "Scientific status of nervous-system-regulation frameworks (skeptical)",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0149763422002007",
+      "quality": "primary",
+      "angle": "Scientific status of nervous-system-regulation frameworks (skeptical)",
+      "claimCount": 4
+    },
+    {
+      "url": "https://link.springer.com/article/10.1007/s10803-022-05656-2",
+      "quality": "primary",
+      "angle": "Scientific status of nervous-system-regulation frameworks (skeptical)",
+      "claimCount": 4
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11604610/",
+      "quality": "secondary",
+      "angle": "Scientific status of nervous-system-regulation frameworks (skeptical)",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2021.631596/full",
+      "quality": "primary",
+      "angle": "Externalized priority and task-initiation systems for adult executive dysfunction",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3414742/",
+      "quality": "primary",
+      "angle": "Externalized priority and task-initiation systems for adult executive dysfunction",
+      "claimCount": 5
+    },
+    {
+      "url": "https://onlinelibrary.wiley.com/doi/10.1002/wps.21349",
+      "quality": "secondary",
+      "angle": "Externalized priority and task-initiation systems for adult executive dysfunction",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9962130/",
+      "quality": "secondary",
+      "angle": "Externalized priority and task-initiation systems for adult executive dysfunction",
+      "claimCount": 5
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/32851204/",
+      "quality": "primary",
+      "angle": "Twice-exceptional adults, emotional factors and neurodivergent developers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/pii/S3050579826000112",
+      "quality": "unreliable",
+      "angle": "Twice-exceptional adults, emotional factors and neurodivergent developers",
+      "claimCount": 0
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9821724/",
+      "quality": "primary",
+      "angle": "Twice-exceptional adults, emotional factors and neurodivergent developers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12822938/",
+      "quality": "primary",
+      "angle": "Twice-exceptional adults, emotional factors and neurodivergent developers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/html/2411.13950",
+      "quality": "primary",
+      "angle": "Twice-exceptional adults, emotional factors and neurodivergent developers",
+      "claimCount": 5
+    },
+    {
+      "url": "https://arxiv.org/abs/2506.03840",
+      "quality": "primary",
+      "angle": "Twice-exceptional adults, emotional factors and neurodivergent developers",
+      "claimCount": 5
+    }
+  ],
+  "stats": {
+    "angles": 5,
+    "sourcesFetched": 26,
+    "claimsExtracted": 90,
+    "claimsVerified": 25,
+    "confirmed": 25,
+    "killed": 0,
+    "unverified": 0,
+    "afterSynthesis": 12,
+    "urlDupes": 0,
+    "budgetDropped": 4,
+    "agentCalls": 108
+  }
+}
