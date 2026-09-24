@@ -69,6 +69,8 @@ class Inbox implements AsyncIterable<SDKUserMessage> {
 export function sessionEnv(): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = { ...process.env };
   if (process.env.ND_USE_API_KEY !== "1") { delete env.ANTHROPIC_API_KEY; delete env.ANTHROPIC_AUTH_TOKEN; }
+  // marks of a parent Claude Code session (if the server was started from inside one) would make every app session a child of it and hide the claude.ai connectors
+  for (const k of Object.keys(env)) if (k === "CLAUDECODE" || k.startsWith("CLAUDE_CODE_") || k === "CLAUDE_PID" || k === "CLAUDE_EFFORT") delete env[k];
   return env;
 }
 
