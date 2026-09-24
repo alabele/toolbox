@@ -224,7 +224,9 @@ Bun.serve({
       let msg: any; try { msg = JSON.parse(String(raw)); } catch { return; }
       try {
         switch (msg.type) {
-          case "start": { const id = mgr.start({ cwd: msg.cwd, prompt: msg.prompt, mode: msg.mode }); ws.send(JSON.stringify({ type: "started", payload: { tempId: id } })); break; }
+          case "start": { const cwd = String(msg.cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(cwd).isDirectory(); } catch {}
+            if (!ok) { ws.send(JSON.stringify({ type: "start-failed", payload: `That folder does not exist: ${cwd || "(empty)"}` })); break; } // a missing folder makes the binary fail to launch with a misleading message
+            const id = mgr.start({ cwd, prompt: msg.prompt, mode: msg.mode }); ws.send(JSON.stringify({ type: "started", payload: { tempId: id } })); break; }
           case "resume": { const id = mgr.start({ cwd: msg.cwd, resume: msg.sessionId, prompt: msg.prompt, mode: msg.mode }); ws.send(JSON.stringify({ type: "started", payload: { tempId: id } })); break; }
           case "open": ws.send(JSON.stringify({ type: "transcript", sessionId: msg.sessionId, payload: { meta: mgr.get(msg.sessionId)?.meta ?? null, events: mgr.events(msg.sessionId) } })); break;
           case "send": mgr.send(msg.sessionId, msg.text); break;

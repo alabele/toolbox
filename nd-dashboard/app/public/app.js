@@ -243,6 +243,7 @@ function connect() {
     if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; $("#prs-n").textContent = String(prList.filter(p => p.needsYou).length || ""); if (!$("#prs").hidden) renderPrs(); }
     if (m.type === "ledger") { ledgerRows = m.payload?.entries || []; ledgerSums = m.payload?.summaries || {}; if (!$("#ledger").hidden) renderLedger(); }
     if (m.type === "started") { pendingStarts.push(m.payload.tempId); openSession(m.payload.tempId); }
+    if (m.type === "start-failed") { const e = $("#error"); e.hidden = false; e.textContent = m.payload; $("#ns-cwd").focus(); setTimeout(() => { e.hidden = true; }, 8000); }
     if (m.type === "meta") { const mm = m.payload; if (openId === m.sessionId || (openId && openId.startsWith("pending-") && pendingStarts.includes(openId))) { if (openId !== mm.sessionId) { openId = mm.sessionId; location.hash = "s/" + mm.sessionId; send({ type: "open", sessionId: mm.sessionId }); } meta = mm; renderSessHead(); renderPending(); } }
     if (m.type === "event" && m.sessionId === openId) { const ev = m.payload; const i = ev.kind === "tool" ? transcript.findIndex(x => x.kind === "tool" && x.id === ev.id) : -1; if (i >= 0) transcript[i] = ev; else transcript.push(ev); renderTranscript(); }
     if (m.type === "transcript" && m.sessionId === openId) { meta = m.payload.meta; transcript = m.payload.events; renderSessHead(); renderTranscript(); renderPending(); }
