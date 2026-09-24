@@ -346,9 +346,12 @@ function docHtml(text, sid) { // sid: when given, numbered choices under a Quest
   if (tail.trim()) { wrap.insertAdjacentHTML("beforeend", `<details class="more"><summary><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>Details</summary><div class="doc"></div></details>`); const d = wrap.querySelector("details.more>.doc"); d.innerHTML = renderMd(tail); foldCode(d); }
   return wrap;
 }
-function foldCode(root) { // code is for when she asks; long blocks fold to one line
-  for (const pre of root.querySelectorAll("pre")) { const n = (pre.textContent.match(/\n/g) || []).length + 1; if (n <= 3) continue;
-    const d = document.createElement("details"); d.className = "code"; d.innerHTML = `<summary><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>Show code, ${n} lines</summary>`; pre.replaceWith(d); d.appendChild(pre); } }
+function copyBtn(text) { const b = document.createElement("button"); b.type = "button"; b.className = "copy"; b.textContent = "Copy"; b.title = "Copy to the clipboard";
+  b.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; } catch { b.textContent = "Could not copy"; } setTimeout(() => { b.textContent = "Copy"; }, 1500); }; return b; }
+function foldCode(root) { // code is for when she asks; long blocks fold to one line; every block gets Copy
+  for (const pre of root.querySelectorAll("pre")) { const n = (pre.textContent.match(/\n/g) || []).length + 1; const text = pre.textContent.replace(/\n$/, "");
+    if (n <= 3) { const w = document.createElement("div"); w.className = "code-wrap"; pre.replaceWith(w); w.appendChild(pre); w.appendChild(copyBtn(text)); continue; }
+    const d = document.createElement("details"); d.className = "code"; d.innerHTML = `<summary><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>Show code, ${n} lines</summary>`; d.querySelector("summary").appendChild(copyBtn(text)); pre.replaceWith(d); d.appendChild(pre); } }
 const base = (p) => String(p || "").split("/").filter(Boolean).pop() || "";
 function toolLabel(ev) { const i = ev.input || {}; const n = ev.name;
   if (n === "Bash") return [i.description || "Ran a command", i.command || ""];

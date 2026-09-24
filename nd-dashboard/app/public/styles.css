@@ -649,3 +649,10 @@ main{height:100%;overflow:auto;padding-bottom:40px}
 .pr-ticket em{font-style:normal;color:var(--text-secondary)}
 .pr-mismatch{color:var(--st-failed);margin-right:10px}
 .pr-facts a{color:var(--text-secondary)}
+/* copy buttons on code */
+.code-wrap{position:relative}
+.code-wrap .copy{position:absolute;top:6px;right:6px}
+.copy{all:unset;cursor:pointer;font-family:var(--caps);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary);padding:2px 7px;border:1px solid var(--line-quiet);border-radius:4px;background:var(--bg-primary)}
+.copy:hover{color:var(--text-primary);border-color:var(--border-medium)}
+.doc details.code>summary{display:flex;align-items:center;gap:6px}
+.doc details.code>summary .copy{margin-left:auto}
