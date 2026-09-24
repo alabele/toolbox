@@ -130,7 +130,7 @@ function roundCard(x, isOpen, hasNext) {
   else if (!(sent && !x.needsYou)) {
     const f = document.createElement("form"); f.className = "rc-reply";
     const ph = x.pending ? (x.pending.kind === "permission" ? "Or type to deny with a note" : "Or answer in your own words") : "Reply. Enter to send";
-    f.innerHTML = `<textarea rows="2" placeholder="${ph}"></textarea><button class="btn primary" type="submit">Send</button>`;
+    f.innerHTML = `<textarea rows="2" placeholder="${ph}"></textarea><button class="btn primary" type="submit">Send</button>`; if (!x.pending) armSuggestion(f.querySelector("textarea"), x.lastReply || "");
     f.onsubmit = (e) => { e.preventDefault(); const t = f.querySelector("textarea").value.trim(); if (!t) return;
       if (x.pending) send({ type: "answer", sessionId: x.sessionId, requestId: x.pending.id, decision: x.pending.kind === "permission" ? { behavior: "deny", message: t } : { freeText: t } }); else send({ type: "send", sessionId: x.sessionId, text: t }); answered(); };
     f.querySelector("textarea").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } }); card.appendChild(f);
@@ -329,9 +329,21 @@ $("#park-note").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.
 const mdOpts = { gfm: true, breaks: false };
 function renderMd(t) { try { const html = marked.parse(t.replace(/<\/?(script|style|iframe)[^>]*>/gi, ""), mdOpts); return html; } catch { return `<p>${esc(t)}</p>`; } }
 const STATUS_RE = /^\s*(Done|Partly done|Blocked|Found|Question|Working|Failed|Not done)\b[.:!]?/i;
+const REPLY_LINE = /^\s*\**Reply\**\s*:\s*(.+?)\s*$/im;
+function suggestReply(text) { // what she would most likely type next, from the reply itself
+  if (!text) return ""; const m = text.match(REPLY_LINE); if (m) return m[1].replace(/^["'“”`]+|["'“”`.]+$/g, "").slice(0, 80);
+  const say = text.match(/\bsay\s+["“'`]?([A-Za-z][A-Za-z0-9 ,'-]{0,30}?)["”'`]?\s+(?:and|to|if|when)\b/i); if (say) return say[1].trim();
+  const pick = text.match(/^\s*\d+\.\s+(.+?)\s*\(my pick\)/im); if (pick) return pick[1].trim();
+  return ""; }
+const stripReplyLine = (t) => String(t || "").replace(REPLY_LINE, "").replace(/\n{3,}$/, "\n");
+function armSuggestion(box, text) { // grey suggestion in the box; Tab takes it
+  const s = suggestReply(text); box.dataset.suggest = s; const base = box.dataset.basePlaceholder || (box.dataset.basePlaceholder = box.placeholder);
+  box.placeholder = s ? `${s}   (Tab to use this)` : base; box.classList.toggle("has-suggest", !!s); }
+document.addEventListener("keydown", (e) => { if (e.key !== "Tab" || e.shiftKey) return; const t = e.target; if (!(t instanceof HTMLTextAreaElement) || t.value || !t.dataset.suggest) return; e.preventDefault(); t.value = t.dataset.suggest; t.setSelectionRange(t.value.length, t.value.length); }, true);
 const STATUS_CLASS = { done: "s-done", "partly done": "s-part", blocked: "s-block", found: "s-found", question: "s-ask", working: "s-work", failed: "s-block", "not done": "s-block" };
 const STATUS_ICON = { "s-done": "circle-check", "s-part": "circle-dashed", "s-block": "circle-x", "s-found": "search", "s-ask": "circle-help", "s-work": "orbit" };
 function docHtml(text, sid) { // sid: when given, numbered choices under a Question line become click-to-answer
+  text = stripReplyLine(text);
   const m = text.match(/\n\s*(-{3,}|\*{3,})\s*\n/); let head = text, tail = "";
   if (m) { head = text.slice(0, m.index); tail = text.slice(m.index + m[0].length); }
   const wrap = document.createElement("div"); wrap.className = "doc"; wrap.innerHTML = renderMd(head);
@@ -377,7 +389,7 @@ function renderTranscript() {
   const visible = showEarlier.has(openId) || lastStart === 0 ? merged : merged.slice(lastStart);
   const eb = $("#earlier"); eb.hidden = earlier === 0; eb.querySelector("span").textContent = showEarlier.has(openId) ? "Hide earlier" : `Earlier (${earlier})`; eb.title = "Show the earlier exchanges in this session";
   eb.onclick = () => { if (showEarlier.has(openId)) showEarlier.delete(openId); else showEarlier.add(openId); renderTranscript(); $("#main").scrollTo(0, 0); };
-  const lastText = [...visible].reverse().find(e => e.kind === "text");
+  const lastText = [...visible].reverse().find(e => e.kind === "text"); armSuggestion($("#reply"), lastText?.text || "");
   visible.forEach((ev) => { if (ev.kind === "tool") { run.push(ev); return; } flush(false); let li;
     if (ev.kind === "user") { li = document.createElement("li"); li.className = "t-user"; li.textContent = ev.text.replace(/\[Image:[^\]]*\]/g, "(image attached)"); }
     else if (ev.kind === "text") { li = document.createElement("li"); li.className = "t-text"; li.appendChild(docHtml(ev.text, ev === lastText ? openId : undefined)); }

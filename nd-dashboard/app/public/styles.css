@@ -656,3 +656,4 @@ main{height:100%;overflow:auto;padding-bottom:40px}
 .copy:hover{color:var(--text-primary);border-color:var(--border-medium)}
 .doc details.code>summary{display:flex;align-items:center;gap:6px}
 .doc details.code>summary .copy{margin-left:auto}
+textarea.has-suggest::placeholder{color:var(--text-secondary);font-style:italic}
