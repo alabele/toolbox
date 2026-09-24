@@ -9,7 +9,7 @@ import { SessionManager, type Meta } from "./sessions";
 import { Titler } from "./titles";
 import { Ledger } from "./ledger";
 import { Prs, type Pr } from "./prs";
-import { postToSlack, replyInThread } from "./slack";
+import { postToSlack, replyInThread, slackConnected, slackProbe } from "./slack";
 
 const PORT = Number(process.env.ND_PORT ?? 4747);
 const POLL_MS = Number(process.env.ND_POLL_MS ?? 15_000);
@@ -243,6 +243,8 @@ Bun.serve({
     if (url.pathname === "/ws") { if (server.upgrade(req)) return undefined as any; return new Response("upgrade failed", { status: 400 }); }
     if (url.pathname === "/api/ledger") return Response.json(ledger.list());
     if (url.pathname === "/api/prs") return Response.json({ prs: prs.list(), repos: prs.repos, jira: prs.jira() });
+    if (url.pathname === "/api/slack/status") return Response.json({ connected: await slackConnected() });
+    if (url.pathname === "/api/slack/probe") return new Response(await slackProbe(url.searchParams.get("q") || "general"));
     if (url.pathname === "/api/jira/refresh" && req.method === "POST") { await prs.refreshTickets(); return Response.json(prs.jira()); }
     if (url.pathname === "/api/pr/review" && req.method === "POST") { const b = await req.json(); return runPrLoop(String(b.key)) ? new Response("ok") : new Response("already running or unknown", { status: 409 }); }
     if (url.pathname === "/api/pr/channel" && req.method === "POST") { const b = await req.json(); prs.setChannel(String(b.repo), String(b.channel).trim()); broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }); return new Response("ok"); }

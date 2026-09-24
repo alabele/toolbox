@@ -6,7 +6,7 @@ A local web app where Claude Code sessions run, so you can stop handling them in
 
 ```bash
 cd ~/code/toolbox/nd-dashboard/app
-bun run server.ts          # http://localhost:4747  (formerly Quiet)
+./start.sh          # http://localhost:4747  (formerly Quiet)
 ./install-hooks.sh         # once; adds six async hooks to ~/.claude/settings.json
 ```
 
