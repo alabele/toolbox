@@ -24,7 +24,7 @@ export class Titler {
   /** The cached title for this session, and a fresh one on the way when what it is doing changed. */
   get(id: string, first: string, last: string, settled: boolean, current = ""): string {
     if (OFF || !id || id.startsWith("pending-") || !first?.trim()) return "";
-    const key = hash("v2\n" + first.slice(0, 400) + "\n" + (last || "").slice(0, 400)); // v2: titles lead with the thing
+    const key = hash("v3\n" + first.slice(0, 400) + "\n" + (last || "").slice(0, 400)); // v2: titles lead with the thing
     const row = this.rows.get(id);
     const stale = !row || (row.key !== key && settled && Date.now() - row.at > RETITLE_AFTER) || (!row?.title && Date.now() - (row?.at ?? 0) > RETRY_AFTER);
     if (stale && this.jobs.get(id)?.key !== key) { this.jobs.set(id, { id, key, first, last, current: row?.title || current }); this.drain(); }
@@ -43,7 +43,7 @@ function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++
 
 async function makeTitle(j: Job): Promise<string> {
   const prompt = [
-    "Title this coding session in 3 to 6 plain words. Lead with the thing, then the matter: the ticket, pull request, file or repo first, then a noun phrase. No verb. Like \"VDC-2318 demo driver startup\", \"docs #5243 deliver plugin review\", \"Cam2Cam iOS Safari failure\", \"Stillroom drag-drop merge\".",
+    "Title this coding session. One session is one ticket. If the first request names a ticket key (like VDC-1234, D-413, STORY-205, PROJ-030), the title is that key, a colon, then 3 to 6 plain words for the matter: \"VDC-2318: demo driver startup\". With no ticket, lead with the thing, then the matter: the pull request, file or repo first, then a noun phrase, no verb: \"docs #5243: deliver plugin review\", \"Cam2Cam iOS Safari failure\".",
     "Name a pull request as repo #number, like docs-pipeline #319, never PR 2244. Never quote the request or the reply. No quotes, no trailing period, no words like session, task, user or Claude. Reply with the title only.",
     j.current ? `Current title: ${j.current}. Keep it if it still fits; change it only if what is happening has changed.` : "",
     `\nFirst request:\n${j.first.slice(0, 1500)}`,
@@ -54,7 +54,7 @@ async function makeTitle(j: Job): Promise<string> {
     const q = query({ prompt, options: { model: "haiku", settingSources: [], tools: [], maxTurns: 1, persistSession: false, env: sessionEnv(), cwd: homedir(), abortController: abort } as any });
     let text = "";
     for await (const m of q) if (m.type === "assistant") for (const b of (m as any).message.content) if (b.type === "text") text += b.text;
-    return clean(text);
+    return withTicket(clean(text), j.first);
   } catch { return ""; } finally { clearTimeout(timer); }
 }
 /** One hookless, unsaved Haiku call. Text back, or empty on failure. */
@@ -78,3 +78,9 @@ export async function reshape(reply: string, style: string): Promise<string> {
   } catch { return ""; } finally { clearTimeout(timer); }
 }
 function clean(t: string) { const line = t.trim().split("\n").map(s => s.trim()).filter(Boolean)[0] ?? ""; return line.replace(/^["'“”]+|["'“”.]+$/g, "").replace(/^title:\s*/i, "").slice(0, 80); }
+const TICKET = /\b(VDC|D|STORY|PROJ|OPS|DOCS)-(\d{1,6})\b/i;
+/** The ticket named in the first request leads the title, as KEY: matter. */
+function withTicket(title: string, first: string): string {
+  const m = first.match(TICKET); if (!m) return title; const key = `${m[1].toUpperCase()}-${m[2]}`;
+  const rest = title.replace(new RegExp(`^\\s*${key}\\s*[:\\-–—]?\\s*`, "i"), "").replace(new RegExp(`\\b${key}\\b`, "ig"), "").replace(/\s{2,}/g, " ").replace(/^[\s:,-]+|[\s:,-]+$/g, "").trim();
+  return `${key}: ${rest || "in progress"}`; }

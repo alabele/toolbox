@@ -722,3 +722,5 @@ textarea.uploading{opacity:.7}
 .si[aria-current="true"]{margin:0;border-radius:4px}
 .newsess{border:0;padding:0 0 12px;max-width:820px}
 .newsess .hint,.newsess .menu-note{color:var(--text-tertiary)}
+.si .si-line{margin-left:0}
+.si .si-acts{margin-left:0}
