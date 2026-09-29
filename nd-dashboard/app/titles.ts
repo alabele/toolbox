@@ -6,6 +6,8 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { mkdirSync as mk } from "node:fs";
+export const HELPER_DIR = join(homedir(), ".config", "stillroom", "helpers"); try { mk(HELPER_DIR, { recursive: true }); } catch {}
 import { sessionEnv } from "./sessions";
 
 const FILE = process.env.ND_TITLES ?? join(homedir(), ".config", "stillroom", "titles.json");
@@ -51,7 +53,7 @@ async function makeTitle(j: Job): Promise<string> {
   ].filter(Boolean).join("\n");
   const abort = new AbortController(); const timer = setTimeout(() => abort.abort(), 45_000);
   try {
-    const q = query({ prompt, options: { model: "haiku", settingSources: [], tools: [], maxTurns: 1, persistSession: false, env: sessionEnv(), cwd: homedir(), abortController: abort } as any });
+    const q = query({ prompt, options: { model: "haiku", settingSources: [], tools: [], maxTurns: 1, persistSession: false, env: sessionEnv(), cwd: HELPER_DIR, abortController: abort } as any });
     let text = "";
     for await (const m of q) if (m.type === "assistant") for (const b of (m as any).message.content) if (b.type === "text") text += b.text;
     return withTicket(clean(text), j.first);
@@ -61,7 +63,7 @@ async function makeTitle(j: Job): Promise<string> {
 export async function ask(prompt: string, timeoutMs = 60_000): Promise<string> {
   const abort = new AbortController(); const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
-    const q = query({ prompt, options: { model: "haiku", settingSources: [], tools: [], maxTurns: 1, persistSession: false, env: sessionEnv(), cwd: homedir(), abortController: abort } as any });
+    const q = query({ prompt, options: { model: "haiku", settingSources: [], tools: [], maxTurns: 1, persistSession: false, env: sessionEnv(), cwd: HELPER_DIR, abortController: abort } as any });
     let text = ""; for await (const m of q) if (m.type === "assistant") for (const b of (m as any).message.content) if (b.type === "text") text += b.text;
     return text.trim();
   } catch { return ""; } finally { clearTimeout(timer); }
@@ -72,7 +74,7 @@ export async function reshape(reply: string, style: string): Promise<string> {
   const prompt = `Rewrite the reply below into the shape described. Keep every fact, name, number and link exactly. Add nothing, drop nothing that matters. Bullets, not paragraphs, above the ---. Output only the rewritten reply.\n\n## The shape\n${style}\n\n## The reply\n${reply.slice(0, 12000)}`;
   const abort = new AbortController(); const timer = setTimeout(() => abort.abort(), 60_000);
   try {
-    const q = query({ prompt, options: { model: "haiku", settingSources: [], tools: [], maxTurns: 1, persistSession: false, env: sessionEnv(), cwd: homedir(), abortController: abort } as any });
+    const q = query({ prompt, options: { model: "haiku", settingSources: [], tools: [], maxTurns: 1, persistSession: false, env: sessionEnv(), cwd: HELPER_DIR, abortController: abort } as any });
     let text = ""; for await (const m of q) if (m.type === "assistant") for (const b of (m as any).message.content) if (b.type === "text") text += b.text;
     return text.trim();
   } catch { return ""; } finally { clearTimeout(timer); }

@@ -6,7 +6,7 @@ import { readFileSync, existsSync, openSync, readSync, fstatSync, closeSync, rea
 import { homedir } from "node:os";
 import { join, basename } from "node:path";
 import { SessionManager, type Meta } from "./sessions";
-import { Titler } from "./titles";
+import { Titler, HELPER_DIR } from "./titles";
 import { Ledger } from "./ledger";
 import { Prs, type Pr } from "./prs";
 import { postToSlack, replyInThread, slackConnected, slackProbe } from "./slack";
@@ -42,7 +42,7 @@ async function poll() {
     const rows = JSON.parse(out) as any[];
     for (const s of sessions.values()) s.seenInLastPoll = false;
     for (const r of rows) {
-      const id = r.sessionId as string;
+      const id = r.sessionId as string; if (r.cwd === HELPER_DIR) continue; // the app's own helper calls (titles, Slack) are not sessions of hers
       const cur = sessions.get(id) ?? { sessionId: id, cwd: r.cwd, kind: r.kind, startedAt: r.startedAt, firstSeen: Date.now(), stateSince: r.startedAt, seenInLastPoll: true } as Session;
       cur.cwd = r.cwd; cur.kind = r.kind; cur.startedAt = r.startedAt;
       cur.pollState = r.state; cur.pollStatus = r.status; cur.seenInLastPoll = true; if (r.name) cur.name = r.name; if (r.id) cur.shortId = r.id; cur.pid = r.pid;
@@ -59,6 +59,7 @@ async function poll() {
 // ---------- hooks ----------
 function recordHook(name: string, payload: any) {
   const id = payload?.session_id; if (!id) return;
+  if (payload.cwd === HELPER_DIR) return; // helper calls fire hooks too
   const cur = sessions.get(id) ?? { sessionId: id, cwd: payload.cwd ?? "", kind: "interactive", startedAt: Date.now(), firstSeen: Date.now(), stateSince: Date.now(), seenInLastPoll: false } as Session;
   if (payload.cwd) cur.cwd = payload.cwd;
   cur.lastHook = { name, at: Date.now(), notificationType: payload.notification_type, message: payload.message, lastAssistant: payload.last_assistant_message, prompt: payload.prompt };

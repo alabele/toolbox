@@ -2,6 +2,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { homedir } from "node:os";
 import { sessionEnv } from "./sessions";
+import { HELPER_DIR } from "./titles";
 
 // The Slack connector is passed to the session by name and id, so it loads even when the auto-fetched list is slow to arrive.
 // Its id comes from the same claude.ai endpoint the CLI uses, with the login token from the keychain. Cached for an hour.
@@ -28,18 +29,18 @@ async function oneShot(prompt: string, cwd: string): Promise<string> {
   } catch (e: any) { return `ERROR ${e?.message ?? e}`; } finally { clearTimeout(timer); }
 }
 /** Posts a message to a channel; returns the permalink, or an error string starting with ERROR. */
-export async function postToSlack(channel: string, text: string, cwd = homedir()): Promise<string> {
+export async function postToSlack(channel: string, text: string, cwd = HELPER_DIR): Promise<string> {
   if (!(await findSlack())) return "ERROR Slack is not connected to this claude.ai account. Connect it at claude.ai, Settings, Connectors.";
   const out = await oneShot(`Use the Slack connector to post exactly this message to the channel ${channel} (no edits, no extra words, no thread):\n\n${text}\n\nThen reply with only the permalink of the message you posted. If you cannot post, reply with only: ERROR followed by one line saying why.`, cwd);
   const m = out.match(/https:\/\/\S+slack\.com\/archives\/\S+/); return m ? m[0].replace(/[).,]+$/, "") : out.startsWith("ERROR") ? out : `ERROR ${out.slice(0, 200) || "no permalink came back"}`;
 }
 /** Replies in the thread of a posted message. */
-export async function replyInThread(permalink: string, text: string, cwd = homedir()): Promise<string> {
+export async function replyInThread(permalink: string, text: string, cwd = HELPER_DIR): Promise<string> {
   if (!(await findSlack())) return "ERROR Slack is not connected to this claude.ai account. Connect it at claude.ai, Settings, Connectors.";
   const out = await oneShot(`Use the Slack connector to reply in the thread of this message: ${permalink}\nPost exactly this reply (no edits, no extra words):\n\n${text}\n\nThen reply with only: ok. If you cannot, reply with only: ERROR followed by one line saying why.`, cwd);
   return /^ok\b/i.test(out) ? "ok" : out.startsWith("ERROR") ? out : `ERROR ${out.slice(0, 200)}`;
 }
 /** Read-only check that the connector answers: the channels whose name matches. */
-export async function slackProbe(name: string, cwd = homedir()): Promise<string> {
+export async function slackProbe(name: string, cwd = HELPER_DIR): Promise<string> {
   return oneShot(`Use the Slack connector to search channels for "${name}". Reply with only the channel names you found, one per line, or "none".`, cwd);
 }
