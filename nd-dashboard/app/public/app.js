@@ -74,7 +74,7 @@ function renderSide() {
   document.querySelectorAll("[data-toggle]").forEach(t => t.onclick = () => { prefs.open = { ...(prefs.open || {}), [t.dataset.toggle]: !prefs.open?.[t.dataset.toggle] }; save(); renderSide(); });
   document.querySelectorAll(".letgo").forEach(b => b.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); const id = b.dataset.id;
     if (!confirm("Let this session go? It ends now. The conversation stays on disk and can be resumed later.")) return;
-    if (b.dataset.managed === "true") send({ type: "end", sessionId: id });
+    unpin(id); if (b.dataset.managed === "true") send({ type: "end", sessionId: id });
     else { try { const r = await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }) }); if (!r.ok) { $("#error").hidden = false; $("#error").textContent = "Could not end it: " + await r.text(); return; } } catch {} }
     prefs.dismissed = [...(prefs.dismissed || []), id]; save(); renderSide(); renderNext(); });
   document.title = (groups.needs.length ? "Needs you · " : "") + "Stillroom"; document.body.dataset.needs = groups.needs.length ? "1" : "0"; icons();
@@ -165,7 +165,7 @@ function roundCard(x, isOpen, hasNext) {
   more.onclick = () => { extra.hidden = !extra.hidden; more.textContent = extra.hidden ? "More" : "Less"; };
   extra.querySelector('[data-a="note"]').onclick = () => { const v = prompt("Note to self, shown on the item", note); if (v === null) return; if (x.managed) send({ type: "note", sessionId: x.sessionId, note: v }); else { prefs.notes = { ...(prefs.notes || {}), [x.sessionId]: v.trim() }; if (!prefs.notes[x.sessionId]) delete prefs.notes[x.sessionId]; save(); renderSide(); renderRounds(); } };
   extra.querySelector('[data-a="close"]')?.addEventListener("click", () => { closeWithUndo(x); openRound = null; });
-  extra.querySelector('[data-a="letgo"]')?.addEventListener("click", async () => { if (!confirm("Let this session go? It ends now. The conversation stays on disk.")) return; try { await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: x.sessionId }) }); } catch {} prefs.dismissed = [...(prefs.dismissed || []), x.sessionId]; save(); renderSide(); renderRounds(); });
+  extra.querySelector('[data-a="letgo"]')?.addEventListener("click", async () => { if (!confirm("Let this session go? It ends now. The conversation stays on disk.")) return; try { await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: x.sessionId }) }); } catch {} prefs.dismissed = [...(prefs.dismissed || []), x.sessionId]; unpin(x.sessionId); save(); renderSide(); renderRounds(); });
   card.appendChild(extra);
   return card;
 }
@@ -338,8 +338,9 @@ $("#sess-title").onclick = () => { const el = $("#sess-title"); editTitle(el, el
 $("#sess-title").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#sess-title").click(); });
 $("#show-steps").onchange = (e) => { prefs.showSteps = e.target.checked; save(); $("#transcript").classList.toggle("no-steps", !prefs.showSteps); };
 $("#sess-stop").onclick = () => send({ type: "interrupt", sessionId: openId });
-function closeWithUndo(x) { // no dialog: it closes, and one line offers Undo
-  send({ type: "end", sessionId: x.sessionId }); const u = $("#undo"); $("#undo-text").textContent = `Closed "${x.title.slice(0, 40)}". It stays on disk.`; u.hidden = false;
+function unpin(id) { if ((prefs.stars || {})[id] == null) return; const s = { ...prefs.stars }; delete s[id]; prefs.stars = s; save(); }
+function closeWithUndo(x) { // no dialog: it closes, and one line offers Undo; a closed session is no longer pinned
+  send({ type: "end", sessionId: x.sessionId }); unpin(x.sessionId); const u = $("#undo"); $("#undo-text").textContent = `Closed "${x.title.slice(0, 40)}". It stays on disk.`; u.hidden = false;
   $("#undo-btn").onclick = () => { send({ type: "resume", sessionId: x.sessionId, cwd: x.cwd }); u.hidden = true; }; setTimeout(() => { u.hidden = true; }, 12000); }
 $("#sess-end").onclick = () => { const x = list.find(s => s.sessionId === openId) || { sessionId: openId, title: meta?.title || "", cwd: meta?.cwd }; closeWithUndo(x); location.hash = ""; };
 $("#sess-star").onclick = () => { if (openId) toggleStar(openId); };
