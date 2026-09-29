@@ -29,7 +29,9 @@ const jar = (repo, sub) => `<span class="jar" style="--jc:${tintOf(repo)}"><svg 
 const pill = (st) => `<span class="pill" style="--pc:${st.color}">${ic(st.icon)}<span>${st.word}</span></span>`;
 const plain = (s) => String(s || "").replace(/```[\s\S]*?```/g, " ").replace(/[*_`#>]+/g, "").replace(/^\s*[-\d.]+\s+/gm, "").replace(/\s+/g, " ").trim();
 const firstLine = (s) => { let t = plain(s).replace(/^(Done|Partly done|Blocked|Found|Question|Working|Failed|Good|Yes|No|Sorry[^.]*)\b[.,:!—-]*\s*/i, "").replace(/^[—–-]\s*/, ""); const m = t.match(/^.*?[.!?](\s|$)/); return (m ? m[0] : t).trim().slice(0, 140); };
-const lineOf = (x) => x.note ? { text: x.note, note: true } : (prefs.notes?.[x.sessionId] ? { text: prefs.notes[x.sessionId], note: true } : { text: "", note: false }); // the title carries the row; only her own note gets a second line
+// the second line is what the session wants from her: her own note first, else the reply's Next or Question line; nothing else
+const askLine = (x) => { const t = String(x.lastReply || x.last || ""); const m = t.match(/^\s*\**(Next|Question)\**\s*:\s*(.+)$/im); return m ? plain(m[2]).slice(0, 120) : ""; };
+const lineOf = (x) => x.note ? { text: x.note, note: true } : (prefs.notes?.[x.sessionId] ? { text: prefs.notes[x.sessionId], note: true } : { text: x.needsYou || x.state === "finished" ? askLine(x) : "", note: false });
 const monogram = (repo) => { const w = String(repo || "").split(/[-_ ]+/).filter(Boolean); return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || "??").slice(0, 2)).toUpperCase(); };
 const isOld = (x) => x.state !== "working" && Date.now() - x.stateSince > OLD_MS;
 const isDismissed = (x) => (prefs.dismissed || []).includes(x.sessionId);

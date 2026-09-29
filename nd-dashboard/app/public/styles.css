@@ -724,3 +724,10 @@ textarea.uploading{opacity:.7}
 .newsess .hint,.newsess .menu-note{color:var(--text-tertiary)}
 .si .si-line{margin-left:0}
 .si .si-acts{margin-left:0}
+
+/* rows breathe instead of ruling; the reply box sits in the flow, never over the reply */
+.si{border-top:0;padding:6px 12px}
+.si[aria-current="true"]{box-shadow:none;background:var(--bg-secondary)}
+.si .si-line{color:var(--text-tertiary);margin-top:1px}
+.composer{position:static;margin-top:16px}
+main{padding-bottom:60px}

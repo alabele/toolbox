@@ -82,5 +82,5 @@ const TICKET = /\b(VDC|D|STORY|PROJ|OPS|DOCS)-(\d{1,6})\b/i;
 /** The ticket named in the first request leads the title, as KEY: matter. */
 function withTicket(title: string, first: string): string {
   const m = first.match(TICKET); if (!m) return title; const key = `${m[1].toUpperCase()}-${m[2]}`;
-  const rest = title.replace(new RegExp(`^\\s*${key}\\s*[:\\-–—]?\\s*`, "i"), "").replace(new RegExp(`\\b${key}\\b`, "ig"), "").replace(/\s{2,}/g, " ").replace(/^[\s:,-]+|[\s:,-]+$/g, "").trim();
-  return `${key}: ${rest || "in progress"}`; }
+  const lead = title.match(new RegExp(`^\\s*${key}\\s*[:\\-–—]?\\s*(.*)$`, "i")); if (lead) return `${key}: ${lead[1].trim() || "in progress"}`; // already leads: just normalize the separator
+  return `${key}: ${title.trim() || "in progress"}`; }
