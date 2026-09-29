@@ -234,7 +234,7 @@ Bun.serve({
           case "answer": mgr.answer(msg.sessionId, msg.requestId, msg.decision); break;
           case "interrupt": await mgr.interrupt(msg.sessionId); break;
           case "mode": await mgr.setMode(msg.sessionId, msg.mode); break;
-          case "end": mgr.end(msg.sessionId); break;
+          case "end": { const pr = prs.bySession(msg.sessionId); if (pr) prs.setWatch(pr.key, true); mgr.end(msg.sessionId); break; } // closing a session hands its PR off: it waits, and comes back
           case "note": mgr.setNote(msg.sessionId, String(msg.note ?? "")); break;
           case "title": mgr.setTitle(msg.sessionId, String(msg.title ?? "")); if (String(msg.title ?? "").trim()) ledger.retitle(msg.sessionId, String(msg.title).trim()); break;
         }
@@ -255,6 +255,7 @@ Bun.serve({
     if (url.pathname === "/api/slack/probe") return new Response(await slackProbe(url.searchParams.get("q") || "general"));
     if (url.pathname === "/api/jira/refresh" && req.method === "POST") { await prs.refreshTickets(); return Response.json(prs.jira()); }
     if (url.pathname === "/api/pr/review" && req.method === "POST") { const b = await req.json(); return runPrLoop(String(b.key)) ? new Response("ok") : new Response("already running or unknown", { status: 409 }); }
+    if (url.pathname === "/api/pr/watch" && req.method === "POST") { const b = await req.json(); return prs.setWatch(String(b.key), !!b.on) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/channel" && req.method === "POST") { const b = await req.json(); prs.setChannel(String(b.repo), String(b.channel).trim()); broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }); return new Response("ok"); }
     if (url.pathname === "/api/pr/slack" && req.method === "POST") { const b = await req.json(); const pr = prs.get(String(b.key)); if (!pr) return new Response("unknown", { status: 404 });
       const channel = prs.repos[pr.repo]?.channel; if (!channel) return new Response("no channel for this repo", { status: 400 });

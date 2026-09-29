@@ -22,6 +22,7 @@ export interface Pr {
   claudeVerdict?: "approve" | "changes" | null; claudeAt?: number; reviewing?: boolean;
   tickets: string[]; sessionId?: string; sessionTitle?: string;
   slack?: { channel: string; askedAt: number; permalink?: string; nudgedAt?: number; note?: string };
+  watched?: boolean; // she handed this one off: it shows under Waiting on others and comes back to her; everything else stays on the Pull requests screen
   viewedAt?: number; firstSeen: number; shelved?: boolean; state: PrState; needsYou: boolean; reason: string; error?: string;
   ticket?: Ticket; mismatch?: string; // the branch's ticket, and one line when the ticket and the PR disagree
 }
@@ -47,6 +48,9 @@ export class Prs {
 
   /** Marks a PR as under Claude's review while the loop runs; refreshes when it ends. */
   markReviewing(key: string, on: boolean) { const p = this.s.prs[key]; if (!p) return; p.reviewing = on; this.derive(p); this.save(); this.onChange(); if (!on) this.view(p).then(() => { this.save(); this.onChange(); }); }
+  setWatch(key: string, on: boolean) { const p = this.s.prs[key]; if (!p) return false; p.watched = on; this.save(); this.onChange(); return true; }
+  /** The PR a session was on, if any. */
+  bySession(sessionId: string) { return Object.values(this.s.prs).find(p => p.sessionId === sessionId); }
   noteSlack(key: string, slack: Pr["slack"]) { const p = this.s.prs[key]; if (!p) return; p.slack = { ...(p.slack || { channel: "", askedAt: 0 }), ...slack }; this.derive(p); this.save(); this.onChange(); }
 
   private async tick() {

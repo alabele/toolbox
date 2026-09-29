@@ -747,3 +747,5 @@ main{padding-bottom:60px}
 .si-prio{font-family:var(--caps);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-tertiary);flex:none;margin-left:6px}
 .si-prio.p1{color:var(--action-primary)}
 .rc-tail .prio{margin-right:auto;margin-left:12px}
+.pr-watch{display:inline-flex;margin-right:8px;color:var(--text-secondary);vertical-align:middle}
+.pr-watch .ic{width:12px;height:12px}
