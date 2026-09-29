@@ -733,3 +733,4 @@ textarea.uploading{opacity:.7}
 main{padding-bottom:60px}
 .pr-row.open .lg-plus span::after{display:none}
 .pr-row .pr-facts li{padding:0 0 0 12px;border:0}
+.sg-clear{align-self:flex-start;margin:0 12px 6px}
