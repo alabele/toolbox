@@ -32,6 +32,7 @@ export class Prs {
   private s: Store = { prs: {}, searchedAt: 0 };
   private busy = false; private timer: any;
   repos: Record<string, { channel?: string; approvers?: string[]; qa?: boolean }> = {}; // per repo: the Slack channel, who counts as the reviewer, whether QA signs off after
+  onGone: (pr: Pr, how: "merged" | "closed", by?: string) => void = () => {}; // set by the server: a PR that left the list
   constructor(private onChange: () => void, private link: (pr: Pr) => { sessionId: string; title: string } | null) {
     try { this.s = JSON.parse(readFileSync(FILE, "utf8")); } catch {}
     try { this.repos = JSON.parse(readFileSync(REPOS_FILE, "utf8")); } catch {}
@@ -68,9 +69,10 @@ export class Prs {
     for (const r of rows) { const repo = r.repository.nameWithOwner as string; const key = `${repo}#${r.number}`; seen.add(key);
       const cur = this.s.prs[key] ?? { key, repo, short: `${repo.split("/")[1]} #${r.number}`, number: r.number, title: "", url: r.url, isDraft: false, updatedAt: 0, tickets: [], firstSeen: Date.now(), state: "review" as PrState, needsYou: false, reason: "" };
       cur.title = r.title; cur.isDraft = !!r.isDraft; cur.updatedAt = Date.parse(r.updatedAt); cur.url = r.url; cur.error = undefined; this.s.prs[key] = cur; }
-    for (const key of Object.keys(this.s.prs)) if (!seen.has(key)) delete this.s.prs[key]; // merged or closed: it leaves the list
+    for (const key of Object.keys(this.s.prs)) if (!seen.has(key)) { const gone = this.s.prs[key]; delete this.s.prs[key]; this.fate(gone); } // merged or closed: it leaves the list, and the ledger hears how
     this.s.searchedAt = Date.now();
   }
+  private async fate(pr: Pr) { try { const out = await run(["gh", "pr", "view", String(pr.number), "-R", pr.repo, "--json", "state,mergedBy"]); if (out.error) return; const j = JSON.parse(out.text); this.onGone(pr, j.state === "MERGED" ? "merged" : "closed", j.mergedBy?.login); } catch {} }
   /** Ticket status for every key on a live PR; one Jira search. */
   private async tickets() {
     const keys = Object.values(this.s.prs).filter(p => !p.shelved).flatMap(p => p.tickets);

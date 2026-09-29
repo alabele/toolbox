@@ -44,21 +44,34 @@ async function copyCmd(cmd, btn) { const was = btn.textContent; try { await navi
 function send(o) { if (wsReady) ws.send(JSON.stringify(o)); else setTimeout(() => send(o), 300); }
 
 // ---------- sidebar: every session, one place ----------
+const PRIO = { 1: "High", 2: "Med", 3: "Low" }; const prioOf = (id) => (prefs.prio || {})[id] || 2;
+function setPrio(id, n) { const p = { ...(prefs.prio || {}) }; if (n === 2) delete p[id]; else p[id] = n; prefs.prio = p; save(); renderSide(); renderSessHead?.(); if (roundsOn) renderRounds(); }
+function prioCtl(id) { return `<span class="prio" role="group" aria-label="Priority">${[1, 2, 3].map(n => `<button type="button" class="prio-b${prioOf(id) === n ? " on" : ""} p${n}" data-prio="${n}" data-id="${id}">${PRIO[n]}</button>`).join("")}</span>`; }
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-prio]"); if (!b) return; e.preventDefault(); e.stopPropagation(); setPrio(b.dataset.id, +b.dataset.prio); }, true);
 function toggleStar(id) { const s = { ...(prefs.stars || {}) }; if (s[id] != null) delete s[id]; else s[id] = Math.max(-1, ...Object.values(s)) + 1; prefs.stars = s; save(); renderSide(); renderSessHead?.(); }
 function renderSide() {
   const live = list.filter(x => !isDismissed(x));
   const groups = { pinned: [], needs: [], working: [], done: [], older: [] }; const stars = prefs.stars || {};
   for (const x of live) { if (stars[x.sessionId] != null) groups.pinned.push(x); else if (isOld(x) || x.state === "idle") groups.older.push(x); else if (x.needsYou && x.state !== "finished") groups.needs.push(x); else if (x.state === "working") groups.working.push(x); else groups.done.push(x); }
   groups.pinned.sort((a, b) => stars[a.sessionId] - stars[b.sessionId]);
+  for (const k of ["needs", "done", "working"]) groups[k].sort((a, b) => prioOf(a.sessionId) - prioOf(b.sessionId) || a.stateSince - b.stateSince);
   const byRepo = (a, b) => a.repo.localeCompare(b.repo) || b.startedAt - a.startedAt;
   groups.needs.sort((a, b) => a.stateSince - b.stateSince); groups.working.sort(byRepo); groups.done.sort(byRepo); groups.older.sort((a, b) => b.stateSince - a.stateSince);
   const item = (x, old) => { const st = STATE[x.state]; const ln = lineOf(x); const cur = x.sessionId === openId || x.sessionId === termId;
     const pinned = (prefs.stars || {})[x.sessionId] != null;
     const mixed = pinned || x.needsYou && x.state !== "finished"; // only groups that mix states repeat the mark on the row
-    return `<a class="si${old ? " older" : ""}${pinned ? " pinned" : ""}" href="${hrefOf(x)}" aria-current="${cur}" style="--sc:${st.color}" data-id="${x.sessionId}"${pinned ? ' draggable="true"' : ""}><span class="si-top"><span class="si-title">${esc(x.title)}</span><button type="button" class="pencil" data-edit title="Rename">${ic("pencil")}</button><button type="button" class="star${pinned ? " on" : ""}" data-star="${x.sessionId}" title="${pinned ? "Unpin" : "Pin to the top"}">${ic("star")}</button>${mixed ? `<span class="si-state">${ic(st.icon)}${st.short}</span>` : ""}</span>${ln.text ? `<span class="si-line${ln.note ? " note" : ""}">${esc(ln.text)}</span>` : ""}${old ? `<span class="si-acts"><span class="where">${ago(Date.now() - x.stateSince)}</span><button class="btn tiny letgo" data-id="${x.sessionId}" data-managed="${!!x.managed}">Let it go</button></span>` : ""}</a>`; };
+    return `<a class="si${old ? " older" : ""}${pinned ? " pinned" : ""}" href="${hrefOf(x)}" aria-current="${cur}" style="--sc:${st.color}" data-id="${x.sessionId}"${pinned ? ' draggable="true"' : ""}><span class="si-top"><span class="si-title">${esc(x.title)}</span>${prioOf(x.sessionId) !== 2 ? `<span class="si-prio p${prioOf(x.sessionId)}">${PRIO[prioOf(x.sessionId)]}</span>` : ""}<button type="button" class="pencil" data-edit title="Rename">${ic("pencil")}</button><button type="button" class="star${pinned ? " on" : ""}" data-star="${x.sessionId}" title="${pinned ? "Unpin" : "Pin to the top"}">${ic("star")}</button>${mixed ? `<span class="si-state">${ic(st.icon)}${st.short}</span>` : ""}</span>${ln.text ? `<span class="si-line${ln.note ? " note" : ""}">${esc(ln.text)}</span>` : ""}${old ? `<span class="si-acts"><span class="where">${ago(Date.now() - x.stateSince)}</span><button class="btn tiny letgo" data-id="${x.sessionId}" data-managed="${!!x.managed}">Let it go</button></span>` : ""}</a>`; };
   const g = (key, label, arr, collapsible = true) => { if (!arr.length) return ""; const open = prefs.open?.[key] ?? (key === "pinned"); // collapsed unless she opened it; Pinned starts open
     return `<div class="sg sg-${key}"><${collapsible ? "button" : "div"} class="sg-h${collapsible ? " toggle" : ""}"${collapsible ? ` data-toggle="${key}" aria-expanded="${open}"` : ""}>${collapsible ? `<svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>` : ""}${label} <span class="where">${arr.length}</span></${collapsible ? "button" : "div"}>${open && key === "older" && arr.length > 1 ? `<button type="button" class="btn tiny sg-clear" data-clear="older">Clear all ${arr.length}</button>` : ""}${open ? arr.map(x => item(x, key === "older")).join("") : ""}</div>`; };
-  $("#side-groups").innerHTML = g("pinned", "Pinned", groups.pinned) + g("needs", "Needs you", groups.needs) + g("done", "Your turn", groups.done) + g("working", "Working", groups.working, true) + g("older", "Older", groups.older, true) || `<p class="menu-note">No sessions yet.</p>`;
+  // pull requests join the sidebar: the ones that need her under Needs you, the rest under Waiting on others
+  const prNeeds = prList.filter(p => p.needsYou); const prWait = prList.filter(p => !p.needsYou && !p.shelved && !p.isDraft && !p.sessionId);
+  const prRow = (p) => { const day = p.slack?.askedAt && Date.now() - p.slack.askedAt > 24 * 3600e3; const since = new Date(p.updatedAt).toLocaleDateString(undefined, { weekday: "long" });
+    const line = p.needsYou ? p.reason : p.state === "checks-running" ? "Checks running" : p.state === "approved-qa" ? `Approved, in QA${p.ticket ? `, ${p.ticket.key} ${p.ticket.status}` : ""}` : p.state === "claude-approved" ? "Claude approved, waiting on a reviewer" : `Waiting on review since ${since}${p.slack?.askedAt ? `, asked in ${p.slack.channel}` : ""}`;
+    return `<a class="si pr${p.needsYou ? " needs" : ""}" href="#prs" data-pr="${esc(p.key)}"><span class="si-top"><span class="si-title">${esc(p.tickets[0] ? `${p.tickets[0]}: ${p.title}` : p.title)}</span>${p.needsYou ? `<span class="si-state">${ic(PR_ICON[p.state] || "circle")}${PR_WORD[p.state]}</span>` : `<span class="si-state">#${p.number}</span>`}</span><span class="si-line">${esc(line)}</span></a>`; };
+  const gpr = (key, label, rows) => { if (!rows.length) return ""; const open = prefs.open?.[key] ?? false; return `<div class="sg sg-${key}"><button class="sg-h toggle" data-toggle="${key}" aria-expanded="${open}"><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>${label} <span class="where">${rows.length}</span></button>${open ? rows.map(prRow).join("") : ""}</div>`; };
+  const needsHtml = groups.needs.length || prNeeds.length ? `<div class="sg sg-needs"><${"div"} class="sg-h">Needs you <span class="where">${groups.needs.length + prNeeds.length}</span></div>${groups.needs.map(x => item(x, false)).join("")}${prNeeds.map(prRow).join("")}</div>` : "";
+  $("#side-groups").innerHTML = g("pinned", "Pinned", groups.pinned) + needsHtml + g("done", "Your turn", groups.done) + g("working", "Working", groups.working, true) + gpr("waiting", "Waiting on others", prWait) + g("older", "Older", groups.older, true) || `<p class="menu-note">No sessions yet.</p>`;
+  document.querySelectorAll("[data-pr]").forEach(r => r.onclick = (e) => { e.preventDefault(); prOpen.add(r.dataset.pr); location.hash = "#prs"; setTimeout(() => document.querySelector(`.pr-row[data-key="${CSS.escape(r.dataset.pr)}"]`)?.scrollIntoView({ block: "center" }), 50); });
   document.querySelector("[data-clear=older]")?.addEventListener("click", () => { const ids = groups.older.map(x => x.sessionId); if (!ids.length) return;
     if (!confirm(`Clear all ${ids.length} from Older? They leave the list. Conversations stay on disk; anything still running in a terminal keeps running.`)) return;
     prefs.dismissed = [...new Set([...(prefs.dismissed || []), ...ids])]; for (const id of ids) unpin(id); save(); renderSide(); renderNext(); });
@@ -81,7 +94,7 @@ function renderSide() {
     else { try { const r = await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }) }); if (!r.ok) { $("#error").hidden = false; $("#error").textContent = "Could not end it: " + await r.text(); return; } } catch {} }
     prefs.dismissed = [...(prefs.dismissed || []), id]; save(); renderSide(); renderNext(); });
   document.title = (groups.needs.length ? "Needs you · " : "") + "Stillroom"; document.body.dataset.needs = groups.needs.length ? "1" : "0"; icons();
-  const rn = list.filter(x => !isDismissed(x) && !isOld(x) && x.needsYou).length; $("#rounds-n").textContent = rn ? String(rn) : ""; $("#side-rounds").setAttribute("aria-current", String(roundsOn));
+  const rn = list.filter(x => !isDismissed(x) && !isOld(x) && x.needsYou).length + prList.filter(p => p.needsYou).length; $("#rounds-n").textContent = rn ? String(rn) : ""; $("#side-rounds").setAttribute("aria-current", String(roundsOn));
   if (roundsOn) renderRounds();
 }
 // ---------- sidebar width: drag the edge ----------
@@ -111,7 +124,9 @@ function renderRounds() {
   const el = $("#rounds-list"); const live = list.filter(x => !isDismissed(x) && !isOld(x));
   for (const x of live) if (sentCards.has(x.sessionId) && sentCards.get(x.sessionId) !== sentKey(x) && x.needsYou) sentCards.delete(x.sessionId); // it came back to you
   const waiting = (x) => x.needsYou && !sentCards.has(x.sessionId);
-  let cards = live.filter(x => x.needsYou || sentCards.has(x.sessionId)).sort((a, b) => waiting(b) - waiting(a) || (a.state === "finished") - (b.state === "finished") || a.stateSince - b.stateSince);
+  const rank = (x) => { const s = (prefs.stars || {})[x.sessionId]; return prioOf(x.sessionId) * 1e6 + (s == null ? 1e5 : s); }; // High before Med before Low; inside a level, her Pinned order
+  let cards = live.filter(x => x.needsYou || sentCards.has(x.sessionId)).sort((a, b) => waiting(b) - waiting(a) || rank(a) - rank(b) || (a.state === "finished") - (b.state === "finished") || a.stateSince - b.stateSince);
+  for (const p of prList.filter(p => p.needsYou)) cards.push({ sessionId: `pr:${p.key}`, pr: p, needsYou: true, state: "finished", stateSince: p.updatedAt, title: p.tickets[0] ? `${p.tickets[0]}: ${p.title}` : p.title, managed: false, cwd: "" }); // PRs come after sessions
   if (!cards.length) { el.innerHTML = `<p class="quiet">Nothing needs you right now.</p>`; openRound = null; return; }
   if (!openRound || !cards.some(x => x.sessionId === openRound)) { const next = cards.find(waiting); openRound = next ? next.sessionId : null; } // stays open until you move on
   cards = cards.sort((a, b) => (b.sessionId === openRound) - (a.sessionId === openRound)); // the open one is always on top
@@ -128,6 +143,13 @@ function renderRounds() {
   const focusBox = el.querySelector(".rc.is-open textarea"); if (focusBox && document.activeElement?.tagName !== "TEXTAREA") focusBox.focus({ preventScroll: true });
 }
 function aboveRule(t) { const m = String(t || "").match(/\n\s*(-{3,}|\*{3,})\s*\n/); return m ? t.slice(0, m.index) : t; }
+function prPlate(x, isOpen, hasNext) { const p = x.pr; const card = document.createElement("article"); card.className = "rc plate " + (isOpen ? "is-open" : "is-collapsed"); card.dataset.id = x.sessionId;
+  const label = `<span class="plate-label">${ic(PR_ICON[p.state] || "circle")}${PR_WORD[p.state]}</span>`;
+  if (!isOpen) { card.innerHTML = `${label}<button class="rc-row" type="button"><span class="rc-title">${esc(x.title)}</span><span class="rc-note">${esc(p.short)}</span></button>`; card.querySelector(".rc-row").onclick = () => { openRound = x.sessionId; renderRounds(); }; return card; }
+  card.innerHTML = `${hasNext ? `<button class="rc-next" type="button">Next one</button>` : ""}${label}<h3 class="rc-title">${esc(x.title)}</h3><p class="rc-need">${esc(p.reason)} This is the one you were waiting on.</p><div class="rc-acts">${p.sessionId ? `<a class="btn primary" href="#s/${p.sessionId}">Open its session</a>` : `<button class="btn primary" data-a="start">Start a session on this</button>`}<a class="btn tiny" href="${esc(p.url)}" target="_blank" rel="noopener">Open on GitHub</a><a class="btn tiny" href="#prs">See the PR</a></div>`;
+  card.querySelector(".rc-next")?.addEventListener("click", () => { const rest = list.filter(y => y.needsYou && !sentCards.has(y.sessionId) && !isDismissed(y) && !isOld(y)); openRound = rest[0]?.sessionId || null; renderRounds(); });
+  card.querySelector('[data-a="start"]')?.addEventListener("click", () => { location.hash = ""; show("home"); $("#ns-cwd").value = guessCwd(p); $("#ns-prompt").value = `${p.tickets[0] ? p.tickets[0] + ": " : ""}pick up ${p.short}, ${p.url}. Read the newest review comments and the failing checks first.`; $("#ns-prompt").focus(); });
+  return card; }
 function needLine(x, sent) { // one plain line: what this item wants from you
   if (!x.managed) return x.state === "failed" ? "It failed in a terminal. Look there, or let it go." : "It runs in a terminal. Answer it there.";
   if (sent && !x.needsYou) return "Sent. Working on it.";
@@ -137,6 +159,7 @@ function needLine(x, sent) { // one plain line: what this item wants from you
   return ""; // finished: the reply's own first line says what happened
 }
 function roundCard(x, isOpen, hasNext) {
+  if (x.pr) return prPlate(x, isOpen, hasNext);
   const st = STATE[x.state]; const sent = sentCards.has(x.sessionId); const note = x.note || prefs.notes?.[x.sessionId] || "";
   const card = document.createElement("article"); card.className = "rc plate " + (isOpen ? "is-open" : "is-collapsed") + (sent ? " sent" : ""); card.dataset.id = x.sessionId;
   const label = `<span class="plate-label">${ic(st.icon)}${sent && !x.needsYou ? "Sent" : st.word}</span>`;
@@ -159,7 +182,7 @@ function roundCard(x, isOpen, hasNext) {
       if (x.pending) send({ type: "answer", sessionId: x.sessionId, requestId: x.pending.id, decision: x.pending.kind === "permission" ? { behavior: "deny", message: t } : { freeText: t } }); else send({ type: "send", sessionId: x.sessionId, text: t }); answered(); };
     f.querySelector("textarea").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } }); card.appendChild(f);
   }
-  const row = document.createElement("div"); row.className = "rc-tail";
+  const row = document.createElement("div"); row.className = "rc-tail"; row.insertAdjacentHTML("beforeend", prioCtl(x.sessionId));
   const more = document.createElement("button"); more.className = "rc-more"; more.type = "button"; more.textContent = "More"; row.appendChild(more);
   if (hasNext) { const nx = document.createElement("button"); nx.className = "rc-next"; nx.type = "button"; nx.textContent = "Next one"; nx.onclick = () => { const rest = list.filter(y => y.sessionId !== x.sessionId && y.needsYou && !sentCards.has(y.sessionId) && !isDismissed(y) && !isOld(y)); openRound = rest[0]?.sessionId || null; renderRounds(); $("#main").scrollTo(0, 0); }; card.insertAdjacentElement("afterbegin", nx); }
   card.appendChild(row);
@@ -264,7 +287,7 @@ function connect() {
     const m = JSON.parse(e.data);
     if (m.type === "hello") { cwds = m.payload.cwds || []; if (!$("#ns-cwd").value && prefs.lastCwd) $("#ns-cwd").value = prefs.lastCwd; applyList(m.payload.sessions, m.payload.version); }
     if (m.type === "list") applyList(m.payload.sessions, m.payload.version);
-    if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; $("#prs-n").textContent = String(prList.filter(p => p.needsYou).length || ""); if (!$("#prs").hidden) renderPrs(); }
+    if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; $("#prs-n").textContent = String(prList.filter(p => p.needsYou).length || ""); if (!$("#prs").hidden) renderPrs(); renderSide(); if (roundsOn) renderRounds(); }
     if (m.type === "ledger") { ledgerRows = m.payload?.entries || []; ledgerSums = m.payload?.summaries || {}; if (!$("#ledger").hidden) renderLedger(); }
     if (m.type === "started") { pendingStarts.push(m.payload.tempId); openSession(m.payload.tempId); }
     if (m.type === "start-failed") { const e = $("#error"); e.hidden = false; e.textContent = m.payload; $("#ns-cwd").focus(); setTimeout(() => { e.hidden = true; }, 8000); }
@@ -322,7 +345,7 @@ cwdList.addEventListener("mousedown", (e) => { const li = e.target.closest("li")
 
 // ---------- session view ----------
 const MSTATE = { starting: "working", working: "working", waiting: "needs-permission", idle: "finished", failed: "failed", ended: "idle" };
-function renderSessHead() { $("#sess-star")?.classList.toggle("on", (prefs.stars || {})[openId] != null);
+function renderSessHead() { $("#sess-star")?.classList.toggle("on", (prefs.stars || {})[openId] != null); const pc = $("#sess-prio"); if (pc) pc.innerHTML = prioCtl(openId);
   if (!meta) return;
   const repo = meta.cwd.split("/").filter(Boolean).pop() || meta.cwd;
   const j = $("#sess-jar"); j.style.setProperty("--jc", tintOf(repo)); j.querySelector("use").setAttribute("href", shapeOf(repo)); j.querySelector(".shape").setAttribute("fill", "currentColor"); $("#sess-repo").textContent = repo;
@@ -343,7 +366,8 @@ $("#show-steps").onchange = (e) => { prefs.showSteps = e.target.checked; save();
 $("#sess-stop").onclick = () => send({ type: "interrupt", sessionId: openId });
 function unpin(id) { if ((prefs.stars || {})[id] == null) return; const s = { ...prefs.stars }; delete s[id]; prefs.stars = s; save(); }
 function closeWithUndo(x) { // no dialog: it closes, and one line offers Undo; a closed session is no longer pinned
-  send({ type: "end", sessionId: x.sessionId }); unpin(x.sessionId); const u = $("#undo"); $("#undo-text").textContent = `Closed "${x.title.slice(0, 40)}". It stays on disk.`; u.hidden = false;
+  send({ type: "end", sessionId: x.sessionId }); unpin(x.sessionId); const u = $("#undo"); const pr = prList.find(p => p.sessionId === x.sessionId);
+  $("#undo-text").textContent = pr ? `Closed. ${pr.short} is waiting on others. It comes back under Needs you when someone acts.` : `Closed "${x.title.slice(0, 40)}". It stays on disk.`; u.hidden = false;
   $("#undo-btn").onclick = () => { send({ type: "resume", sessionId: x.sessionId, cwd: x.cwd }); u.hidden = true; }; setTimeout(() => { u.hidden = true; }, 12000); }
 $("#sess-end").onclick = () => { const x = list.find(s => s.sessionId === openId) || { sessionId: openId, title: meta?.title || "", cwd: meta?.cwd }; closeWithUndo(x); location.hash = ""; };
 $("#sess-star").onclick = () => { if (openId) toggleStar(openId); };

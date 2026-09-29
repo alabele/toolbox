@@ -734,3 +734,16 @@ main{padding-bottom:60px}
 .pr-row.open .lg-plus span::after{display:none}
 .pr-row .pr-facts li{padding:0 0 0 12px;border:0}
 .sg-clear{align-self:flex-start;margin:0 12px 6px}
+.si.pr .si-state{font-family:var(--mono);letter-spacing:0;text-transform:none;font-size:10.5px}
+.si.pr.needs .si-state{font-family:var(--caps);letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary)}
+.rc .rc-acts .btn.primary{background:var(--action-primary);color:var(--bg-primary)}
+/* priority: hers, three words */
+.prio{display:inline-flex;border:1px solid var(--line-quiet);border-radius:4px;overflow:hidden}
+.prio-b{all:unset;cursor:pointer;font-family:var(--caps);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;color:var(--text-tertiary)}
+.prio-b+.prio-b{border-left:1px solid var(--line-quiet)}
+.prio-b:hover{color:var(--text-primary)}
+.prio-b.on{color:var(--text-primary);background:var(--bg-tertiary)}
+.prio-b.on.p1{color:var(--action-primary)}
+.si-prio{font-family:var(--caps);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-tertiary);flex:none;margin-left:6px}
+.si-prio.p1{color:var(--action-primary)}
+.rc-tail .prio{margin-right:auto;margin-left:12px}

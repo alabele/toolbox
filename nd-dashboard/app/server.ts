@@ -339,5 +339,6 @@ function runPrLoop(key: string) {
   reviewing.set(key, proc); prs.markReviewing(key, true);
   proc.exited.then(() => { reviewing.delete(key); prs.markReviewing(key, false); }); return true;
 }
+prs.onGone = (pr, how, by) => { if (how !== "merged") return; ledger.add({ id: `pr:${pr.key}`, sessionId: pr.sessionId || pr.key, cwd: "", title: pr.tickets[0] ? `${pr.tickets[0]}: ${pr.title}` : pr.title, text: `Done.\n- ${pr.short} merged${by ? ` by ${by}` : ""}.` }); };
 mgr.onOutcome = (m, text, at) => { const row = view.find(x => x.sessionId === m.sessionId); ledger.add({ id: `${m.sessionId}:${at}`, sessionId: m.sessionId, cwd: m.cwd, title: row?.title || m.userTitle || m.title, text, at }); };
 const restored = mgr.restore(); prs.start(); if (restored) console.log(`reopened ${restored} Stillroom session${restored === 1 ? "" : "s"} from ${process.env.ND_STATE ?? "~/.config/stillroom/sessions.json"}`);
