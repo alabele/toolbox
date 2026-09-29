@@ -6,7 +6,7 @@ const STATE = {
   failed:             { icon: "triangle-alert",          word: "Failed",           short: "Failed",     color: "var(--st-failed)" },
   finished:           { icon: "moon-star",               word: "Your turn",        short: "Your turn",  color: "var(--st-finished)" },
   working:            { icon: "orbit",                   word: "Working",          short: "Working",    color: "var(--st-working)" },
-  idle:               { icon: "moon",                    word: "Resting",          short: "Resting",    color: "var(--st-idle)" },
+  idle:               { icon: "moon",                    word: "Closed",           short: "Closed",    color: "var(--st-idle)" },
 };
 const ic = (name, cls = "ic ic-sm") => name.startsWith("pk:") ? `<svg class="${cls} pk"><use href="#pk-${name.slice(3)}"/></svg>` : `<i data-lucide="${name}" class="${cls}"></i>`;
 const icons = () => { try { lucide.createIcons(); } catch {} };
