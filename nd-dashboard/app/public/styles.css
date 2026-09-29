@@ -798,3 +798,5 @@ main{padding-bottom:60px}
 .proj-name-in:focus,.proj-words-in:focus{outline:none;border-color:var(--border-medium)}
 .proj-select{font:inherit;font-size:12px;color:var(--text-secondary);background:var(--bg-secondary);border:1px solid var(--line-quiet);border-radius:4px;padding:3px 6px;color-scheme:dark;max-width:220px}
 .proj-item{grid-template-columns:18px minmax(0,1fr) auto}
+.wait-form{display:flex;gap:8px;align-items:center}
+.wait-form input{flex:1}
