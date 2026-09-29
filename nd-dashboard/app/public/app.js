@@ -344,6 +344,9 @@ function closeWithUndo(x) { // no dialog: it closes, and one line offers Undo; a
   $("#undo-btn").onclick = () => { send({ type: "resume", sessionId: x.sessionId, cwd: x.cwd }); u.hidden = true; }; setTimeout(() => { u.hidden = true; }, 12000); }
 $("#sess-end").onclick = () => { const x = list.find(s => s.sessionId === openId) || { sessionId: openId, title: meta?.title || "", cwd: meta?.cwd }; closeWithUndo(x); location.hash = ""; };
 $("#sess-star").onclick = () => { if (openId) toggleStar(openId); };
+$("#sess-branch").onclick = () => { // a new session in the same folder; the first line says where it came from
+  const from = list.find(s => s.sessionId === openId); const cwd = from?.cwd || meta?.cwd || ""; const title = from?.title || meta?.title || "";
+  location.hash = ""; show("home"); $("#ns-cwd").value = tilde(cwd); $("#ns-prompt").value = `Follows on from "${title}" (session ${openId}, transcript in ~/.claude/projects). \n\n`; $("#ns-prompt").focus(); $("#ns-prompt").setSelectionRange($("#ns-prompt").value.length, $("#ns-prompt").value.length); };
 $("#sess-park").onclick = () => { $("#park").hidden = !$("#park").hidden; if (!$("#park").hidden) $("#park-note").focus(); };
 $("#park-save").onclick = () => { send({ type: "note", sessionId: openId, note: $("#park-note").value }); $("#park").hidden = true; };
 $("#park-clear").onclick = () => { $("#park-note").value = ""; send({ type: "note", sessionId: openId, note: "" }); $("#park").hidden = true; };
