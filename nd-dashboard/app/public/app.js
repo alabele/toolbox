@@ -74,7 +74,7 @@ function renderSide() {
   const waitAdd = `<form class="wait-add" id="wait-add"><input placeholder="Waiting on… (a ticket key or a link makes it track itself)" aria-label="What are you waiting on"><button class="btn tiny" type="submit">Add</button></form>`;
   const gwait = () => { const rows = [...prWait.map(prRow), ...wOpen.map(waitRow)]; const open = prefs.open?.waiting ?? false; return `<div class="sg sg-waiting"><button class="sg-h toggle" data-toggle="waiting" aria-expanded="${open}"><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>Waiting on others <span class="where">${rows.length || ""}</span></button>${open ? waitAdd + rows.join("") : ""}</div>`; };
   const needsHtml = groups.needs.length || prNeeds.length || wBack.length ? `<div class="sg sg-needs"><${"div"} class="sg-h">Needs you <span class="where">${groups.needs.length + prNeeds.length + wBack.length}</span></div>${groups.needs.map(x => item(x, false)).join("")}${prNeeds.map(prRow).join("")}${wBack.map(waitRow).join("")}</div>` : "";
-  $("#side-groups").innerHTML = g("pinned", "Pinned", groups.pinned) + needsHtml + g("done", "Your turn", groups.done) + g("working", "Working", groups.working, true) + g("older", "Older", groups.older, true) || `<p class="menu-note">No sessions yet.</p>`; // Waiting on others lives on Projects, not here; what comes back lands under Needs you
+  $("#side-groups").innerHTML = g("pinned", "Pinned", groups.pinned) + needsHtml + g("done", "Your turn", groups.done) + (groups.working.length ? `<p class="menu-note side-working"><a href="#projects">${groups.working.length} working</a></p>` : "") + g("older", "Older", groups.older, true) || `<p class="menu-note">No sessions yet.</p>`; // Working and Waiting live on Projects; what comes back lands under Needs you
   const wpost = (body) => fetch("/api/wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   $("#wait-add")?.addEventListener("submit", (e) => { e.preventDefault(); const inp = e.target.querySelector("input"); const t = inp.value.trim(); if (!t) return; inp.value = ""; wpost({ text: t, sessionId: openId || undefined }); });
   document.querySelectorAll("[data-wback]").forEach(b => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); wpost({ back: b.dataset.wback, why: "You said it came back" }); });
@@ -215,38 +215,51 @@ function projectOf(o) { const id = itemId(o); if (assign[id]) return projects.fi
   const key = itemKey(o); const text = itemText(o).toLowerCase();
   return projects.find(p => (key && p.keys.includes(key)) || p.words.some(w => w && text.includes(w.toLowerCase()))) || null; }
 const projectOn = (o) => { const p = projectOf(o); return !p || p.on; };
-let projEdit = false;
+let projOpenId = null;
 function renderProjects() {
   const head = $("#proj-head"), body = $("#proj-body");
   const post = (b) => fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) });
-  // the top: projects with their switches; in edit mode, their names, priorities and a way to remove them
-  head.innerHTML = `<div class="proj-top"><div class="proj-list">${projects.map(p => projEdit
-    ? `<div class="proj-row edit"><input class="proj-name-in" data-pid="${p.id}" value="${esc(p.name)}" aria-label="Project name"><input class="proj-words-in" data-pid="${p.id}" value="${esc(p.words.join(", "))}" placeholder="words that match" aria-label="Words that match"><span class="prio">${[1, 2, 3].map(n => `<button type="button" class="prio-b${p.prio === n ? " on" : ""} p${n}" data-pprio="${n}" data-pid="${p.id}">${PRIO[n]}</button>`).join("")}</span><button class="btn tiny" data-remove-p="${p.id}">Remove</button></div>`
-    : `<div class="proj-row"><label class="switch"><input type="checkbox" data-on="${p.id}" ${p.on ? "checked" : ""}><span class="track"></span></label><span class="proj-name">${esc(p.name)}</span><span class="proj-prio p${p.prio}">${PRIO[p.prio]}</span></div>`).join("")}${projEdit ? `<div class="proj-row edit"><input class="proj-name-in" id="proj-new-name" placeholder="New project" aria-label="New project name"><input class="proj-words-in" id="proj-new-words" placeholder="words that match" aria-label="Words that match"><button class="btn tiny" id="proj-new-add">Add</button></div>` : ""}</div>
-    <button type="button" class="btn tiny proj-edit-toggle" id="proj-edit">${projEdit ? "Done" : "Edit"}</button></div>${projEdit ? `<p class="proj-how">Pick a project for any row below. Names and words save when you leave the field.</p>` : ""}`;
-  $("#proj-edit").onclick = () => { projEdit = !projEdit; renderProjects(); };
-  head.querySelectorAll("[data-on]").forEach(c => c.onchange = () => post({ id: c.dataset.on, name: projects.find(p => p.id === c.dataset.on).name, on: c.checked }));
-  const saveRow = (pid) => { const p = projects.find(x => x.id === pid); const name = head.querySelector(`.proj-name-in[data-pid="${pid}"]`).value.trim() || p.name; const words = head.querySelector(`.proj-words-in[data-pid="${pid}"]`).value.split(",").map(s => s.trim()).filter(Boolean); if (name !== p.name || words.join(",") !== p.words.join(",")) post({ id: pid, name, words }); };
-  head.querySelectorAll(".proj-name-in[data-pid],.proj-words-in[data-pid]").forEach(i => { i.onchange = () => saveRow(i.dataset.pid); });
-  head.querySelectorAll("[data-pprio]").forEach(b => b.onclick = () => post({ id: b.dataset.pid, name: projects.find(p => p.id === b.dataset.pid).name, prio: +b.dataset.pprio }));
-  head.querySelectorAll("[data-remove-p]").forEach(b => b.onclick = () => { const p = projects.find(x => x.id === b.dataset.removeP); if (confirm(`Remove "${p.name}"? Its items go back to Unsorted.`)) post({ remove: p.id }); });
-  const addNew = () => { const name = $("#proj-new-name")?.value.trim(); if (!name) return; post({ name, words: $("#proj-new-words").value.split(",").map(s => s.trim()).filter(Boolean), prio: 2 }); };
-  $("#proj-new-add")?.addEventListener("click", addNew); $("#proj-new-name")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addNew(); } });
-  // everything in flight, sorted into projects
-  const items = [...list.filter(x => !isDismissed(x) && !isOld(x)).map(x => ({ o: x, t: "session" })), ...prList.filter(p => !p.shelved).map(p => ({ o: p, t: "pr" })), ...waitList.map(w => ({ o: w, t: "wait" }))];
-  const line = (it, cur) => { const o = it.o; const id = itemId(o); const key = itemKey(o);
+  const items = [...list.filter(x => !isDismissed(x) && !isOld(x) && x.state !== "idle").map(x => ({ o: x, t: "session" })), ...prList.filter(p => !p.shelved).map(p => ({ o: p, t: "pr" })), ...waitList.map(w => ({ o: w, t: "wait" }))];
+  const needs = (it) => it.t === "pr" ? it.o.needsYou && it.o.watched : it.t === "wait" ? !!it.o.back : it.o.needsYou;
+  const waiting = (it) => it.t === "pr" ? it.o.watched && !it.o.needsYou : it.t === "wait" ? !it.o.back : false;
+  const buckets = new Map(projects.map(p => [p.id, []])); const unsorted = [];
+  for (const it of items) { const p = projectOf(it.o); if (p) buckets.get(p.id).push(it); else unsorted.push(it); }
+  const counts = (its) => { const n = its.filter(needs).length, w = its.filter(waiting).length, f = its.length - n - w; const parts = []; if (n) parts.push(`<b>${n} need${n === 1 ? "s" : ""} you</b>`); if (f) parts.push(`${f} in flight`); if (w) parts.push(`${w} waiting on others`); return parts.length ? parts.join(", ") : "nothing in flight"; };
+  const ordered = projects.slice().sort((a, b) => (a.on ? 0 : 1) - (b.on ? 0 : 1) || (buckets.get(b.id).filter(needs).length > 0) - (buckets.get(a.id).filter(needs).length > 0) || a.prio - b.prio || a.order - b.order);
+  const row = (it) => { const o = it.o; const id = itemId(o); const key = itemKey(o);
     const title = it.t === "pr" ? (o.tickets?.[0] ? `${o.tickets[0]}: ${o.title}` : o.title) : it.t === "wait" ? o.text : o.title;
     const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? (o.back ? "Came back" : "Waiting") : STATE[o.state].word;
     const href = it.t === "pr" ? "#prs" : it.t === "wait" ? (o.link || "#") : hrefOf(o);
-    const needs = it.t === "pr" ? o.needsYou && o.watched : it.t === "wait" ? !!o.back : o.needsYou;
-    const right = projEdit ? `<select class="proj-select" data-assign="${esc(id)}" data-key="${esc(key)}" aria-label="Project"><option value="" ${!cur ? "selected" : ""}>Unsorted</option>${projects.map(p => `<option value="${p.id}" ${cur === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}<option value="__new">New project…</option></select>` : `<span class="proj-state">${esc(state)}</span>`;
-    return `<li class="proj-item${needs ? " needs" : ""}"><span class="proj-kind">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : "message-circle")}</span><a href="${esc(href)}" class="proj-title">${esc(title)}</a>${right}</li>`; };
-  const buckets = new Map(projects.map(p => [p.id, []])); const unsorted = [];
-  for (const it of items) { const p = projectOf(it.o); if (p) buckets.get(p.id).push(it); else unsorted.push(it); }
-  const section = (name, its, sub, cur) => `<section class="proj-sec"><h2 class="lg-h">${esc(name)}${sub ? `<span class="lg-n">${sub}</span>` : ""}</h2>${its.length ? `<ul class="proj-items">${its.map(it => line(it, cur)).join("")}</ul>` : `<p class="quiet">Nothing in flight.</p>`}</section>`;
-  body.innerHTML = projects.map(p => { const its = buckets.get(p.id); const n = its.filter(it => it.t === "pr" ? it.o.needsYou && it.o.watched : it.t === "wait" ? !!it.o.back : it.o.needsYou).length; return p.on || projEdit ? section(p.name, its, `${its.length} in flight${n ? `, ${n} need${n === 1 ? "s" : ""} you` : ""}${p.on ? "" : ", off"}`, p.id) : `<section class="proj-sec off"><h2 class="lg-h">${esc(p.name)}<span class="lg-n">off, ${its.length} in flight</span></h2></section>`; }).join("") + (unsorted.length ? section("Unsorted", unsorted, String(unsorted.length), "") : "");
-  body.querySelectorAll(".proj-select").forEach(s => s.onchange = () => { let to = s.value; if (to === "__new") { const name = prompt("Name the new project"); if (!name?.trim()) { s.value = ""; return; } post({ name: name.trim(), prio: 2 }).then(() => fetch("/api/projects").then(r => r.json()).then(j => { const p = j.projects.find(x => x.name === name.trim()); if (p) post({ assign: { item: s.dataset.assign, project: p.id, key: s.dataset.key || undefined } }); })); return; }
-    post({ assign: { item: s.dataset.assign, project: to || null, key: s.dataset.key || undefined } }); });
+    return `<li class="proj-item" draggable="true" data-item="${esc(id)}" data-key="${esc(key)}"><span class="proj-kind">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : "message-circle")}</span><a href="${esc(href)}" class="proj-title">${esc(title)}</a><span class="proj-state">${esc(state)}</span></li>`; };
+  const group = (name, its) => its.length ? `<h3 class="lg-h">${name}</h3><ul class="proj-items">${its.map(row).join("")}</ul>` : "";
+  const plate = (p) => { const its = buckets.get(p.id); const open = projOpenId === p.id; const top = ordered[0]?.id === p.id && its.some(needs);
+    if (!open) return `<article class="rc plate is-collapsed proj-plate${p.on ? "" : " quiet"}${top ? " top" : ""}" data-proj="${p.id}"><span class="plate-label">${p.on ? PRIO[p.prio] : `${ic("moon")}Quiet`}</span><button class="rc-row" type="button"><span class="rc-title">${esc(p.name)}</span><span class="rc-note">${counts(its)}</span></button></article>`;
+    return `<article class="rc plate is-open proj-plate${p.on ? "" : " quiet"}${top ? " top" : ""}" data-proj="${p.id}"><span class="plate-label">${p.on ? PRIO[p.prio] : `${ic("moon")}Quiet`}</span><button class="rc-next" type="button" data-fold="1">Fold</button><h3 class="rc-title">${esc(p.name)}</h3><p class="rc-need">${counts(its)}</p><svg class="vine rc-vine" height="12" aria-hidden="true"><use href="#vine"/></svg>
+      ${its.length ? group("Needs you", its.filter(needs)) + group("In flight", its.filter(it => !needs(it) && !waiting(it))) + group("Waiting on others", its.filter(waiting)) : `<p class="quiet">Nothing in flight. Drag rows here from Unsorted, or give it words that match.</p>`}
+      <div class="rc-tail proj-foot"><button class="rc-more" type="button" data-more="1">More</button></div>
+      <div class="rc-extra proj-extra" hidden><div class="proj-edit"><label>Name <input class="proj-name-in" value="${esc(p.name)}"></label><label>Matches <input class="proj-words-in" value="${esc(p.words.join(", "))}" placeholder="words from titles, comma separated"></label><label>Keys <input class="proj-keys-in" value="${esc(p.keys.join(", "))}" placeholder="ticket keys it learned"></label></div>
+      <div class="rc-acts"><span class="prio">${[1, 2, 3].map(n => `<button type="button" class="prio-b${p.prio === n ? " on" : ""} p${n}" data-pprio="${n}">${PRIO[n]}</button>`).join("")}</span><button class="btn tiny" data-quiet="1">${p.on ? "Quiet" : "Wake"}</button><button class="btn tiny" data-remove="1">Remove project</button></div><p class="hint">Quiet projects leave the sidebar and Rounds and sink to the bottom here.</p></div></article>`; };
+  head.innerHTML = `<p class="proj-how">One plate per project. Open one to see what is in flight. Quiet ones sit at the bottom and stay out of the sidebar and Rounds.</p>`;
+  body.innerHTML = ordered.map(plate).join("") + (unsorted.length ? `<article class="rc plate proj-plate unsorted ${projOpenId === "unsorted" ? "is-open" : "is-collapsed"}" data-proj="unsorted"><span class="plate-label">Unsorted</span>${projOpenId === "unsorted" ? `<h3 class="rc-title">Unsorted</h3><p class="rc-need">Drag a row onto a project above. A row with a ticket key you sorted before sorts itself.</p><ul class="proj-items">${unsorted.map(row).join("")}</ul>` : `<button class="rc-row" type="button"><span class="rc-title">Unsorted</span><span class="rc-note">${unsorted.length}</span></button>`}</article>` : "") + `<button type="button" class="proj-add-link" id="proj-add-link">+ Add a project</button><form id="proj-add" class="proj-addform" hidden><input name="name" placeholder="Project name, Enter to save" aria-label="Project name"></form>`;
+  // open and fold
+  body.querySelectorAll(".proj-plate.is-collapsed .rc-row").forEach(b => b.onclick = () => { projOpenId = b.closest(".proj-plate").dataset.proj; renderProjects(); });
+  body.querySelectorAll("[data-fold]").forEach(b => b.onclick = () => { projOpenId = null; renderProjects(); });
+  body.querySelectorAll("[data-more]").forEach(b => b.onclick = () => { const x = b.closest(".proj-plate").querySelector(".proj-extra"); x.hidden = !x.hidden; b.textContent = x.hidden ? "More" : "Less"; });
+  // edits inside the open plate
+  const openPlate = body.querySelector(".proj-plate.is-open:not(.unsorted)"); if (openPlate) { const pid = openPlate.dataset.proj; const p = projects.find(x => x.id === pid);
+    const saveFields = () => { const name = openPlate.querySelector(".proj-name-in").value.trim() || p.name; const words = openPlate.querySelector(".proj-words-in").value.split(",").map(s => s.trim()).filter(Boolean); const keys = openPlate.querySelector(".proj-keys-in").value.split(",").map(s => s.trim().toUpperCase()).filter(Boolean); if (name !== p.name || words.join() !== p.words.join() || keys.join() !== p.keys.join()) post({ id: pid, name, words, keys }); };
+    openPlate.querySelectorAll(".proj-name-in,.proj-words-in,.proj-keys-in").forEach(i => { i.onchange = saveFields; i.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); i.blur(); } }; });
+    openPlate.querySelectorAll("[data-pprio]").forEach(b => b.onclick = () => post({ id: pid, name: p.name, prio: +b.dataset.pprio }));
+    openPlate.querySelector("[data-quiet]").onclick = () => post({ id: pid, name: p.name, on: !p.on });
+    openPlate.querySelector("[data-remove]").onclick = () => { const snap = { ...p }; post({ remove: pid }); projOpenId = null; const u = $("#undo"); $("#undo-text").textContent = `Removed "${p.name}". Its items are in Unsorted.`; u.hidden = false; $("#undo-btn").onclick = () => { post({ name: snap.name, prio: snap.prio, on: snap.on, keys: snap.keys, words: snap.words }); u.hidden = true; }; setTimeout(() => { u.hidden = true; }, 12000); }; }
+  // add
+  $("#proj-add-link").onclick = () => { const f = $("#proj-add"); f.hidden = false; $("#proj-add-link").hidden = true; f.name.focus(); };
+  $("#proj-add").onsubmit = (e) => { e.preventDefault(); const name = e.target.name.value.trim(); if (!name) return; post({ name, prio: 1 }); };
+  // drag a row onto a project plate
+  let dragging = null;
+  body.querySelectorAll(".proj-item[draggable]").forEach(r => { r.addEventListener("dragstart", (e) => { dragging = { item: r.dataset.item, key: r.dataset.key }; e.dataTransfer.effectAllowed = "move"; r.classList.add("dragging"); }); r.addEventListener("dragend", () => { r.classList.remove("dragging"); body.querySelectorAll(".proj-plate.over").forEach(x => x.classList.remove("over")); }); });
+  body.querySelectorAll(".proj-plate:not(.unsorted)").forEach(pl => { pl.addEventListener("dragover", (e) => { if (!dragging) return; e.preventDefault(); pl.classList.add("over"); }); pl.addEventListener("dragleave", () => pl.classList.remove("over")); pl.addEventListener("drop", (e) => { if (!dragging) return; e.preventDefault(); pl.classList.remove("over"); post({ assign: { item: dragging.item, project: pl.dataset.proj, key: dragging.key || undefined } }); dragging = null; }); });
+  const uns = body.querySelector(".proj-plate.unsorted"); if (uns) { uns.addEventListener("dragover", (e) => { if (!dragging) return; e.preventDefault(); uns.classList.add("over"); }); uns.addEventListener("dragleave", () => uns.classList.remove("over")); uns.addEventListener("drop", (e) => { if (!dragging) return; e.preventDefault(); uns.classList.remove("over"); post({ assign: { item: dragging.item, project: null } }); dragging = null; }); }
   icons();
 }
 // ---------- pull requests ----------
@@ -306,10 +319,15 @@ function renderLedger() {
   if (!rows.length) { days.innerHTML = `<p class="quiet">${ledgerRows.length ? "Nothing on that day." : "Nothing in the ledger yet. Each reply that opens with Done lands here."}</p>`; icons(); return; }
   // one line per session per day, newest first: a headline, the way back, and the points behind a plus
   const groups = new Map(); for (const r of rows) { const k = `${r.sessionId}|${dayKey(r.at)}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
-  days.innerHTML = `<ul class="lg-list">${[...groups].map(([k, rs]) => { const sid = rs[0].sessionId;
+  const lgRow = ([k, rs]) => { const sid = rs[0].sessionId;
     const s = ledgerSums[k]; const latest = rs[0]; const partly = rs.every(r => r.status === "partly");
     const headline = s ? s.headline : (latest.lines[0] || latest.title); const points = s ? s.points : [...new Set(rs.flatMap(r => r.lines))]; const next = latest.next;
-    return `<li class="lg-row ${partly ? "partly" : "done"}" data-sid="${sid}"><span class="lg-dot" aria-hidden="true"></span><div class="lg-main"><p class="lg-first">${renderInline(headline)}${s ? "" : `<span class="lg-wait" title="A shorter headline is on its way">…</span>`}</p><div class="lg-rest" hidden>${points.map(p => `<p>${renderInline(p)}</p>`).join("")}${next ? `<p class="lg-next">Next: ${renderInline(next)}</p>` : ""}</div></div><span class="lg-side"><a class="lg-go" href="#s/${sid}" title="Open the session">${ic("arrow-up-right")}</a><button class="lg-plus" type="button" aria-label="More"><span></span></button></span></li>`; }).join("")}</ul>`;
+    return `<li class="lg-row ${partly ? "partly" : "done"}" data-sid="${sid}"><span class="lg-dot" aria-hidden="true"></span><div class="lg-main"><p class="lg-first">${renderInline(headline)}${s ? "" : `<span class="lg-wait" title="A shorter headline is on its way">…</span>`}</p><div class="lg-rest" hidden>${points.map(p => `<p>${renderInline(p)}</p>`).join("")}${next ? `<p class="lg-next">Next: ${renderInline(next)}</p>` : ""}</div></div><span class="lg-side"><a class="lg-go" href="#s/${sid}" title="Open the session">${ic("arrow-up-right")}</a><button class="lg-plus" type="button" aria-label="More"><span></span></button></span></li>`; };
+  // by project: the session's project, or the ledger row's own title and ticket
+  const projOfRow = (rs) => { const sid = rs[0].sessionId; const sess = list.find(x => x.sessionId === sid); if (sess) { const p = projectOf(sess); if (p) return p; } const fake = { sessionId: sid, title: rs[0].title, prompt: "", cwd: "" }; return projectOf(fake); };
+  const byProj = new Map(); for (const g of groups) { const p = projOfRow(g[1]); const k = p ? p.id : ""; if (!byProj.has(k)) byProj.set(k, []); byProj.get(k).push(g); }
+  const order = [...projects.map(p => p.id).filter(id => byProj.has(id)), ...(byProj.has("") ? [""] : [])];
+  days.innerHTML = order.map(id => { const p = projects.find(x => x.id === id); return `<section class="lg-proj"><h2 class="lg-h">${p ? esc(p.name) : "No project"}</h2><ul class="lg-list">${byProj.get(id).map(lgRow).join("")}</ul></section>`; }).join("");
   for (const li of days.querySelectorAll(".lg-row")) { const open = () => { const on = li.classList.toggle("open"); li.querySelector(".lg-rest").hidden = !on; }; li.querySelector(".lg-plus").onclick = open; li.querySelector(".lg-first").onclick = open; }
   icons();
 }
@@ -343,7 +361,7 @@ function connect() {
     const m = JSON.parse(e.data);
     if (m.type === "hello") { cwds = m.payload.cwds || []; if (!$("#ns-cwd").value && prefs.lastCwd) $("#ns-cwd").value = prefs.lastCwd; applyList(m.payload.sessions, m.payload.version); }
     if (m.type === "list") applyList(m.payload.sessions, m.payload.version);
-    if (m.type === "projects") { projects = (m.payload?.projects || []).slice().sort((a, b) => a.prio - b.prio || a.order - b.order); assign = m.payload?.assign || {}; renderSide(); if (!$("#projects").hidden) renderProjects(); if (roundsOn) renderRounds(); }
+    if (m.type === "projects") { projects = (m.payload?.projects || []).slice().sort((a, b) => a.prio - b.prio || a.order - b.order); assign = m.payload?.assign || {}; renderSide(); if (!$("#projects").hidden) renderProjects(); if (roundsOn) renderRounds(); if (openId) renderSessHead(); }
     if (m.type === "waits") { waitList = m.payload || []; renderSide(); if (roundsOn) renderRounds(); }
     if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; $("#prs-n").textContent = String(prList.filter(p => p.needsYou).length || ""); if (!$("#prs").hidden) renderPrs(); renderSide(); if (roundsOn) renderRounds(); }
     if (m.type === "ledger") { ledgerRows = m.payload?.entries || []; ledgerSums = m.payload?.summaries || {}; if (!$("#ledger").hidden) renderLedger(); }
@@ -404,7 +422,10 @@ cwdList.addEventListener("mousedown", (e) => { const li = e.target.closest("li")
 
 // ---------- session view ----------
 const MSTATE = { starting: "working", working: "working", waiting: "needs-permission", idle: "finished", failed: "failed", ended: "idle" };
-function renderSessHead() { $("#sess-star")?.classList.toggle("on", (prefs.stars || {})[openId] != null); const pc = $("#sess-prio"); if (pc) pc.innerHTML = prioCtl(openId);
+function renderSessHead() { $("#sess-star")?.classList.toggle("on", (prefs.stars || {})[openId] != null);
+  const pe = $("#sess-proj"); if (pe) { const me = list.find(s => s.sessionId === openId); const cur = me ? projectOf(me) : null; pe.innerHTML = `<button type="button" class="proj-link" id="proj-link">Project: ${cur ? esc(cur.name) : "none"}</button><span class="proj-pills" hidden>${projects.map(p => `<button type="button" class="btn tiny" data-pp="${p.id}">${esc(p.name)}</button>`).join("")}<button type="button" class="btn tiny" data-pp="">None</button></span>`;
+    pe.querySelector("#proj-link").onclick = () => { const s = pe.querySelector(".proj-pills"); s.hidden = !s.hidden; };
+    pe.querySelectorAll("[data-pp]").forEach(b => b.onclick = () => fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assign: { item: `s:${openId}`, project: b.dataset.pp || null, key: me ? keyOf(me.title) || undefined : undefined } }) })); } const pc = $("#sess-prio"); if (pc) pc.innerHTML = prioCtl(openId);
   if (!meta) return;
   const repo = meta.cwd.split("/").filter(Boolean).pop() || meta.cwd;
   const j = $("#sess-jar"); j.style.setProperty("--jc", tintOf(repo)); j.querySelector("use").setAttribute("href", shapeOf(repo)); j.querySelector(".shape").setAttribute("fill", "currentColor"); $("#sess-repo").textContent = repo;
