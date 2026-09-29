@@ -731,3 +731,5 @@ textarea.uploading{opacity:.7}
 .si .si-line{color:var(--text-tertiary);margin-top:1px}
 .composer{position:static;margin-top:16px}
 main{padding-bottom:60px}
+.pr-row.open .lg-plus span::after{display:none}
+.pr-row .pr-facts li{padding:0 0 0 12px;border:0}
