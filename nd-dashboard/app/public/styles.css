@@ -657,3 +657,26 @@ main{height:100%;overflow:auto;padding-bottom:40px}
 .doc details.code>summary{display:flex;align-items:center;gap:6px}
 .doc details.code>summary .copy{margin-left:auto}
 textarea.has-suggest::placeholder{color:var(--text-secondary);font-style:italic}
+
+/* files in the box */
+textarea.drop{border-color:var(--action-primary)!important;background:color-mix(in srgb,var(--action-primary) 6%,transparent)!important}
+textarea.uploading{opacity:.7}
+.attach{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;width:100%}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);border:1px solid var(--line-quiet);border-radius:4px;padding:2px 6px 2px 8px;font-family:var(--mono)}
+.chip .ic{width:13px;height:13px}
+.chip-x{all:unset;cursor:pointer;color:var(--text-tertiary);padding:0 3px;font-size:14px;line-height:1}
+.chip-x:hover{color:var(--text-primary)}
+.composer{flex-wrap:wrap}
+.composer .attach{order:3}
+/* pinned sessions */
+.si .star{all:unset;cursor:pointer;display:inline-flex;color:var(--text-tertiary);opacity:0;margin-right:6px;flex:none}
+.si .star .ic{width:13px;height:13px}
+.si:hover .star{opacity:.7}
+.si .star.on{opacity:1;color:var(--action-primary)}
+.si .star.on .ic{fill:currentColor}
+.si.pinned{cursor:grab}
+.si.dragging{opacity:.4}
+.si.over-top{box-shadow:0 -2px 0 0 var(--action-primary)}
+.si.over-bottom{box-shadow:0 2px 0 0 var(--action-primary)}
+#sess-star.on{color:var(--action-primary)}
+#sess-star.on .ic{fill:currentColor}

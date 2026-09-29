@@ -55,8 +55,8 @@ Rust marks only "failed". Nothing else in the app is red or orange. "Behind" and
 
 ## Density and hierarchy (D1 to D4)
 
-### D1 — Sidebar groups: at most four **[CI]**
-Needs you, Your turn, Working, Older. Working and Older start collapsed.
+### D1 — Sidebar groups: at most five **[CI]**
+Pinned, Needs you, Your turn, Working, Older. Pinned is hers: sessions she starred, in the order she drags them. Working and Older start collapsed.
 
 ### D2 — Sidebar entries lead with the title **[review]**
 Title, then state, then a two-line preview or her note. No repo. No age on her own items.

@@ -40,17 +40,28 @@ async function copyCmd(cmd, btn) { const was = btn.textContent; try { await navi
 function send(o) { if (wsReady) ws.send(JSON.stringify(o)); else setTimeout(() => send(o), 300); }
 
 // ---------- sidebar: every session, one place ----------
+function toggleStar(id) { const s = { ...(prefs.stars || {}) }; if (s[id] != null) delete s[id]; else s[id] = Math.max(-1, ...Object.values(s)) + 1; prefs.stars = s; save(); renderSide(); renderSessHead?.(); }
 function renderSide() {
   const live = list.filter(x => !isDismissed(x));
-  const groups = { needs: [], working: [], done: [], older: [] };
-  for (const x of live) { if (isOld(x) || x.state === "idle") groups.older.push(x); else if (x.needsYou && x.state !== "finished") groups.needs.push(x); else if (x.state === "working") groups.working.push(x); else groups.done.push(x); }
+  const groups = { pinned: [], needs: [], working: [], done: [], older: [] }; const stars = prefs.stars || {};
+  for (const x of live) { if (stars[x.sessionId] != null) groups.pinned.push(x); else if (isOld(x) || x.state === "idle") groups.older.push(x); else if (x.needsYou && x.state !== "finished") groups.needs.push(x); else if (x.state === "working") groups.working.push(x); else groups.done.push(x); }
+  groups.pinned.sort((a, b) => stars[a.sessionId] - stars[b.sessionId]);
   const byRepo = (a, b) => a.repo.localeCompare(b.repo) || b.startedAt - a.startedAt;
   groups.needs.sort((a, b) => a.stateSince - b.stateSince); groups.working.sort(byRepo); groups.done.sort(byRepo); groups.older.sort((a, b) => b.stateSince - a.stateSince);
   const item = (x, old) => { const st = STATE[x.state]; const ln = lineOf(x); const cur = x.sessionId === openId || x.sessionId === termId;
-    return `<a class="si${old ? " older" : ""}" href="${hrefOf(x)}" aria-current="${cur}" style="--sc:${st.color};--jc:${tintOf(x.repo)}"><span class="si-top"><span class="si-title">${esc(x.title)}</span><span class="si-state">${ic(st.icon)}${st.short}</span></span>${ln.text ? `<span class="si-line${ln.note ? " note" : ""}">${esc(ln.text)}</span>` : ""}${old ? `<span class="si-acts"><span class="where">${ago(Date.now() - x.stateSince)}</span><button class="btn tiny letgo" data-id="${x.sessionId}" data-managed="${!!x.managed}">Let it go</button></span>` : ""}</a>`; };
+    const pinned = (prefs.stars || {})[x.sessionId] != null;
+    return `<a class="si${old ? " older" : ""}${pinned ? " pinned" : ""}" href="${hrefOf(x)}" aria-current="${cur}" style="--sc:${st.color};--jc:${tintOf(x.repo)}" data-id="${x.sessionId}"${pinned ? ' draggable="true"' : ""}><span class="si-top"><button type="button" class="star${pinned ? " on" : ""}" data-star="${x.sessionId}" title="${pinned ? "Unpin" : "Pin to the top"}">${ic("star")}</button><span class="si-title">${esc(x.title)}</span><span class="si-state">${ic(st.icon)}${st.short}</span></span>${ln.text ? `<span class="si-line${ln.note ? " note" : ""}">${esc(ln.text)}</span>` : ""}${old ? `<span class="si-acts"><span class="where">${ago(Date.now() - x.stateSince)}</span><button class="btn tiny letgo" data-id="${x.sessionId}" data-managed="${!!x.managed}">Let it go</button></span>` : ""}</a>`; };
   const g = (key, label, arr, collapsible) => { if (!arr.length) return ""; const open = collapsible ? !!prefs.open?.[key] : true;
     return `<div class="sg"><${collapsible ? "button" : "div"} class="sg-h${collapsible ? " toggle" : ""}"${collapsible ? ` data-toggle="${key}" aria-expanded="${open}"` : ""}>${collapsible ? `<svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>` : ""}${label} <span class="where">${arr.length}</span></${collapsible ? "button" : "div"}>${open ? arr.map(x => item(x, key === "older")).join("") : ""}</div>`; };
-  $("#side-groups").innerHTML = g("needs", "Needs you", groups.needs) + g("done", "Your turn", groups.done) + g("working", "Working", groups.working, true) + g("older", "Older", groups.older, true) || `<p class="menu-note">No sessions yet.</p>`;
+  $("#side-groups").innerHTML = g("pinned", "Pinned", groups.pinned) + g("needs", "Needs you", groups.needs) + g("done", "Your turn", groups.done) + g("working", "Working", groups.working, true) + g("older", "Older", groups.older, true) || `<p class="menu-note">No sessions yet.</p>`;
+  document.querySelectorAll("[data-star]").forEach(b => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); toggleStar(b.dataset.star); });
+  // drag a pinned item above or below another to reorder
+  let dragId = null; document.querySelectorAll(".si.pinned").forEach(el => { el.addEventListener("dragstart", (e) => { dragId = el.dataset.id; e.dataTransfer.effectAllowed = "move"; el.classList.add("dragging"); }); el.addEventListener("dragend", () => el.classList.remove("dragging"));
+    el.addEventListener("dragover", (e) => { if (!dragId || dragId === el.dataset.id) return; e.preventDefault(); const r = el.getBoundingClientRect(); el.classList.toggle("over-top", e.clientY < r.top + r.height / 2); el.classList.toggle("over-bottom", e.clientY >= r.top + r.height / 2); });
+    el.addEventListener("dragleave", () => el.classList.remove("over-top", "over-bottom"));
+    el.addEventListener("drop", (e) => { if (!dragId || dragId === el.dataset.id) return; e.preventDefault(); const before = el.classList.contains("over-top"); el.classList.remove("over-top", "over-bottom");
+      const order = groups.pinned.map(x => x.sessionId).filter(id => id !== dragId); const at = order.indexOf(el.dataset.id) + (before ? 0 : 1); order.splice(at, 0, dragId);
+      prefs.stars = Object.fromEntries(order.map((id, i) => [id, i])); save(); dragId = null; renderSide(); }); });
   document.querySelectorAll("[data-toggle]").forEach(t => t.onclick = () => { prefs.open = { ...(prefs.open || {}), [t.dataset.toggle]: !prefs.open?.[t.dataset.toggle] }; save(); renderSide(); });
   document.querySelectorAll(".letgo").forEach(b => b.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); const id = b.dataset.id;
     if (!confirm("Let this session go? It ends now. The conversation stays on disk and can be resumed later.")) return;
@@ -131,7 +142,8 @@ function roundCard(x, isOpen, hasNext) {
     const f = document.createElement("form"); f.className = "rc-reply";
     const ph = x.pending ? (x.pending.kind === "permission" ? "Or type to deny with a note" : "Or answer in your own words") : "Reply. Enter to send";
     f.innerHTML = `<textarea rows="2" placeholder="${ph}"></textarea><button class="btn primary" type="submit">Send</button>`; if (!x.pending) armSuggestion(f.querySelector("textarea"), x.lastReply || "");
-    f.onsubmit = (e) => { e.preventDefault(); const t = f.querySelector("textarea").value.trim(); if (!t) return;
+    acceptFiles(f.querySelector("textarea"), () => x.sessionId);
+    f.onsubmit = (e) => { e.preventDefault(); const t = withFiles(f.querySelector("textarea"), f.querySelector("textarea").value.trim()); if (!t) return;
       if (x.pending) send({ type: "answer", sessionId: x.sessionId, requestId: x.pending.id, decision: x.pending.kind === "permission" ? { behavior: "deny", message: t } : { freeText: t } }); else send({ type: "send", sessionId: x.sessionId, text: t }); answered(); };
     f.querySelector("textarea").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } }); card.appendChild(f);
   }
@@ -274,7 +286,7 @@ window.addEventListener("focus", () => { if (!openId) refresh(); });
 document.addEventListener("keydown", (e) => { if (e.target.matches("input,select,textarea")) return; if (e.key === "r" || e.key === "R") { e.preventDefault(); refresh(); } if (e.key === "Escape") closeMenu(); });
 
 // ---------- new session ----------
-$("#newsess").onsubmit = (e) => { e.preventDefault(); const cwd = resolveCwd($("#ns-cwd").value), prompt = $("#ns-prompt").value.trim(); if (!cwd || !prompt) { (cwd ? $("#ns-prompt") : $("#ns-cwd")).focus(); return; } prefs.lastCwd = tilde(cwd); save(); send({ type: "start", cwd, prompt }); $("#ns-prompt").value = ""; };
+$("#newsess").onsubmit = (e) => { e.preventDefault(); const cwd = resolveCwd($("#ns-cwd").value), prompt = withFiles($("#ns-prompt"), $("#ns-prompt").value.trim()); if (!cwd || !prompt) { (cwd ? $("#ns-prompt") : $("#ns-cwd")).focus(); return; } prefs.lastCwd = tilde(cwd); save(); send({ type: "start", cwd, prompt }); $("#ns-prompt").value = ""; };
 $("#ns-prompt").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#newsess").requestSubmit(); } });
 const cwdIn = $("#ns-cwd"), cwdList = $("#cwd-list"); let cwdSel = 0, cwdMatches = [], homeDir = "";
 const tilde = (p) => homeDir && p.startsWith(homeDir) ? "~" + p.slice(homeDir.length) : p;
@@ -298,7 +310,7 @@ cwdList.addEventListener("mousedown", (e) => { const li = e.target.closest("li")
 
 // ---------- session view ----------
 const MSTATE = { starting: "working", working: "working", waiting: "needs-permission", idle: "finished", failed: "failed", ended: "idle" };
-function renderSessHead() {
+function renderSessHead() { $("#sess-star")?.classList.toggle("on", (prefs.stars || {})[openId] != null);
   if (!meta) return;
   const repo = meta.cwd.split("/").filter(Boolean).pop() || meta.cwd;
   const j = $("#sess-jar"); j.style.setProperty("--jc", tintOf(repo)); j.querySelector("use").setAttribute("href", shapeOf(repo)); j.querySelector(".shape").setAttribute("fill", "currentColor"); $("#sess-repo").textContent = repo;
@@ -321,6 +333,7 @@ function closeWithUndo(x) { // no dialog: it closes, and one line offers Undo
   send({ type: "end", sessionId: x.sessionId }); const u = $("#undo"); $("#undo-text").textContent = `Closed "${x.title.slice(0, 40)}". It stays on disk.`; u.hidden = false;
   $("#undo-btn").onclick = () => { send({ type: "resume", sessionId: x.sessionId, cwd: x.cwd }); u.hidden = true; }; setTimeout(() => { u.hidden = true; }, 12000); }
 $("#sess-end").onclick = () => { const x = list.find(s => s.sessionId === openId) || { sessionId: openId, title: meta?.title || "", cwd: meta?.cwd }; closeWithUndo(x); location.hash = ""; };
+$("#sess-star").onclick = () => { if (openId) toggleStar(openId); };
 $("#sess-park").onclick = () => { $("#park").hidden = !$("#park").hidden; if (!$("#park").hidden) $("#park-note").focus(); };
 $("#park-save").onclick = () => { send({ type: "note", sessionId: openId, note: $("#park-note").value }); $("#park").hidden = true; };
 $("#park-clear").onclick = () => { $("#park-note").value = ""; send({ type: "note", sessionId: openId, note: "" }); $("#park").hidden = true; };
@@ -329,6 +342,22 @@ $("#park-note").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.
 // Claude's reply as a document. A line of --- splits the answer from the details, per the writing rules in CLAUDE.md.
 const mdOpts = { gfm: true, breaks: false };
 function renderMd(t) { try { const html = marked.parse(t.replace(/<\/?(script|style|iframe)[^>]*>/gi, ""), mdOpts); return html; } catch { return `<p>${esc(t)}</p>`; } }
+// ---------- files in the box: drop or paste, they save to disk and the message names their paths ----------
+const attachments = new WeakMap(); // textarea -> [{ name, path }]
+function attachBox(ta) { let box = ta.parentElement.querySelector(".attach"); if (!box) { box = document.createElement("div"); box.className = "attach"; box.hidden = true; ta.insertAdjacentElement("afterend", box); } return box; }
+function renderAttach(ta) { const box = attachBox(ta); const items = attachments.get(ta) || []; box.hidden = !items.length;
+  box.innerHTML = items.map((f, i) => `<span class="chip">${ic(/\.(png|jpe?g|gif|webp)$/i.test(f.name) ? "image" : "file")}${esc(f.name)}<button type="button" class="chip-x" data-i="${i}" aria-label="Remove">×</button></span>`).join("");
+  box.querySelectorAll(".chip-x").forEach(b => b.onclick = () => { items.splice(+b.dataset.i, 1); renderAttach(ta); }); icons(); }
+async function addFiles(ta, files, sid) { const list = [...files].filter(f => f && f.size <= 25 * 1024 * 1024); if (!list.length) return;
+  const fd = new FormData(); fd.append("sessionId", sid || "new"); for (const f of list) fd.append("file", f, f.name || "pasted.png");
+  ta.classList.add("uploading"); try { const r = await fetch("/api/upload", { method: "POST", body: fd }); const j = await r.json(); const cur = attachments.get(ta) || []; (j.paths || []).forEach((p, i) => cur.push({ name: list[i]?.name || p.split("/").pop(), path: p })); attachments.set(ta, cur); renderAttach(ta); }
+  catch { $("#error").hidden = false; $("#error").textContent = "Could not save the file."; } ta.classList.remove("uploading"); }
+function withFiles(ta, text) { const items = attachments.get(ta) || []; if (!items.length) return text; const tail = `Attached files (read them as needed):\n${items.map(f => `- ${f.path}`).join("\n")}`; attachments.set(ta, []); renderAttach(ta); return text ? `${text}\n\n${tail}` : tail; }
+function acceptFiles(ta, sidFn) { // drag in, or paste an image from the clipboard
+  ta.addEventListener("dragover", (e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); ta.classList.add("drop"); } });
+  ta.addEventListener("dragleave", () => ta.classList.remove("drop"));
+  ta.addEventListener("drop", (e) => { if (!e.dataTransfer?.files?.length) return; e.preventDefault(); ta.classList.remove("drop"); addFiles(ta, e.dataTransfer.files, sidFn()); });
+  ta.addEventListener("paste", (e) => { const fs = [...(e.clipboardData?.files || [])]; if (!fs.length) return; e.preventDefault(); addFiles(ta, fs, sidFn()); }); }
 const STATUS_RE = /^\s*(Done|Partly done|Blocked|Found|Question|Working|Failed|Not done)\b[.:!]?/i;
 const REPLY_LINE = /^\s*\**Reply\**\s*:\s*(.+?)\s*$/im;
 function suggestReply(text) { // what she would most likely type next, from the reply itself
@@ -431,7 +460,8 @@ function renderPendingInto(box, p, sid) {
     box.querySelector('[data-d="remember"]').onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { behavior: "allow", remember: true } }); sentCards.add(sid); };
     box.querySelector('[data-d="deny"]').onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { behavior: "deny" } }); sentCards.add(sid); }; }
 }
-$("#composer").onsubmit = (e) => { e.preventDefault(); const t = $("#reply").value.trim(); if (!t || !openId) return; const p = meta?.pending; if (p?.kind === "permission") send({ type: "answer", sessionId: openId, requestId: p.id, decision: { behavior: "deny", message: t } }); else send({ type: "send", sessionId: openId, text: t }); $("#reply").value = ""; };
+acceptFiles($("#reply"), () => openId); acceptFiles($("#ns-prompt"), () => "new");
+$("#composer").onsubmit = (e) => { e.preventDefault(); const t = withFiles($("#reply"), $("#reply").value.trim()); if (!t || !openId) return; const p = meta?.pending; if (p?.kind === "permission") send({ type: "answer", sessionId: openId, requestId: p.id, decision: { behavior: "deny", message: t } }); else send({ type: "send", sessionId: openId, text: t }); $("#reply").value = ""; };
 $("#reply").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#composer").requestSubmit(); } });
 
 // ---------- appearance ----------

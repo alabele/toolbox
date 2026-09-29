@@ -2,7 +2,7 @@
 // Sources: `claude agents --json --all` (poll) and Claude Code lifecycle hooks (push).
 // Transcripts are read only for a session's title and last assistant text.
 
-import { readFileSync, existsSync, openSync, readSync, fstatSync, closeSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync, openSync, readSync, fstatSync, closeSync, readdirSync, statSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, basename } from "node:path";
 import { SessionManager, type Meta } from "./sessions";
@@ -244,6 +244,11 @@ Bun.serve({
     const url = new URL(req.url);
     if (url.pathname === "/ws") { if (server.upgrade(req)) return undefined as any; return new Response("upgrade failed", { status: 400 }); }
     if (url.pathname === "/api/ledger") return Response.json(ledger.list());
+    if (url.pathname === "/api/upload" && req.method === "POST") { // dropped or pasted files land on disk; the message carries their paths
+      const form = await req.formData(); const sid = String(form.get("sessionId") || "new").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40) || "new";
+      const dir = join(homedir(), ".config", "stillroom", "uploads", sid); mkdirSync(dir, { recursive: true }); const out: string[] = [];
+      for (const [k, f] of form.entries()) { if (k !== "file" || !(f instanceof File)) continue; const name = (f.name || "file").replace(/[^\w.@-]+/g, "_").slice(0, 80); const p = join(dir, `${Date.now().toString(36)}-${name}`); await Bun.write(p, f); out.push(p); }
+      return Response.json({ paths: out }); }
     if (url.pathname === "/api/prs") return Response.json({ prs: prs.list(), repos: prs.repos, jira: prs.jira() });
     if (url.pathname === "/api/slack/status") return Response.json({ connected: await slackConnected() });
     if (url.pathname === "/api/slack/probe") return new Response(await slackProbe(url.searchParams.get("q") || "general"));
