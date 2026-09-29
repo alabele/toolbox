@@ -432,8 +432,7 @@ main{height:100%;overflow:auto;padding-bottom:40px}
 .rc .pending{margin-top:8px}
 
 /* ===== session 006b: Rounds fills the window; one open plate carries the weight ===== */
-.in-rounds .side{display:none}
-.in-rounds .shell{grid-template-columns:minmax(0,1fr)}
+/* Rounds keeps the sidebar (session 011) */
 #rounds{max-width:840px;margin:0 auto;width:100%}
 .rounds-top{display:flex;justify-content:flex-end;margin-bottom:10px}
 .rounds-top a{text-decoration:none}
@@ -831,3 +830,4 @@ main{padding-bottom:60px}
 #side-groups{flex:0 0 auto}
 .lg-proj{display:flex;flex-direction:column;gap:4px}
 #ledger-days{display:flex;flex-direction:column;gap:18px}
+.rounds-top{display:none}
