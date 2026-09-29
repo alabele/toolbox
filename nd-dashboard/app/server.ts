@@ -258,6 +258,7 @@ Bun.serve({
     if (url.pathname === "/api/pr/review" && req.method === "POST") { const b = await req.json(); return runPrLoop(String(b.key)) ? new Response("ok") : new Response("already running or unknown", { status: 409 }); }
     if (url.pathname === "/api/waits") return Response.json(waits.list());
     if (url.pathname === "/api/wait" && req.method === "POST") { const b = await req.json(); if (b.remove) { waits.remove(String(b.remove)); return new Response("ok"); } if (b.back) { waits.back(String(b.back), String(b.why || "It came back")); return new Response("ok"); } const w = await waits.add(String(b.text || ""), b.link, b.sessionId, b.until); return Response.json(w); }
+    if (url.pathname === "/api/pr/keep-waiting" && req.method === "POST") { const b = await req.json(); return prs.keepWaiting(String(b.key)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/watch" && req.method === "POST") { const b = await req.json(); return prs.setWatch(String(b.key), !!b.on) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/channel" && req.method === "POST") { const b = await req.json(); prs.setChannel(String(b.repo), String(b.channel).trim()); broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }); return new Response("ok"); }
     if (url.pathname === "/api/pr/slack" && req.method === "POST") { const b = await req.json(); const pr = prs.get(String(b.key)); if (!pr) return new Response("unknown", { status: 404 });

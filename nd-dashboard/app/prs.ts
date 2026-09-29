@@ -22,6 +22,7 @@ export interface Pr {
   claudeVerdict?: "approve" | "changes" | null; claudeAt?: number; reviewing?: boolean;
   tickets: string[]; sessionId?: string; sessionTitle?: string;
   slack?: { channel: string; askedAt: number; permalink?: string; nudgedAt?: number; note?: string };
+  alert?: string; seen?: string[]; // a new human review on a watched PR brings it back once ("Ilya approved"); Keep waiting clears it
   watched?: boolean; // she handed this one off: it shows under Waiting on others and comes back to her; everything else stays on the Pull requests screen
   viewedAt?: number; firstSeen: number; shelved?: boolean; state: PrState; needsYou: boolean; reason: string; error?: string;
   ticket?: Ticket; mismatch?: string; // the branch's ticket, and one line when the ticket and the PR disagree
@@ -48,7 +49,9 @@ export class Prs {
 
   /** Marks a PR as under Claude's review while the loop runs; refreshes when it ends. */
   markReviewing(key: string, on: boolean) { const p = this.s.prs[key]; if (!p) return; p.reviewing = on; this.derive(p); this.save(); this.onChange(); if (!on) this.view(p).then(() => { this.save(); this.onChange(); }); }
-  setWatch(key: string, on: boolean) { const p = this.s.prs[key]; if (!p) return false; p.watched = on; this.save(); this.onChange(); return true; }
+  setWatch(key: string, on: boolean) { const p = this.s.prs[key]; if (!p) return false; p.watched = on; p.alert = undefined; p.seen = reviewMarks(p); this.derive(p); this.save(); this.onChange(); return true; }
+  /** She saw the review; back to waiting. */
+  keepWaiting(key: string) { const p = this.s.prs[key]; if (!p) return false; p.alert = undefined; p.seen = reviewMarks(p); this.derive(p); this.save(); this.onChange(); return true; }
   /** The PR a session was on, if any. */
   bySession(sessionId: string) { return Object.values(this.s.prs).find(p => p.sessionId === sessionId); }
   noteSlack(key: string, slack: Pr["slack"]) { const p = this.s.prs[key]; if (!p) return; p.slack = { ...(p.slack || { channel: "", askedAt: 0 }), ...slack }; this.derive(p); this.save(); this.onChange(); }
@@ -129,12 +132,15 @@ export class Prs {
     if (t && st === "approved-qa") { if (QA_STATUSES.includes(t.status)) why = `${named.join(", ")} approved. ${t.key} is ${t.status}.`; else { p.mismatch = `${t.key} is still ${t.status}`; why = `${named.join(", ")} approved, but ${t.key} is still ${t.status}, not in QA.`; } }
     else if (t && st === "ready" && !["Done", "Closed", "Deploy", "In Test", "Ready for QA"].includes(t.status)) p.mismatch = `${t.key} is ${t.status}`;
     else if (t && (t.status === "Done" || t.status === "Closed") && !["ready", "shelf"].includes(st)) p.mismatch = `${t.key} says ${t.status}`;
-    p.state = st; p.reason = why; p.needsYou = NEEDS_YOU.includes(st) && !p.shelved && !p.sessionId;
+    if (p.watched) { const now = reviewMarks(p); const fresh = now.filter(m => !(p.seen || []).includes(m)); if (fresh.length) { p.alert = fresh.map(m => { const [l, s] = m.split(":"); return `${l} ${s === "APPROVED" ? "approved" : "asked for changes"}`; }).join(", "); } }
+    p.state = st; p.reason = p.alert ? `${p.alert}. ${why}` : why; p.needsYou = (NEEDS_YOU.includes(st) || !!p.alert) && !p.shelved && !p.sessionId;
     if (p.sessionId && NEEDS_YOU.includes(st)) p.reason += " A session is on it.";
   }
   private save() { try { mkdirSync(dirname(FILE), { recursive: true }); writeFileSync(FILE + ".tmp", JSON.stringify(this.s, null, 1)); renameSync(FILE + ".tmp", FILE); } catch {} }
 }
 
+/** Each human reviewer's last word, as "login:STATE". */
+function reviewMarks(p: Pr): string[] { const last = new Map<string, string>(); for (const r of p.reviewers || []) if (r.state === "APPROVED" || r.state === "CHANGES_REQUESTED") last.set(r.login, r.state); return [...last].map(([l, s]) => `${l}:${s}`).sort(); }
 async function run(cmd: string[]): Promise<{ text: string; error?: string }> {
   try { const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe", env: { ...process.env, GH_PROMPT_DISABLED: "1" } }); const text = await new Response(proc.stdout).text(); const err = await new Response(proc.stderr).text(); const code = await proc.exited;
     if (code !== 0) return { text: "", error: /not logged|auth login/i.test(err) ? "GitHub not connected. Run gh auth login." : /rate limit/i.test(err) ? "GitHub rate limit hit. It will retry." : err.trim().split("\n")[0] || `gh failed (${code})` };
