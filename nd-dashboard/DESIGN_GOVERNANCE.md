@@ -59,7 +59,7 @@ Rust marks only "failed". Nothing else in the app is red or orange. "Behind" and
 Pinned, Needs you, Your turn, Working, Older. Pinned is hers: sessions she starred, in the order she drags them. Working and Older start collapsed.
 
 ### D2 — Sidebar entries lead with the title **[review]**
-Title, then state, then a two-line preview or her note. No repo. No age on her own items.
+A two-letter repo monogram in mono, then the title on one line, then one line of preview or her note. The state word stays on the group heading, not the row, except where a group mixes states (session 008). No age on her own items.
 
 ### D3 — Replies are documents, not chat **[review]**
 Her prompt is a labeled panel. Claude's reply renders as a document. A `---` line folds details. A bold opening line or a "Next action" paragraph becomes the callout. Tool steps are hidden behind a switch.

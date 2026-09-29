@@ -680,3 +680,29 @@ textarea.uploading{opacity:.7}
 .si.over-bottom{box-shadow:0 2px 0 0 var(--action-primary)}
 #sess-star.on{color:var(--action-primary)}
 #sess-star.on .ic{fill:currentColor}
+.si .pencil{all:unset;cursor:pointer;display:inline-flex;color:var(--text-tertiary);opacity:0;margin-left:4px;flex:none}
+.si .pencil .ic{width:12px;height:12px}
+.si:hover .pencil{opacity:.7}
+.si .pencil:hover{color:var(--text-primary);opacity:1}
+.si .title-edit{font:inherit;font-weight:600;color:var(--text-primary);background:var(--bg-primary);border:1px solid var(--border-medium);border-radius:4px;padding:1px 6px;flex:1;min-width:0}
+
+/* ===== session 008: the group is the plate, rows are lines ===== */
+.sg{gap:0;border:1px solid var(--line-quiet);border-radius:var(--r);padding:4px 0 2px}
+.sg+.sg{margin-top:14px}
+.sg-h{color:var(--text-tertiary);opacity:1;padding:4px 12px 6px}
+.sg-needs .sg-h{color:var(--action-primary)}
+.si,.si.older{background:transparent;border:0;border-top:1px solid var(--line-quiet);border-radius:0;padding:7px 12px;opacity:1;margin:0}
+.si:first-of-type{border-top:0}
+.sg-h+.si{border-top:0}
+.si[aria-current="true"]{background:transparent;border-top-color:transparent;box-shadow:inset 0 0 0 1px var(--border-strong);border-radius:4px;margin:0 4px}
+.si[aria-current="true"]+.si{border-top-color:transparent}
+.si .si-top{align-items:center;gap:8px}
+.si .mono{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--text-tertiary);width:18px;flex:none;text-align:left}
+.si .si-title{display:block;-webkit-line-clamp:unset;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;font-size:13px;line-height:1.4}
+.si .si-line{display:block;-webkit-line-clamp:unset;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:1px 0 0 26px;font-size:12px}
+.si .si-state{font-size:10px;color:var(--text-tertiary)}
+.si .star{margin:0;opacity:0}
+.si .star.on{opacity:1;color:var(--text-primary)}
+.si .pencil{margin:0}
+.si .si-acts{margin-left:26px}
+.side-top{margin-bottom:4px}

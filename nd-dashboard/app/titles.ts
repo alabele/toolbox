@@ -24,7 +24,7 @@ export class Titler {
   /** The cached title for this session, and a fresh one on the way when what it is doing changed. */
   get(id: string, first: string, last: string, settled: boolean, current = ""): string {
     if (OFF || !id || id.startsWith("pending-") || !first?.trim()) return "";
-    const key = hash(first.slice(0, 400) + "\n" + (last || "").slice(0, 400));
+    const key = hash("v2\n" + first.slice(0, 400) + "\n" + (last || "").slice(0, 400)); // v2: titles lead with the thing
     const row = this.rows.get(id);
     const stale = !row || (row.key !== key && settled && Date.now() - row.at > RETITLE_AFTER) || (!row?.title && Date.now() - (row?.at ?? 0) > RETRY_AFTER);
     if (stale && this.jobs.get(id)?.key !== key) { this.jobs.set(id, { id, key, first, last, current: row?.title || current }); this.drain(); }
@@ -43,8 +43,8 @@ function hash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++
 
 async function makeTitle(j: Job): Promise<string> {
   const prompt = [
-    "Title this coding session in 4 to 8 plain words. Say what is being done and for what, like \"Fixing the login timeout in video-client\" or \"Answering a review on video-client #2244\".",
-    "Lead with an -ing verb. Name the repo, ticket, PR or file when there is one. Name a pull request as repo #number, like docs-pipeline #319, never PR 2244. No quotes, no trailing period, no words like session, task, user or Claude. Reply with the title only.",
+    "Title this coding session in 3 to 6 plain words. Lead with the thing, then the matter: the ticket, pull request, file or repo first, then a noun phrase. No verb. Like \"VDC-2318 demo driver startup\", \"docs #5243 deliver plugin review\", \"Cam2Cam iOS Safari failure\", \"Stillroom drag-drop merge\".",
+    "Name a pull request as repo #number, like docs-pipeline #319, never PR 2244. Never quote the request or the reply. No quotes, no trailing period, no words like session, task, user or Claude. Reply with the title only.",
     j.current ? `Current title: ${j.current}. Keep it if it still fits; change it only if what is happening has changed.` : "",
     `\nFirst request:\n${j.first.slice(0, 1500)}`,
     j.last ? `\nLatest reply:\n${j.last.slice(0, 1500)}` : "",
