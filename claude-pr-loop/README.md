@@ -86,8 +86,12 @@ Each Claude call uses `claude -p` (print mode), which starts a **fresh context**
 ## Options
 
 ```
+--reviewer WHICH       Which reviewer runs the review step: builtin | deliver (default: builtin)
+--skip-pattern ERE     Extra path regex to withhold from the reviewed diff, on top of the
+                       built-in lockfile/snapshot/minified list (builtin reviewer only)
 --max-iterations N     Max review-fix cycles before giving up (default: 5)
---max-budget-usd N     Spend cap per Claude call in USD (default: 2.00)
+--max-budget-usd N     Spend cap for the review step in USD (default: 2.00)
+--max-fix-budget-usd N Spend cap for the fix step in USD (default: 6.00)
 --model MODEL          Claude model: sonnet, opus, haiku (default: sonnet)
 --effort LEVEL         Claude effort level: low | medium | high | max (default: high)
 --log-dir PATH         Where to write log files (default: ~/.claude-pr-loop/logs)
@@ -98,9 +102,46 @@ Each Claude call uses `claude -p` (print mode), which starts a **fresh context**
 -h, --help             Show usage help
 ```
 
+## Choosing a reviewer
+
+`--reviewer` picks what runs in step 2. Everything else in the loop — worktrees, posting, the fix
+pass, iteration, budgets, logs — is the same either way.
+
+| | `builtin` (default) | `deliver` |
+| --- | --- | --- |
+| What runs | one `claude -p` call | the deliver plugin's `/deliver:review` skill |
+| Sees | the PR diff, inlined into the prompt | the checked-out worktree |
+| Reviewers | one generalist | one agent per roster reviewer whose file class changed |
+| Also runs | nothing | the repo's deterministic hard checks |
+| Needs | nothing in the repo | `.claude/deliver/review.json` on the PR's branch |
+| Typical cost | cents | dollars |
+
+```bash
+claude-pr-loop --reviewer deliver --label needs-work --repo LivelyVideo/docs
+```
+
+The `deliver` reviewer changes four defaults, because a swarm is not a call:
+
+- `--max-budget-usd` becomes **12.00** and `--max-iterations` becomes **2**. An explicit flag still wins.
+- Batch mode runs PRs **serially**. Several swarms at once is a fan-out that gets rate-limited and
+  returns nothing.
+- `--skip-pattern` is ignored — the roster reviewers read the worktree, so there is no inlined diff
+  to filter.
+- The skill runs with its own `--dry-run`, so it does **not** post its comment. This loop posts one
+  review per iteration, as it always has.
+
+The aggregate the swarm returns is saved next to the run log as
+`<log>-deliver-iter<N>.json`, and mapped into the loop's verdict/findings shape locally. Blocking
+findings carry the reviewer's name into the comment; the skill's off-diff findings land as
+suggestions, which the loop reports but does not try to fix.
+
+One failure is specific to this mode: if a roster reviewer dies, the swarm reports not-approved with
+nothing to fix. The loop stops with `reviewer_failed` rather than posting a request-changes for its
+own harness falling over.
+
 ## Batch mode
 
-Batch mode fetches all open PRs matching a label and processes each one in a **parallel background process** with its own worktree and log file:
+Batch mode fetches all open PRs matching a label and processes each one in a **parallel background process** with its own worktree and log file (`--reviewer deliver` runs them serially instead — see above):
 
 ```bash
 claude-pr-loop --label claude-review --repo myorg/myrepo
