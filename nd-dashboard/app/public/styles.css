@@ -749,3 +749,9 @@ main{padding-bottom:60px}
 .rc-tail .prio{margin-right:auto;margin-left:12px}
 .pr-watch{display:inline-flex;margin-right:8px;color:var(--text-secondary);vertical-align:middle}
 .pr-watch .ic{width:12px;height:12px}
+.wait-add{display:flex;gap:6px;padding:2px 12px 8px}
+.wait-add input{flex:1;min-width:0;font:inherit;font-size:12.5px;color:var(--text-primary);background:transparent;border:1px solid var(--line-quiet);border-radius:4px;padding:5px 8px}
+.wait-add input:focus{outline:none;border-color:var(--border-medium)}
+.si.wait .si-acts{display:none;gap:6px;margin-top:6px}
+.si.wait:hover .si-acts,.si.wait.needs .si-acts{display:flex}
+.si.wait .si-state{text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:11px}

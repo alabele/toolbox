@@ -9,6 +9,7 @@ import { SessionManager, type Meta } from "./sessions";
 import { Titler, HELPER_DIR } from "./titles";
 import { Ledger } from "./ledger";
 import { Prs, type Pr } from "./prs";
+import { Waits } from "./waits";
 import { postToSlack, replyInThread, slackConnected, slackProbe } from "./slack";
 
 const PORT = Number(process.env.ND_PORT ?? 4747);
@@ -219,7 +220,7 @@ const types: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 Bun.serve({
   port: PORT,
   websocket: {
-    open(ws) { sockets.add(ws); try { ws.send(JSON.stringify({ type: "ledger", payload: ledger.list() })); ws.send(JSON.stringify({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } })); } catch {} ws.send(JSON.stringify({ type: "hello", payload: { sessions: view, managed: mgr.list(), cwds: knownCwds(), version } })); },
+    open(ws) { sockets.add(ws); try { ws.send(JSON.stringify({ type: "ledger", payload: ledger.list() })); ws.send(JSON.stringify({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } })); ws.send(JSON.stringify({ type: "waits", payload: waits.list() })); } catch {} ws.send(JSON.stringify({ type: "hello", payload: { sessions: view, managed: mgr.list(), cwds: knownCwds(), version } })); },
     close(ws) { sockets.delete(ws); },
     async message(ws, raw) {
       let msg: any; try { msg = JSON.parse(String(raw)); } catch { return; }
@@ -255,6 +256,8 @@ Bun.serve({
     if (url.pathname === "/api/slack/probe") return new Response(await slackProbe(url.searchParams.get("q") || "general"));
     if (url.pathname === "/api/jira/refresh" && req.method === "POST") { await prs.refreshTickets(); return Response.json(prs.jira()); }
     if (url.pathname === "/api/pr/review" && req.method === "POST") { const b = await req.json(); return runPrLoop(String(b.key)) ? new Response("ok") : new Response("already running or unknown", { status: 409 }); }
+    if (url.pathname === "/api/waits") return Response.json(waits.list());
+    if (url.pathname === "/api/wait" && req.method === "POST") { const b = await req.json(); if (b.remove) { waits.remove(String(b.remove)); return new Response("ok"); } if (b.back) { waits.back(String(b.back), String(b.why || "It came back")); return new Response("ok"); } const w = await waits.add(String(b.text || ""), b.link, b.sessionId, b.until); return Response.json(w); }
     if (url.pathname === "/api/pr/watch" && req.method === "POST") { const b = await req.json(); return prs.setWatch(String(b.key), !!b.on) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/channel" && req.method === "POST") { const b = await req.json(); prs.setChannel(String(b.repo), String(b.channel).trim()); broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }); return new Response("ok"); }
     if (url.pathname === "/api/pr/slack" && req.method === "POST") { const b = await req.json(); const pr = prs.get(String(b.key)); if (!pr) return new Response("unknown", { status: 404 });
@@ -332,6 +335,7 @@ function linkPr(pr: Pr): { sessionId: string; title: string } | null {
     if (re.test(text)) return { sessionId: m.sessionId, title }; }
   return null;
 }
+const waits = new Waits(() => broadcast({ type: "waits", payload: waits.list() })); setInterval(() => waits.check(), 15 * 60_000); setTimeout(() => waits.check(), 20_000);
 const prs = new Prs(() => broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }), linkPr);
 const reviewing = new Map<string, any>();
 function runPrLoop(key: string) {
@@ -340,6 +344,7 @@ function runPrLoop(key: string) {
   reviewing.set(key, proc); prs.markReviewing(key, true);
   proc.exited.then(() => { reviewing.delete(key); prs.markReviewing(key, false); }); return true;
 }
-prs.onGone = (pr, how, by) => { if (how !== "merged") return; ledger.add({ id: `pr:${pr.key}`, sessionId: pr.sessionId || pr.key, cwd: "", title: pr.tickets[0] ? `${pr.tickets[0]}: ${pr.title}` : pr.title, text: `Done.\n- ${pr.short} merged${by ? ` by ${by}` : ""}.` }); };
+mgr.onWait = async (sid, text, link, until) => { const w = await waits.add(text, link, sid, until); return `On the Waiting list: "${w.text}"${w.kind === "ticket" ? ` (comes back when ${w.ticket} ${w.until ? `is ${w.until}` : "moves"})` : w.kind === "pr" ? " (comes back when it merges)" : " (she marks it when it comes back)"}.`; };
+prs.onGone = (pr, how, by) => { waits.prGone(pr.key, how === "merged" ? `merged${by ? ` by ${by}` : ""}` : "closed"); if (how !== "merged") return; ledger.add({ id: `pr:${pr.key}`, sessionId: pr.sessionId || pr.key, cwd: "", title: pr.tickets[0] ? `${pr.tickets[0]}: ${pr.title}` : pr.title, text: `Done.\n- ${pr.short} merged${by ? ` by ${by}` : ""}.` }); };
 mgr.onOutcome = (m, text, at) => { const row = view.find(x => x.sessionId === m.sessionId); ledger.add({ id: `${m.sessionId}:${at}`, sessionId: m.sessionId, cwd: m.cwd, title: row?.title || m.userTitle || m.title, text, at }); };
 const restored = mgr.restore(); prs.start(); if (restored) console.log(`reopened ${restored} Stillroom session${restored === 1 ? "" : "s"} from ${process.env.ND_STATE ?? "~/.config/stillroom/sessions.json"}`);

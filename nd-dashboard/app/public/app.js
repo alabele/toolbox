@@ -68,9 +68,17 @@ function renderSide() {
   const prRow = (p) => { const day = p.slack?.askedAt && Date.now() - p.slack.askedAt > 24 * 3600e3; const since = new Date(p.updatedAt).toLocaleDateString(undefined, { weekday: "long" });
     const line = p.needsYou ? p.reason : p.state === "checks-running" ? "Checks running" : p.state === "approved-qa" ? `Approved, in QA${p.ticket ? `, ${p.ticket.key} ${p.ticket.status}` : ""}` : p.state === "claude-approved" ? "Claude approved, waiting on a reviewer" : `Waiting on review since ${since}${p.slack?.askedAt ? `, asked in ${p.slack.channel}` : ""}`;
     return `<a class="si pr${p.needsYou ? " needs" : ""}" href="#prs" data-pr="${esc(p.key)}"><span class="si-top"><span class="si-title">${esc(p.tickets[0] ? `${p.tickets[0]}: ${p.title}` : p.title)}</span>${p.needsYou ? `<span class="si-state">${ic(PR_ICON[p.state] || "circle")}${PR_WORD[p.state]}</span>` : `<span class="si-state">#${p.number}</span>`}</span><span class="si-line">${esc(line)}</span></a>`; };
-  const gpr = (key, label, rows) => { if (!rows.length) return ""; const open = prefs.open?.[key] ?? false; return `<div class="sg sg-${key}"><button class="sg-h toggle" data-toggle="${key}" aria-expanded="${open}"><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>${label} <span class="where">${rows.length}</span></button>${open ? rows.map(prRow).join("") : ""}</div>`; };
-  const needsHtml = groups.needs.length || prNeeds.length ? `<div class="sg sg-needs"><${"div"} class="sg-h">Needs you <span class="where">${groups.needs.length + prNeeds.length}</span></div>${groups.needs.map(x => item(x, false)).join("")}${prNeeds.map(prRow).join("")}</div>` : "";
-  $("#side-groups").innerHTML = g("pinned", "Pinned", groups.pinned) + needsHtml + g("done", "Your turn", groups.done) + g("working", "Working", groups.working, true) + gpr("waiting", "Waiting on others", prWait) + g("older", "Older", groups.older, true) || `<p class="menu-note">No sessions yet.</p>`;
+  const wBack = waitList.filter(w => w.back), wOpen = waitList.filter(w => !w.back);
+  const waitRow = (w) => { const since = new Date(w.since).toLocaleDateString(undefined, { weekday: "long" }); const mark = w.kind === "ticket" ? "ticket" : w.kind === "slack" ? "message-circle" : w.kind === "pr" ? "git-pull-request" : "hourglass";
+    return `<a class="si wait${w.back ? " needs" : ""}" href="${w.link ? esc(w.link) : "#"}" ${w.link ? 'target="_blank" rel="noopener"' : ""} data-wait="${w.id}"><span class="si-top"><span class="si-title">${esc(w.text)}</span><span class="si-state">${ic(mark)}${w.kind === "ticket" && w.status ? esc(w.status) + (w.until ? `, until ${esc(w.until)}` : "") : w.kind === "pr" ? "merge" : w.kind}</span></span><span class="si-line">${w.back ? esc(w.back) : `Since ${since}`}</span><span class="si-acts">${w.back ? `<button class="btn tiny" data-wdone="${w.id}">Done with it</button>` : `<button class="btn tiny" data-wback="${w.id}">It came back</button>`}<button class="btn tiny" data-wdrop="${w.id}">Let it go</button></span></a>`; };
+  const waitAdd = `<form class="wait-add" id="wait-add"><input placeholder="Waiting on… (a ticket key or a link makes it track itself)" aria-label="What are you waiting on"><button class="btn tiny" type="submit">Add</button></form>`;
+  const gwait = () => { const rows = [...prWait.map(prRow), ...wOpen.map(waitRow)]; const open = prefs.open?.waiting ?? false; return `<div class="sg sg-waiting"><button class="sg-h toggle" data-toggle="waiting" aria-expanded="${open}"><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>Waiting on others <span class="where">${rows.length || ""}</span></button>${open ? waitAdd + rows.join("") : ""}</div>`; };
+  const needsHtml = groups.needs.length || prNeeds.length || wBack.length ? `<div class="sg sg-needs"><${"div"} class="sg-h">Needs you <span class="where">${groups.needs.length + prNeeds.length + wBack.length}</span></div>${groups.needs.map(x => item(x, false)).join("")}${prNeeds.map(prRow).join("")}${wBack.map(waitRow).join("")}</div>` : "";
+  $("#side-groups").innerHTML = g("pinned", "Pinned", groups.pinned) + needsHtml + g("done", "Your turn", groups.done) + g("working", "Working", groups.working, true) + gwait() + g("older", "Older", groups.older, true) || `<p class="menu-note">No sessions yet.</p>`;
+  const wpost = (body) => fetch("/api/wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  $("#wait-add")?.addEventListener("submit", (e) => { e.preventDefault(); const inp = e.target.querySelector("input"); const t = inp.value.trim(); if (!t) return; inp.value = ""; wpost({ text: t, sessionId: openId || undefined }); });
+  document.querySelectorAll("[data-wback]").forEach(b => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); wpost({ back: b.dataset.wback, why: "You said it came back" }); });
+  document.querySelectorAll("[data-wdone],[data-wdrop]").forEach(b => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); wpost({ remove: b.dataset.wdone || b.dataset.wdrop }); });
   document.querySelectorAll("[data-pr]").forEach(r => r.onclick = (e) => { e.preventDefault(); prOpen.add(r.dataset.pr); location.hash = "#prs"; setTimeout(() => document.querySelector(`.pr-row[data-key="${CSS.escape(r.dataset.pr)}"]`)?.scrollIntoView({ block: "center" }), 50); });
   document.querySelector("[data-clear=older]")?.addEventListener("click", () => { const ids = groups.older.map(x => x.sessionId); if (!ids.length) return;
     if (!confirm(`Clear all ${ids.length} from Older? They leave the list. Conversations stay on disk; anything still running in a terminal keeps running.`)) return;
@@ -94,7 +102,7 @@ function renderSide() {
     else { try { const r = await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }) }); if (!r.ok) { $("#error").hidden = false; $("#error").textContent = "Could not end it: " + await r.text(); return; } } catch {} }
     prefs.dismissed = [...(prefs.dismissed || []), id]; save(); renderSide(); renderNext(); });
   document.title = (groups.needs.length ? "Needs you · " : "") + "Stillroom"; document.body.dataset.needs = groups.needs.length ? "1" : "0"; icons();
-  const rn = list.filter(x => !isDismissed(x) && !isOld(x) && x.needsYou).length + prList.filter(p => p.watched && p.needsYou).length; $("#rounds-n").textContent = rn ? String(rn) : ""; $("#side-rounds").setAttribute("aria-current", String(roundsOn));
+  const rn = list.filter(x => !isDismissed(x) && !isOld(x) && x.needsYou).length + prList.filter(p => p.watched && p.needsYou).length + waitList.filter(w => w.back).length; $("#rounds-n").textContent = rn ? String(rn) : ""; $("#side-rounds").setAttribute("aria-current", String(roundsOn));
   if (roundsOn) renderRounds();
 }
 // ---------- sidebar width: drag the edge ----------
@@ -197,7 +205,7 @@ function roundCard(x, isOpen, hasNext) {
 }
 
 // ---------- pull requests ----------
-let prList = [], prRepos = {}, prJira = {}; const prOpen = new Set(); let prFilter = "all";
+let prList = [], prRepos = {}, prJira = {}, waitList = []; const prOpen = new Set(); let prFilter = "all";
 const PR_ICON = { changes: "message-square-warning", "checks-failing": "circle-x", conflict: "git-merge", ready: "circle-check", "approved-qa": "flask-conical", "claude-approved": "sparkles", "claude-reviewing": "orbit", "checks-running": "loader", review: "clock", draft: "pencil-line", shelf: "archive" };
 const PR_WORD = { changes: "Changes asked for", "checks-failing": "Checks failing", conflict: "Merge conflict", ready: "Ready to merge", "approved-qa": "Approved, in QA", "claude-approved": "Approved by Claude", "claude-reviewing": "Claude is reviewing", "checks-running": "Checks running", review: "Waiting on review", draft: "Draft", shelf: "Shelved" };
 function renderPrs() {
@@ -289,6 +297,7 @@ function connect() {
     const m = JSON.parse(e.data);
     if (m.type === "hello") { cwds = m.payload.cwds || []; if (!$("#ns-cwd").value && prefs.lastCwd) $("#ns-cwd").value = prefs.lastCwd; applyList(m.payload.sessions, m.payload.version); }
     if (m.type === "list") applyList(m.payload.sessions, m.payload.version);
+    if (m.type === "waits") { waitList = m.payload || []; renderSide(); if (roundsOn) renderRounds(); }
     if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; $("#prs-n").textContent = String(prList.filter(p => p.needsYou).length || ""); if (!$("#prs").hidden) renderPrs(); renderSide(); if (roundsOn) renderRounds(); }
     if (m.type === "ledger") { ledgerRows = m.payload?.entries || []; ledgerSums = m.payload?.summaries || {}; if (!$("#ledger").hidden) renderLedger(); }
     if (m.type === "started") { pendingStarts.push(m.payload.tempId); openSession(m.payload.tempId); }
@@ -373,6 +382,7 @@ function closeWithUndo(x) { // no dialog: it closes, and one line offers Undo; a
   $("#undo-btn").onclick = () => { send({ type: "resume", sessionId: x.sessionId, cwd: x.cwd }); u.hidden = true; }; setTimeout(() => { u.hidden = true; }, 12000); }
 $("#sess-end").onclick = () => { const x = list.find(s => s.sessionId === openId) || { sessionId: openId, title: meta?.title || "", cwd: meta?.cwd }; closeWithUndo(x); location.hash = ""; };
 $("#sess-star").onclick = () => { if (openId) toggleStar(openId); };
+$("#sess-wait").onclick = () => { prefs.open = { ...(prefs.open || {}), waiting: true }; save(); renderSide(); const inp = $("#wait-add input"); if (!inp) return; const pr = prList.find(p => p.sessionId === openId); const t = list.find(s => s.sessionId === openId)?.title || ""; const key = (t.match(/^([A-Z]+-\d+)/) || [])[1]; inp.value = pr ? `${pr.short} to merge ${pr.url}` : key ? `${key} to move to ` : ""; inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); };
 $("#sess-branch").onclick = () => { // a new session in the same folder; the first line says where it came from
   const from = list.find(s => s.sessionId === openId); const cwd = from?.cwd || meta?.cwd || ""; const title = from?.title || meta?.title || "";
   location.hash = ""; show("home"); $("#ns-cwd").value = tilde(cwd); $("#ns-prompt").value = `Follows on from "${title}" (session ${openId}, transcript in ~/.claude/projects). \n\n`; $("#ns-prompt").focus(); $("#ns-prompt").setSelectionRange($("#ns-prompt").value.length, $("#ns-prompt").value.length); };
