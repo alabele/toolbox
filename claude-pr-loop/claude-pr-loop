@@ -10,6 +10,16 @@ set -euo pipefail
 #   claude-pr-loop --no-fix https://github.com/owner/repo/pull/123
 
 # ---------------------------------------------------------------------------
+# Billing: automated reviews run on the API key, not the claude.ai plan, so
+# they never eat into interactive usage limits. The key lives in a file rather
+# than the shell, which keeps interactive Claude Code on the claude.ai login
+# (connectors, plan billing). Set ANTHROPIC_API_KEY yourself to override.
+# ---------------------------------------------------------------------------
+if [[ -z "${ANTHROPIC_API_KEY:-}" && -r "${HOME}/.config/claude-pr-loop/api-key" ]]; then
+  export ANTHROPIC_API_KEY="$(<"${HOME}/.config/claude-pr-loop/api-key")"
+fi
+
+# ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
 MAX_ITERATIONS=5
@@ -47,6 +57,31 @@ DIFF_FILTER_SKIPPED_FILES=0
 DIFF_FILTER_SKIPPED_BYTES=0
 DIFF_RAW_BYTES=0
 DIFF_FILTERED_BYTES=0
+DIFF_FILTER_SKIPPED_LIST="(none)"
+# Extra ERE matched against each diff path, on top of the built-in lockfile /
+# snapshot / minified-bundle list. Set with --skip-pattern for repo-specific
+# generated output (e.g. committed OpenAPI MDX) that would otherwise dominate
+# the review budget. Whatever it drops is named to the model, never hidden.
+EXTRA_SKIP_PATTERN=""
+
+# Which reviewer runs the review step.
+#   builtin — the single claude -p call in run_review: inlined diff in, verdict
+#             JSON out. Cheap, repo-agnostic.
+#   deliver — the repo's OWN reviewer roster via the deliver plugin's
+#             /deliver:review skill: classify the changed files against
+#             .claude/deliver/review.json, run the repo's deterministic hard
+#             checks, then one agent per roster reviewer whose file class
+#             changed. Needs the pack committed in the repo. See
+#             run_review_deliver.
+REVIEWER="builtin"
+# The deliver reviewer is a swarm, not a call, so it costs far more per review
+# and there is less point running it five times. It raises its own defaults --
+# but never over an explicit --max-budget-usd / --max-iterations, so these
+# record whether the caller said so.
+MAX_BUDGET_SET=false
+MAX_ITERATIONS_SET=false
+DELIVER_MAX_BUDGET="12.00"
+DELIVER_MAX_ITERATIONS=2
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -125,7 +160,7 @@ filter_diff() {
   # awk strips file sections matching skip patterns. A "section" is the lines
   # from one `diff --git` header up to (but not including) the next.
   local result
-  result=$(printf '%s' "$raw" | awk '
+  result=$(printf '%s' "$raw" | awk -v extra="$EXTRA_SKIP_PATTERN" '
     BEGIN { skip = 0; skipped_count = 0; skipped_bytes = 0; skip_list = "" }
     /^diff --git / {
       # Standard diff header: `diff --git a/<path> b/<path>`. Use field 4.
@@ -136,7 +171,8 @@ filter_diff() {
           path ~ /\.snap$/ ||
           path ~ /(^|\/)static\/typedoc\/.*\.json$/ ||
           path ~ /\.data\.json$/ ||
-          path ~ /\.min\.(js|css|map)$/) {
+          path ~ /\.min\.(js|css|map)$/ ||
+          (extra != "" && path ~ extra)) {
         skip = 1
         skipped_count++
         skip_list = skip_list (skip_list ? ", " : "") path
@@ -166,6 +202,13 @@ filter_diff() {
     rm -f "$stderr_file"
     DIFF_FILTER_SKIPPED_FILES="${count:-0}"
     DIFF_FILTER_SKIPPED_BYTES="${bytes:-0}"
+    # Cap the inlined list — a bulk regeneration can skip hundreds of paths,
+    # and the point is to tell the model WHAT it is not seeing, not to spend
+    # the budget re-listing it.
+    DIFF_FILTER_SKIPPED_LIST="${list:-(none)}"
+    if [[ ${#DIFF_FILTER_SKIPPED_LIST} -gt 2000 ]]; then
+      DIFF_FILTER_SKIPPED_LIST="${DIFF_FILTER_SKIPPED_LIST:0:2000}… (list truncated; ${DIFF_FILTER_SKIPPED_FILES} files total)"
+    fi
     log "$log_file" "Diff filter: skipped ${DIFF_FILTER_SKIPPED_FILES} file(s), ${DIFF_FILTER_SKIPPED_BYTES} bytes (${list:-none})"
   fi
 
@@ -247,6 +290,11 @@ Batch (parallel):
   claude-pr-loop --label needs-review --repo owner/repo
 
 Options:
+  --skip-pattern ERE     Extra path regex to withhold from the reviewed diff,
+                         on top of the built-in lockfile/snapshot/minified list.
+                         For repo-specific generated output that would otherwise
+                         dominate the budget, e.g. '^docs/apis/'. Whatever it
+                         drops is named to the model, not silently hidden.
   --max-iterations N     Max review-fix cycles (default: 5)
   --max-budget-usd N     Per-call spend cap for the review step in USD (default: 2.00)
   --max-fix-budget-usd N Per-call spend cap for the fix step in USD (default: 6.00)
@@ -254,6 +302,16 @@ Options:
   --effort LEVEL         low | medium | high | max (default: high)
   --log-dir PATH         Log directory (default: ~/.claude-pr-loop/logs)
   --no-fix               Review-only mode — post review but do not fix
+  --reviewer WHICH       builtin | deliver (default: builtin)
+                         "deliver" runs the repo's own reviewer roster via the
+                         deliver plugin's /deliver:review skill instead of the
+                         single-call review — the repo must carry
+                         .claude/deliver/review.json on the PR's branch. It
+                         raises the defaults to --max-budget-usd 12.00 and
+                         --max-iterations 2 (a swarm per iteration is not cheap),
+                         runs batch PRs serially rather than in parallel, and
+                         ignores --skip-pattern (the reviewers read the worktree,
+                         not an inlined diff).
   --label LABEL          Batch: filter PRs by this label (requires --repo)
   --repo OWNER/REPO      Batch: target repository
   --dry-run              Print what would happen without executing
@@ -268,13 +326,15 @@ EOF
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --max-iterations)  MAX_ITERATIONS="$2"; shift 2 ;;
-      --max-budget-usd)  MAX_BUDGET="$2"; shift 2 ;;
+      --skip-pattern)    EXTRA_SKIP_PATTERN="$2"; shift 2 ;;
+      --max-iterations)  MAX_ITERATIONS="$2"; MAX_ITERATIONS_SET=true; shift 2 ;;
+      --max-budget-usd)  MAX_BUDGET="$2"; MAX_BUDGET_SET=true; shift 2 ;;
       --max-fix-budget-usd) MAX_FIX_BUDGET="$2"; shift 2 ;;
       --model)           MODEL="$2"; shift 2 ;;
       --effort)          EFFORT="$2"; shift 2 ;;
       --log-dir)         LOG_DIR="$2"; shift 2 ;;
       --no-fix)          NO_FIX=true; shift ;;
+      --reviewer)        REVIEWER="$2"; shift 2 ;;
       --dry-run)         DRY_RUN=true; shift ;;
       --label)           BATCH_LABEL="$2"; shift 2 ;;
       --repo)            BATCH_REPO="$2"; shift 2 ;;
@@ -292,6 +352,17 @@ parse_args() {
   if [[ -n "$BATCH_LABEL" && -z "$BATCH_REPO" ]]; then
     echo "Error: --label requires --repo" >&2
     exit 1
+  fi
+  if [[ "$REVIEWER" != "builtin" && "$REVIEWER" != "deliver" ]]; then
+    echo "Error: --reviewer must be 'builtin' or 'deliver' (got '${REVIEWER}')" >&2
+    exit 1
+  fi
+  if [[ "$REVIEWER" == "deliver" ]]; then
+    [[ "$MAX_BUDGET_SET" == "true" ]] || MAX_BUDGET="$DELIVER_MAX_BUDGET"
+    [[ "$MAX_ITERATIONS_SET" == "true" ]] || MAX_ITERATIONS="$DELIVER_MAX_ITERATIONS"
+    if [[ -n "$EXTRA_SKIP_PATTERN" ]]; then
+      echo "Note: --skip-pattern has no effect with --reviewer deliver — the roster reviewers read the worktree, not an inlined diff." >&2
+    fi
   fi
 }
 
@@ -335,10 +406,15 @@ setup_worktree() {
   if [[ ! -d "$bare_repo" ]]; then
     echo "Cloning bare repo for ${owner_repo}..." >&2
     git clone --bare "https://github.com/${owner_repo}.git" "$bare_repo" >&2
-  else
-    # Fetch latest
-    git -C "$bare_repo" fetch origin >&2 2>&1 || true
   fi
+  # `git clone --bare` writes NO remote.origin.fetch refspec (only `--mirror`
+  # does), so a plain `fetch origin` lands nothing in a ref and branches created
+  # after the clone never appear — which silently broke the base-ref diff
+  # fallback below. Fetch into refs/remotes/origin/* rather than the mirror
+  # layout: refs/heads/* would refuse to update any branch checked out in a
+  # sibling PR worktree, failing the whole fetch.
+  git -C "$bare_repo" config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' >&2 2>&1 || true
+  git -C "$bare_repo" fetch origin --prune >&2 2>&1 || true
 
   # Fetch the PR head ref
   git -C "$bare_repo" fetch origin "pull/${pr_number}/head:pr-${pr_number}" --force >&2 2>&1
@@ -418,12 +494,43 @@ run_review() {
   # bulk deletes. That failure was silently swallowed into an empty diff,
   # leaving the model with nothing to review and producing a bogus "the diff
   # was empty" finding that no fix pass can ever resolve. On any empty/failed
-  # API diff, fall back to a local three-dot diff against the base ref: the
-  # bare repo mirrors all of the base repo's heads, so <base_ref> resolves
-  # inside the worktree for both same-repo and fork PRs.
+  # API diff, fall back to a local three-dot diff against the base ref.
+  #
+  # The base ref is NOT guaranteed to exist locally. `git clone --bare` sets no
+  # remote.origin.fetch refspec (only `--mirror` does), so the later
+  # `fetch origin` updates nothing and any branch created after the initial
+  # clone — which is most PR base branches in a stacked workflow — is simply
+  # absent. That made this fallback die with "unknown revision" and hand the
+  # model an EMPTY diff, which it then burned a whole budget cap trying to make
+  # sense of. So resolve the base ref explicitly, fetching it on demand from the
+  # UPSTREAM repo (not the worktree's origin, which is repointed at the fork for
+  # push), into a namespaced ref that cannot collide with a checked-out branch.
   if [[ -z "${pr_diff_raw//[[:space:]]/}" && -n "$base_ref" && -n "$worktree_dir" ]]; then
-    echo "gh pr diff empty/failed (likely >20k lines); falling back to local 'git diff ${base_ref}...HEAD'" >>"$log_file"
-    pr_diff_raw=$(git -C "$worktree_dir" diff "${base_ref}...HEAD" 2>>"$log_file") || pr_diff_raw=""
+    local base_rev=""
+    if git -C "$worktree_dir" rev-parse --verify --quiet "refs/remotes/origin/${base_ref}" >/dev/null; then
+      base_rev="refs/remotes/origin/${base_ref}"
+    elif git -C "$worktree_dir" rev-parse --verify --quiet "refs/heads/${base_ref}" >/dev/null; then
+      base_rev="refs/heads/${base_ref}"
+    else
+      echo "base ref '${base_ref}' not present locally; fetching from ${owner_repo}" >>"$log_file"
+      if git -C "$worktree_dir" fetch "https://github.com/${owner_repo}.git" \
+           "+refs/heads/${base_ref}:refs/prloop/base-${pr_number}" >>"$log_file" 2>&1; then
+        base_rev="refs/prloop/base-${pr_number}"
+      fi
+    fi
+    if [[ -n "$base_rev" ]]; then
+      echo "gh pr diff empty/failed (likely >20k lines); falling back to local 'git diff ${base_rev}...HEAD'" >>"$log_file"
+      pr_diff_raw=$(git -C "$worktree_dir" diff "${base_rev}...HEAD" 2>>"$log_file") || pr_diff_raw=""
+    else
+      echo "ERROR: could not resolve base ref '${base_ref}' locally or from ${owner_repo}" >>"$log_file"
+    fi
+  fi
+  # A review with no diff cannot produce a real finding, and a model left with
+  # no material will spend the entire budget cap hunting for one. Fail loudly
+  # and cheaply instead of paying to discover there was nothing to read.
+  if [[ -z "${pr_diff_raw//[[:space:]]/}" ]]; then
+    echo "ERROR: no diff available for ${owner_repo}#${pr_number} — the API diff was empty and the local fallback could not resolve base ref '${base_ref}'. Refusing to run a review with no material." >>"$log_file"
+    return 1
   fi
   # Strip lockfiles/snapshots/minified bundles before inlining — these often
   # dominate large PRs (1MB+ diffs) and rarely warrant token-by-token review.
@@ -437,6 +544,13 @@ This is review iteration ${iteration}. If prior fixes were attempted, focus on r
 
 PR metadata (JSON):
 ${pr_metadata}
+
+Diff coverage: ${DIFF_FILTER_SKIPPED_FILES} file(s) were withheld from the diff below
+by the pre-filter (lockfiles, snapshots, minified bundles, and any repo-specific
+generated output passed via --skip-pattern): ${DIFF_FILTER_SKIPPED_LIST}
+Do not raise findings about the contents of those files — you have not seen them.
+If the PR's correctness plausibly depends on one of them, say so in the summary
+rather than guessing, and read it from the checked-out worktree if you need it.
 
 PR diff:
 \`\`\`diff
@@ -463,7 +577,9 @@ Rules:
 - Suggestions alone should NOT block approval
 - Be specific about file paths and line numbers
 - Keep summary, message, and suggestion fields as plain prose — the GitHub comment is rendered from these fields, so do not embed pre-formatted markdown
-- If the code is solid with only minor suggestions, approve it"
+- If the code is solid with only minor suggestions, approve it
+- Do NOT run background commands (no run_in_background, no background subagents, no sleep-and-poll). When one finishes it re-invokes you, and your trailing reply replaces the review JSON as this run's output
+- The JSON object must be the LAST thing you emit. If you are ever re-invoked after emitting it (e.g. by a task notification), re-emit the identical JSON object instead of replying in prose"
 
   local pr_url="https://github.com/${owner_repo}/pull/${pr_number}"
 
@@ -505,10 +621,132 @@ Rules:
 }
 
 # ---------------------------------------------------------------------------
+# Review step, deliver variant — the repo's own reviewer roster
+#
+# /deliver:review is a Claude Code skill, not a prompt. It classifies the
+# changed files against .claude/deliver/review.json, runs the repo's
+# deterministic hard checks, then fans one agent out per roster reviewer whose
+# file class changed and aggregates their findings in JavaScript. So this step
+# hands Claude a task rather than a diff: nothing is inlined and nothing is
+# pre-filtered, which is why --skip-pattern does not apply here — the reviewers
+# read the checked-out worktree themselves.
+#
+# The skill runs with --dry-run so it does NOT post its own PR comment. This
+# loop already posts one from post_review, and two comments per iteration for
+# the same findings is just noise on the PR.
+#
+# The aggregate goes to a file we name up front rather than to stdout. The
+# swarm runs as a Workflow, which finishes as a background task and re-invokes
+# the model — so the model's trailing reply, not the aggregate, is what lands
+# in `.result`. A file survives that; see the transcript fallback in
+# parse_review for the same failure on the builtin path.
+# ---------------------------------------------------------------------------
+run_review_deliver() {
+  local owner_repo="$1" pr_number="$2" iteration="$3" log_file="$4" worktree_dir="$5" out_file="$6"
+
+  # The roster is committed in the repo, so it is only present on branches cut
+  # after the pack landed. Without it the skill stops at its own precondition —
+  # name the missing file here rather than paying for a session to discover it.
+  if [[ ! -f "${worktree_dir}/.claude/deliver/review.json" ]]; then
+    log "$log_file" "ERROR: --reviewer deliver needs .claude/deliver/review.json, and this PR's branch does not carry it. Rebase onto a base that has the pack, or use --reviewer builtin."
+    return 1
+  fi
+
+  rm -f "$out_file"
+
+  local prompt="Review pull request #${pr_number} of ${owner_repo} using this repository's own reviewer roster.
+
+Invoke the Skill tool with skill \"deliver:review\" and args \"${pr_number} --dry-run\", then follow that skill. I am explicitly asking for its reviewer-swarm workflow — the multi-agent orchestration is the whole point of this run. Do not substitute the built-in code review for it.
+
+This is review iteration ${iteration}. The PR branch is already checked out in the working directory; do not check out anything else.
+
+Two deviations from the skill's normal procedure:
+- Keep --dry-run. Do NOT post a comment on the PR. A later step posts the review; a second comment would duplicate it.
+- When the swarm returns, write its aggregate JSON — the object the workflow returned, verbatim, no re-formatting and no added keys — to this absolute path:
+  ${out_file}
+  Write that file before you reply. The file, not your reply, is this run's output.
+
+If the swarm cannot run at all, write {\"overall_approved\": false, \"blocking_findings\": [], \"reviewers_failed\": [\"<what failed and why>\"], \"summary\": \"<one line>\"} to the same path, then say so."
+
+  cd "$worktree_dir"
+  # The skill shells out to the pack's detect/hard-check scripts and drives the
+  # Workflow tool. Under -p there is nobody to answer a permission prompt, so
+  # this runs skip-permissions like the fix step does — it is still read-only
+  # on the PR (--dry-run, no push, no comment).
+  local output rc=0
+  output=$(printf '%s' "$prompt" | claude -p \
+    --dangerously-skip-permissions \
+    --output-format json \
+    --model "$MODEL" \
+    --max-budget-usd "$MAX_BUDGET" 2>>"$log_file") || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    local subtype="" cost=""
+    if [[ -n "$output" ]]; then
+      subtype=$(echo "$output" | jq -r '.subtype // empty' 2>/dev/null)
+      cost=$(echo "$output" | jq -r '.total_cost_usd // empty' 2>/dev/null)
+    fi
+    if [[ "$subtype" == "error_max_budget_usd" ]]; then
+      local suggested
+      suggested=$(awk -v c="${cost:-$MAX_BUDGET}" 'BEGIN{ printf "%.2f", (c*2.5) }')
+      log "$log_file" "ERROR: /deliver:review hit --max-budget-usd cap of \$${MAX_BUDGET} (spent \$${cost}). A full roster swarm is many agents; rerun with --max-budget-usd ${suggested} or larger."
+    else
+      log "$log_file" "ERROR: /deliver:review invocation failed (exit ${rc}, subtype='${subtype:-none}'). See log for stderr."
+    fi
+    if [[ -n "$output" ]]; then
+      echo "--- Claude stdout on failure ---" >> "$log_file"
+      printf '%s\n' "$output" >> "$log_file"
+      echo "--- End stdout ---" >> "$log_file"
+    fi
+    return 1
+  fi
+  printf '%s' "$output"
+}
+
+# ---------------------------------------------------------------------------
+# Map a /deliver:review aggregate into the review JSON the rest of the loop
+# speaks. Done here in jq rather than asked of the model: the aggregate is
+# already structured, and a model retyping it is one more place to drop a
+# finding.
+#
+# blocking_findings carry their reviewer's label into the message, so the PR
+# comment says who raised what. off_diff_findings are informational by the
+# skill's own rule — they land as "suggestion", which the loop does not count
+# as actionable and will not send to the fix step.
+# ---------------------------------------------------------------------------
+map_deliver_review() {
+  local agg_file="$1"
+  jq '{
+    verdict: (if .overall_approved then "approve" else "changes_requested" end),
+    summary: ([ (.summary // ""),
+                "Reviewers: \(.reviewed_by // "none")",
+                "Hard checks: \(.hard_checks // "n/a")" ]
+              + (if ((.reviewers_failed // []) | length) > 0
+                 then ["Did not complete: \((.reviewers_failed) | join(", "))"]
+                 else [] end)
+              | map(select(. != "")) | join("\n\n")),
+    findings: (((.blocking_findings // []) | map({
+                  severity: (.severity // "warning"),
+                  file: (.file // "?"),
+                  line: .line,
+                  message: (if .reviewer then "[\(.reviewer)] \(.message)" else .message end),
+                  suggestion: (.suggestion // "")
+                }))
+             + ((.off_diff_findings // []) | map({
+                  severity: "suggestion",
+                  file: (.file // "?"),
+                  line: .line,
+                  message: "[off-diff] \(.title // "") — \(.message // "")",
+                  suggestion: ""
+                }))),
+    reviewers_failed: (.reviewers_failed // [])
+  }' "$agg_file"
+}
+
+# ---------------------------------------------------------------------------
 # Parse Claude's JSON-envelope output to extract the review
 # ---------------------------------------------------------------------------
 parse_review() {
-  local claude_output="$1"
+  local claude_output="$1" log_file="${2:-}"
 
   # claude --output-format json wraps response in {"result": "..."}
   local result_text
@@ -604,6 +842,55 @@ except json.JSONDecodeError:
   if [[ -n "$repaired" ]] && echo "$repaired" | jq -e '.verdict' >/dev/null 2>&1; then
     echo "$repaired"
     return
+  fi
+
+  # Transcript fallback: `.result` is only the LAST assistant message. If a
+  # background task (Bash run_in_background, a subagent) finishes after the
+  # model emitted its review, the harness re-invokes the model and that
+  # trailing "nothing to do here" reply overwrites `.result` — the review JSON
+  # is still in the session transcript, just not in the envelope. Walk the
+  # transcript backwards for the newest assistant message containing it.
+  local session_id transcript
+  session_id=$(echo "$claude_output" | jq -r '.session_id // empty' 2>/dev/null)
+  if [[ -n "$session_id" ]]; then
+    transcript=$(ls -t "${HOME}/.claude/projects/"*"/${session_id}.jsonl" 2>/dev/null | head -1)
+    if [[ -n "$transcript" ]]; then
+      local from_transcript
+      from_transcript=$(python3 -c "
+import sys, json, re
+path = sys.argv[1]
+texts = []
+with open(path, encoding='utf-8', errors='replace') as fh:
+    for line in fh:
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        if rec.get('type') != 'assistant':
+            continue
+        content = (rec.get('message') or {}).get('content') or []
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get('type') == 'text':
+                    texts.append(block.get('text') or '')
+for text in reversed(texts):
+    for m in re.finditer(r'\{[\s\S]*\}', text):
+        try:
+            obj = json.loads(m.group())
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and 'verdict' in obj:
+            print(json.dumps(obj))
+            sys.exit(0)
+" "$transcript" 2>/dev/null)
+      if [[ -n "$from_transcript" ]] && echo "$from_transcript" | jq -e '.verdict' >/dev/null 2>&1; then
+        # `log` tees to stdout; send that copy to stderr so it can't pollute the
+        # JSON this function returns via command substitution.
+        [[ -n "$log_file" ]] && log "$log_file" "NOTE: review JSON recovered from session transcript (.result was a trailing non-review message)" >&2
+        echo "$from_transcript"
+        return
+      fi
+    fi
   fi
 
   # Failed to parse
@@ -819,12 +1106,16 @@ single_pr_loop() {
   DIFF_FILTERED_BYTES=0
 
   log "$log_file" "Starting review loop for ${OWNER_REPO}#${PR_NUMBER}"
-  log "$log_file" "Config: max_iterations=${MAX_ITERATIONS} model=${MODEL} effort=${EFFORT} review_budget=${MAX_BUDGET} fix_budget=${MAX_FIX_BUDGET} no_fix=${NO_FIX}"
+  log "$log_file" "Config: reviewer=${REVIEWER} max_iterations=${MAX_ITERATIONS} model=${MODEL} effort=${EFFORT} review_budget=${MAX_BUDGET} fix_budget=${MAX_FIX_BUDGET} no_fix=${NO_FIX}"
 
   if [[ "$DRY_RUN" == "true" ]]; then
     log "$log_file" "[DRY RUN] Would clone ${OWNER_REPO}, checkout PR #${PR_NUMBER}"
     log "$log_file" "[DRY RUN] Would run up to ${MAX_ITERATIONS} review-fix iterations"
-    log "$log_file" "[DRY RUN] Review: claude -p --from-pr https://github.com/${OWNER_REPO}/pull/${PR_NUMBER} --model ${MODEL}"
+    if [[ "$REVIEWER" == "deliver" ]]; then
+      log "$log_file" "[DRY RUN] Review: claude -p '/deliver:review ${PR_NUMBER} --dry-run' in the worktree --model ${MODEL}"
+    else
+      log "$log_file" "[DRY RUN] Review: claude -p --from-pr https://github.com/${OWNER_REPO}/pull/${PR_NUMBER} --model ${MODEL}"
+    fi
     log "$log_file" "[DRY RUN] Fix: claude -p --dangerously-skip-permissions --model ${MODEL}"
     return
   fi
@@ -848,7 +1139,12 @@ single_pr_loop() {
     # Step 1: Review
     log "$log_file" "Running review..."
     local claude_output review_json review_rc
-    claude_output=$(run_review "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file" "$worktree_dir") && review_rc=0 || review_rc=$?
+    local deliver_out="${log_file%.log}-deliver-iter${iteration}.json"
+    if [[ "$REVIEWER" == "deliver" ]]; then
+      claude_output=$(run_review_deliver "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file" "$worktree_dir" "$deliver_out") && review_rc=0 || review_rc=$?
+    else
+      claude_output=$(run_review "$OWNER_REPO" "$PR_NUMBER" "$iteration" "$log_file" "$worktree_dir") && review_rc=0 || review_rc=$?
+    fi
     if [[ $review_rc -ne 0 ]]; then
       log "$log_file" "Review step failed — aborting loop. Check stderr in log above."
       # Re-read the log tail to detect the budget-exhaustion path set in run_review.
@@ -860,7 +1156,19 @@ single_pr_loop() {
       break
     fi
     track_usage "$claude_output" "review" "$log_file" "$iteration"
-    review_json=$(parse_review "$claude_output")
+    if [[ "$REVIEWER" == "deliver" ]]; then
+      # The aggregate file is the contract, not the reply. If it is missing the
+      # swarm did not finish, and there is nothing to review against.
+      if [[ -s "$deliver_out" ]] && jq -e 'has("overall_approved")' "$deliver_out" >/dev/null 2>&1; then
+        review_json=$(map_deliver_review "$deliver_out")
+        log "$log_file" "Aggregate: ${deliver_out}"
+      else
+        log "$log_file" "ERROR: /deliver:review wrote no usable aggregate to ${deliver_out}"
+        review_json=""
+      fi
+    else
+      review_json=$(parse_review "$claude_output" "$log_file")
+    fi
 
     if [[ -z "$review_json" ]] || ! echo "$review_json" | jq -e '.verdict' >/dev/null 2>&1; then
       log "$log_file" "ERROR: Failed to parse review output"
@@ -875,6 +1183,21 @@ single_pr_loop() {
     local finding_count
     finding_count=$(echo "$review_json" | jq '[.findings[] | select(.severity != "suggestion")] | length')
     log "$log_file" "Verdict: ${verdict} (${finding_count} actionable findings)"
+
+    # A reviewer that died is a gap, not a verdict. The swarm reports that as
+    # not-approved with nothing to fix, which would send the fix step an empty
+    # findings list and stall the loop at "no_commit" one pass later. Stop here
+    # instead, and do not request changes on the PR for what is our own harness
+    # failing.
+    if [[ "$REVIEWER" == "deliver" ]]; then
+      local failed_reviewers
+      failed_reviewers=$(echo "$review_json" | jq -r '(.reviewers_failed // []) | join(", ")')
+      if [[ -n "$failed_reviewers" && "$finding_count" -eq 0 ]]; then
+        log "$log_file" "Reviewers did not complete: ${failed_reviewers}. No findings to act on — stopping without posting."
+        verdict="reviewer_failed"
+        break
+      fi
+    fi
 
     # Convergence guard: hash the findings (severity/file/line/message). If
     # this iteration's findings are identical to the previous iteration's,
@@ -956,6 +1279,9 @@ single_pr_loop() {
   elif [[ "$verdict" == "no_commit" ]]; then
     log "$log_file" "PR #${PR_NUMBER} stopped: fix step ran but committed nothing (likely the model declined to make changes, or a push failed silently). Findings will not be fixed by another iteration."
     notify "PR Loop Stalled" "${OWNER_REPO}#${PR_NUMBER} — fix made no commits, manual intervention needed"
+  elif [[ "$verdict" == "reviewer_failed" ]]; then
+    log "$log_file" "PR #${PR_NUMBER} stopped: one or more roster reviewers did not complete, so the swarm's approval would have been a gap, not a pass. Rerun, or review those file classes by hand."
+    notify "PR Loop Stalled" "${OWNER_REPO}#${PR_NUMBER} — a roster reviewer did not complete, check logs"
   elif [[ "$verdict" == "no_progress" ]]; then
     log "$log_file" "PR #${PR_NUMBER} stopped: review findings unchanged after a fix iteration. Loop is not converging — review the findings manually."
     notify "PR Loop Stalled" "${OWNER_REPO}#${PR_NUMBER} — findings unchanged, manual intervention needed"
@@ -988,6 +1314,33 @@ batch_run() {
   echo "Found ${count} PR(s) with label '${label}' in ${repo}:"
   echo "$prs" | jq -r '.[] | "  #\(.number) — \(.title)"'
   echo ""
+
+  # The deliver reviewer fans a swarm of agents out per PR. Several PRs at once
+  # multiplies that into a fan-out that gets rate-limited and returns nothing,
+  # so that mode goes one PR at a time. Each in a subshell: single_pr_loop cds
+  # into its worktree and installs an EXIT trap.
+  if [[ "$REVIEWER" == "deliver" ]]; then
+    echo "Reviewer 'deliver' runs an agent swarm per PR — processing these serially, not in parallel."
+    echo ""
+    local serial_failed=0
+    while IFS= read -r pr_line; do
+      local s_url s_number s_title
+      s_url=$(echo "$pr_line" | jq -r '.url')
+      s_number=$(echo "$pr_line" | jq -r '.number')
+      s_title=$(echo "$pr_line" | jq -r '.title')
+      echo "Reviewing PR #${s_number}: ${s_title}"
+      if ( single_pr_loop "$s_url" ); then
+        echo "PR #${s_number} loop completed"
+      else
+        echo "PR #${s_number} loop failed"
+        serial_failed=$((serial_failed + 1))
+      fi
+    done < <(echo "$prs" | jq -c '.[]')
+    echo ""
+    echo "Batch complete: $((count - serial_failed))/${count} succeeded"
+    notify "Batch Review Complete" "${repo}: ${count} PRs processed (label: ${label}), ${serial_failed} failed"
+    return
+  fi
 
   local pids=()
   local pr_numbers=()
