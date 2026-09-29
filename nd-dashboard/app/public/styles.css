@@ -755,3 +755,32 @@ main{padding-bottom:60px}
 .si.wait .si-acts{display:none;gap:6px;margin-top:6px}
 .si.wait:hover .si-acts,.si.wait.needs .si-acts{display:flex}
 .si.wait .si-state{text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:11px}
+
+/* ===== projects ===== */
+#projects{max-width:840px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:22px;padding-top:6px}
+.proj-list{display:flex;flex-direction:column;gap:6px}
+.proj-row{display:flex;align-items:center;gap:12px}
+.proj-name{font-family:var(--serif);font-size:15px;font-weight:500;letter-spacing:.02em;flex:1}
+.proj-prio{font-family:var(--caps);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary)}
+.proj-prio.p1{color:var(--action-primary)}
+.proj-add{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.proj-add input{font:inherit;font-size:13px;color:var(--text-primary);background:transparent;border:1px solid var(--line-quiet);border-radius:4px;padding:6px 8px;min-width:220px}
+.proj-add input:focus{outline:none;border-color:var(--border-medium)}
+.proj-sec.off .lg-h{opacity:.5}
+.proj-items{list-style:none;padding:0;margin:4px 0 0;display:flex;flex-direction:column}
+.proj-item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;column-gap:10px;padding:6px 0}
+.proj-item .proj-kind{display:inline-flex;color:var(--text-tertiary)}.proj-item .proj-kind .ic{width:14px;height:14px}
+.proj-item.needs .proj-kind{color:var(--action-primary)}
+.proj-title{color:var(--text-primary);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.proj-title:hover{color:var(--action-primary)}
+.proj-state{font-family:var(--caps);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary);white-space:nowrap}
+.proj-pick{grid-column:2 / -1;display:none;gap:6px;flex-wrap:wrap;margin-top:4px}
+.proj-item:hover .proj-pick{display:flex}
+.switch{position:relative;display:inline-block;width:30px;height:16px}
+.switch input{opacity:0;width:0;height:0}
+.switch .track{position:absolute;inset:0;background:var(--bg-tertiary);border:1px solid var(--line-quiet);border-radius:999px}
+.switch .track::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:var(--text-tertiary)}
+.switch input:checked+.track::after{left:16px;background:var(--action-primary)}
+.side-projects{flex:1 0 100%}
+#proj-body{display:flex;flex-direction:column;gap:22px}
+.proj-sec .quiet{margin-top:4px}

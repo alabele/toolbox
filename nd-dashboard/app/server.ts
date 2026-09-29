@@ -10,6 +10,7 @@ import { Titler, HELPER_DIR } from "./titles";
 import { Ledger } from "./ledger";
 import { Prs, type Pr } from "./prs";
 import { Waits } from "./waits";
+import { Projects } from "./projects";
 import { postToSlack, replyInThread, slackConnected, slackProbe } from "./slack";
 
 const PORT = Number(process.env.ND_PORT ?? 4747);
@@ -220,7 +221,7 @@ const types: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 Bun.serve({
   port: PORT,
   websocket: {
-    open(ws) { sockets.add(ws); try { ws.send(JSON.stringify({ type: "ledger", payload: ledger.list() })); ws.send(JSON.stringify({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } })); ws.send(JSON.stringify({ type: "waits", payload: waits.list() })); } catch {} ws.send(JSON.stringify({ type: "hello", payload: { sessions: view, managed: mgr.list(), cwds: knownCwds(), version } })); },
+    open(ws) { sockets.add(ws); try { ws.send(JSON.stringify({ type: "ledger", payload: ledger.list() })); ws.send(JSON.stringify({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } })); ws.send(JSON.stringify({ type: "waits", payload: waits.list() })); ws.send(JSON.stringify({ type: "projects", payload: projects.list() })); } catch {} ws.send(JSON.stringify({ type: "hello", payload: { sessions: view, managed: mgr.list(), cwds: knownCwds(), version } })); },
     close(ws) { sockets.delete(ws); },
     async message(ws, raw) {
       let msg: any; try { msg = JSON.parse(String(raw)); } catch { return; }
@@ -256,6 +257,8 @@ Bun.serve({
     if (url.pathname === "/api/slack/probe") return new Response(await slackProbe(url.searchParams.get("q") || "general"));
     if (url.pathname === "/api/jira/refresh" && req.method === "POST") { await prs.refreshTickets(); return Response.json(prs.jira()); }
     if (url.pathname === "/api/pr/review" && req.method === "POST") { const b = await req.json(); return runPrLoop(String(b.key)) ? new Response("ok") : new Response("already running or unknown", { status: 409 }); }
+    if (url.pathname === "/api/projects") return Response.json(projects.list());
+    if (url.pathname === "/api/project" && req.method === "POST") { const b = await req.json(); if (b.remove) projects.remove(String(b.remove)); else if (b.assign) projects.assign(String(b.assign.item), b.assign.project ? String(b.assign.project) : null, b.assign.key); else projects.upsert(b); return new Response("ok"); }
     if (url.pathname === "/api/waits") return Response.json(waits.list());
     if (url.pathname === "/api/wait" && req.method === "POST") { const b = await req.json(); if (b.remove) { waits.remove(String(b.remove)); return new Response("ok"); } if (b.back) { waits.back(String(b.back), String(b.why || "It came back")); return new Response("ok"); } const w = await waits.add(String(b.text || ""), b.link, b.sessionId, b.until); return Response.json(w); }
     if (url.pathname === "/api/pr/keep-waiting" && req.method === "POST") { const b = await req.json(); return prs.keepWaiting(String(b.key)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
@@ -336,6 +339,7 @@ function linkPr(pr: Pr): { sessionId: string; title: string } | null {
     if (re.test(text)) return { sessionId: m.sessionId, title }; }
   return null;
 }
+const projects = new Projects(() => broadcast({ type: "projects", payload: projects.list() }));
 const waits = new Waits(() => broadcast({ type: "waits", payload: waits.list() })); setInterval(() => waits.check(), 15 * 60_000); setTimeout(() => waits.check(), 20_000);
 const prs = new Prs(() => broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }), linkPr);
 const reviewing = new Map<string, any>();

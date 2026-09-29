@@ -50,7 +50,7 @@ function prioCtl(id) { return `<span class="prio" role="group" aria-label="Prior
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-prio]"); if (!b) return; e.preventDefault(); e.stopPropagation(); setPrio(b.dataset.id, +b.dataset.prio); }, true);
 function toggleStar(id) { const s = { ...(prefs.stars || {}) }; if (s[id] != null) delete s[id]; else s[id] = Math.max(-1, ...Object.values(s)) + 1; prefs.stars = s; save(); renderSide(); renderSessHead?.(); }
 function renderSide() {
-  const live = list.filter(x => !isDismissed(x));
+  const live = list.filter(x => !isDismissed(x) && projectOn(x));
   const groups = { pinned: [], needs: [], working: [], done: [], older: [] }; const stars = prefs.stars || {};
   for (const x of live) { if (stars[x.sessionId] != null) groups.pinned.push(x); else if (isOld(x) || x.state === "idle") groups.older.push(x); else if (x.needsYou && x.state !== "finished") groups.needs.push(x); else if (x.state === "working") groups.working.push(x); else groups.done.push(x); }
   groups.pinned.sort((a, b) => stars[a.sessionId] - stars[b.sessionId]);
@@ -64,11 +64,11 @@ function renderSide() {
   const g = (key, label, arr, collapsible = true) => { if (!arr.length) return ""; const open = prefs.open?.[key] ?? (key === "pinned"); // collapsed unless she opened it; Pinned starts open
     return `<div class="sg sg-${key}"><${collapsible ? "button" : "div"} class="sg-h${collapsible ? " toggle" : ""}"${collapsible ? ` data-toggle="${key}" aria-expanded="${open}"` : ""}>${collapsible ? `<svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>` : ""}${label} <span class="where">${arr.length}</span></${collapsible ? "button" : "div"}>${open && key === "older" && arr.length > 1 ? `<button type="button" class="btn tiny sg-clear" data-clear="older">Clear all ${arr.length}</button>` : ""}${open ? arr.map(x => item(x, key === "older")).join("") : ""}</div>`; };
   // pull requests join the sidebar: the ones that need her under Needs you, the rest under Waiting on others
-  const prNeeds = prList.filter(p => p.watched && p.needsYou); const prWait = prList.filter(p => p.watched && !p.needsYou && !p.shelved); // only PRs she handed off; the rest stay on the Pull requests screen
+  const prNeeds = prList.filter(p => p.watched && p.needsYou && projectOn(p)); const prWait = prList.filter(p => p.watched && !p.needsYou && !p.shelved && projectOn(p)); // only PRs she handed off; the rest stay on the Pull requests screen
   const prRow = (p) => { const day = p.slack?.askedAt && Date.now() - p.slack.askedAt > 24 * 3600e3; const since = new Date(p.updatedAt).toLocaleDateString(undefined, { weekday: "long" });
     const line = p.needsYou ? p.reason : p.state === "checks-running" ? "Checks running" : p.state === "approved-qa" ? `Approved, in QA${p.ticket ? `, ${p.ticket.key} ${p.ticket.status}` : ""}` : p.state === "claude-approved" ? "Claude approved, waiting on a reviewer" : `Waiting on review since ${since}${p.slack?.askedAt ? `, asked in ${p.slack.channel}` : ""}`;
     return `<a class="si pr${p.needsYou ? " needs" : ""}" href="#prs" data-pr="${esc(p.key)}"><span class="si-top"><span class="si-title">${esc(p.tickets[0] ? `${p.tickets[0]}: ${p.title}` : p.title)}</span>${p.needsYou ? `<span class="si-state">${ic(p.alert ? "message-square-text" : PR_ICON[p.state] || "circle")}${p.alert ? "Reviewed" : PR_WORD[p.state]}</span>` : `<span class="si-state">#${p.number}</span>`}</span><span class="si-line">${esc(line)}</span></a>`; };
-  const wBack = waitList.filter(w => w.back), wOpen = waitList.filter(w => !w.back);
+  const wBack = waitList.filter(w => w.back && projectOn(w)), wOpen = waitList.filter(w => !w.back && projectOn(w));
   const waitRow = (w) => { const since = new Date(w.since).toLocaleDateString(undefined, { weekday: "long" }); const mark = w.kind === "ticket" ? "ticket" : w.kind === "slack" ? "message-circle" : w.kind === "pr" ? "git-pull-request" : "hourglass";
     return `<a class="si wait${w.back ? " needs" : ""}" href="${w.link ? esc(w.link) : "#"}" ${w.link ? 'target="_blank" rel="noopener"' : ""} data-wait="${w.id}"><span class="si-top"><span class="si-title">${esc(w.text)}</span><span class="si-state">${ic(mark)}${w.kind === "ticket" && w.status ? esc(w.status) + (w.until ? `, until ${esc(w.until)}` : "") : w.kind === "pr" ? "merge" : w.kind}</span></span><span class="si-line">${w.back ? esc(w.back) : `Since ${since}`}</span><span class="si-acts">${w.back ? `<button class="btn tiny" data-wdone="${w.id}">Done with it</button>` : `<button class="btn tiny" data-wback="${w.id}">It came back</button>`}<button class="btn tiny" data-wdrop="${w.id}">Let it go</button></span></a>`; };
   const waitAdd = `<form class="wait-add" id="wait-add"><input placeholder="Waiting on… (a ticket key or a link makes it track itself)" aria-label="What are you waiting on"><button class="btn tiny" type="submit">Add</button></form>`;
@@ -129,12 +129,12 @@ let roundsOn = false; const sentCards = new Map(); // id -> what the item looked
 let openRound = null;
 const sentKey = (x) => `${x.pending?.id || ""}:${(x.lastReply || "").length}`;
 function renderRounds() {
-  const el = $("#rounds-list"); const live = list.filter(x => !isDismissed(x) && !isOld(x));
+  const el = $("#rounds-list"); const live = list.filter(x => !isDismissed(x) && !isOld(x) && projectOn(x));
   for (const x of live) if (sentCards.has(x.sessionId) && sentCards.get(x.sessionId) !== sentKey(x) && x.needsYou) sentCards.delete(x.sessionId); // it came back to you
   const waiting = (x) => x.needsYou && !sentCards.has(x.sessionId);
-  const rank = (x) => { const s = (prefs.stars || {})[x.sessionId]; return prioOf(x.sessionId) * 1e6 + (s == null ? 1e5 : s); }; // High before Med before Low; inside a level, her Pinned order
+  const rank = (x) => { const s = (prefs.stars || {})[x.sessionId]; const pp = projectOf(x)?.prio || 2; return pp * 1e7 + prioOf(x.sessionId) * 1e6 + (s == null ? 1e5 : s); }; // project priority, then hers, then Pinned order // High before Med before Low; inside a level, her Pinned order
   let cards = live.filter(x => x.needsYou || sentCards.has(x.sessionId)).sort((a, b) => waiting(b) - waiting(a) || rank(a) - rank(b) || (a.state === "finished") - (b.state === "finished") || a.stateSince - b.stateSince);
-  for (const p of prList.filter(p => p.watched && p.needsYou)) cards.push({ sessionId: `pr:${p.key}`, pr: p, needsYou: true, state: "finished", stateSince: p.updatedAt, title: p.tickets[0] ? `${p.tickets[0]}: ${p.title}` : p.title, managed: false, cwd: "" }); // PRs come after sessions
+  for (const p of prList.filter(p => p.watched && p.needsYou && projectOn(p))) cards.push({ sessionId: `pr:${p.key}`, pr: p, needsYou: true, state: "finished", stateSince: p.updatedAt, title: p.tickets[0] ? `${p.tickets[0]}: ${p.title}` : p.title, managed: false, cwd: "" }); // PRs come after sessions
   if (!cards.length) { el.innerHTML = `<p class="quiet">Nothing needs you right now.</p>`; openRound = null; return; }
   if (!openRound || !cards.some(x => x.sessionId === openRound)) { const next = cards.find(waiting); openRound = next ? next.sessionId : null; } // stays open until you move on
   cards = cards.sort((a, b) => (b.sessionId === openRound) - (a.sessionId === openRound)); // the open one is always on top
@@ -205,8 +205,43 @@ function roundCard(x, isOpen, hasNext) {
   return card;
 }
 
+// ---------- projects: which bucket a thing belongs to, and whether that bucket is on ----------
+const KEY_RE = /\b(VDC|D|STORY|PROJ|OPS|DOCS)-(\d{1,6})\b/i;
+const keyOf = (text) => { const m = String(text || "").match(KEY_RE); return m ? `${m[1].toUpperCase()}-${m[2]}` : ""; };
+const itemId = (o) => o.pr ? `pr:${o.pr.key}` : o.key && o.repo ? `pr:${o.key}` : o.kind && o.since ? `wait:${o.id}` : `s:${o.sessionId}`;
+const itemKey = (o) => o.repo ? (o.tickets?.[0] || "") : o.kind && o.since ? (o.ticket || keyOf(o.text)) : keyOf(o.title);
+const itemText = (o) => o.repo ? `${o.title} ${o.headRef || ""} ${o.tickets?.join(" ") || ""}` : o.kind && o.since ? o.text : `${o.title} ${o.prompt || ""} ${o.cwd || ""}`;
+function projectOf(o) { const id = itemId(o); if (assign[id]) return projects.find(p => p.id === assign[id]) || null;
+  const key = itemKey(o); const text = itemText(o).toLowerCase();
+  return projects.find(p => (key && p.keys.includes(key)) || p.words.some(w => w && text.includes(w.toLowerCase()))) || null; }
+const projectOn = (o) => { const p = projectOf(o); return !p || p.on; };
+function renderProjects() {
+  const head = $("#proj-head"), body = $("#proj-body");
+  const post = (b) => fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) });
+  head.innerHTML = `<div class="proj-list">${projects.map(p => `<div class="proj-row"><label class="switch"><input type="checkbox" data-on="${p.id}" ${p.on ? "checked" : ""}><span class="track"></span></label><span class="proj-name">${esc(p.name)}</span><span class="proj-prio p${p.prio}">${PRIO[p.prio]}</span><button class="btn tiny" data-edit-p="${p.id}">Edit</button></div>`).join("")}</div>
+    <form class="proj-add" id="proj-add"><input name="name" placeholder="New project, like Release 15.1.0" aria-label="Project name"><input name="words" placeholder="words that match, comma separated (15.1.0, LetsO)" aria-label="Words to match"><span class="prio">${[1, 2, 3].map(n => `<label class="prio-b${n === 2 ? " on" : ""}"><input type="radio" name="prio" value="${n}" ${n === 2 ? "checked" : ""} hidden>${PRIO[n]}</label>`).join("")}</span><button class="btn tiny" type="submit">Add project</button></form>`;
+  head.querySelectorAll("[data-on]").forEach(c => c.onchange = () => post({ id: c.dataset.on, name: projects.find(p => p.id === c.dataset.on).name, on: c.checked }));
+  head.querySelectorAll("[data-edit-p]").forEach(b => b.onclick = () => { const p = projects.find(x => x.id === b.dataset.editP); const name = prompt("Project name", p.name); if (name === null) return; const words = prompt("Words that match, comma separated", p.words.join(", ")); if (words === null) return; const prio = prompt("Priority: 1 high, 2 med, 3 low", String(p.prio)); if (prio === null) return; if (confirm("Keep this project? Cancel to delete it.")) post({ id: p.id, name, words: words.split(",").map(s => s.trim()).filter(Boolean), prio: +prio || 2 }); else post({ remove: p.id }); });
+  head.querySelectorAll(".proj-add .prio-b").forEach(l => l.onclick = () => { head.querySelectorAll(".proj-add .prio-b").forEach(x => x.classList.remove("on")); l.classList.add("on"); });
+  $("#proj-add").onsubmit = (e) => { e.preventDefault(); const f = e.target; const name = f.name.value.trim(); if (!name) return; post({ name, words: f.words.value.split(",").map(s => s.trim()).filter(Boolean), prio: +(f.prio.value || 2) }); f.reset(); };
+  // everything in flight, sorted into projects
+  const items = [...list.filter(x => !isDismissed(x) && !isOld(x)).map(x => ({ o: x, t: "session" })), ...prList.filter(p => !p.shelved).map(p => ({ o: p, t: "pr" })), ...waitList.map(w => ({ o: w, t: "wait" }))];
+  const line = (it) => { const o = it.o; const id = itemId(o); const key = itemKey(o);
+    const title = it.t === "pr" ? (o.tickets?.[0] ? `${o.tickets[0]}: ${o.title}` : o.title) : it.t === "wait" ? o.text : o.title;
+    const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? (o.back ? "Came back" : "Waiting") : STATE[o.state].word;
+    const href = it.t === "pr" ? "#prs" : it.t === "wait" ? (o.link || "#") : hrefOf(o);
+    const needs = it.t === "pr" ? o.needsYou && o.watched : it.t === "wait" ? !!o.back : o.needsYou;
+    const pick = `<span class="proj-pick">${projects.map(p => `<button class="btn tiny" data-assign="${esc(id)}" data-to="${p.id}" data-key="${esc(key)}">${esc(p.name)}</button>`).join("")}${assign[id] ? `<button class="btn tiny" data-assign="${esc(id)}" data-to="">Unsort</button>` : ""}</span>`;
+    return `<li class="proj-item${needs ? " needs" : ""}"><span class="proj-kind">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : "message-circle")}</span><a href="${esc(href)}" class="proj-title">${esc(title)}</a><span class="proj-state">${esc(state)}</span>${pick}</li>`; };
+  const buckets = new Map(projects.map(p => [p.id, []])); const unsorted = [];
+  for (const it of items) { const p = projectOf(it.o); if (p) buckets.get(p.id).push(it); else unsorted.push(it); }
+  const section = (name, its, sub) => `<section class="proj-sec"><h2 class="lg-h">${esc(name)}${sub ? `<span class="lg-n">${sub}</span>` : ""}</h2>${its.length ? `<ul class="proj-items">${its.map(line).join("")}</ul>` : `<p class="quiet">Nothing in flight.</p>`}</section>`;
+  body.innerHTML = projects.map(p => { const its = buckets.get(p.id); const n = its.filter(it => it.t === "pr" ? it.o.needsYou && it.o.watched : it.t === "wait" ? !!it.o.back : it.o.needsYou).length; return p.on ? section(p.name, its, `${its.length} in flight${n ? `, ${n} need${n === 1 ? "s" : ""} you` : ""}`) : `<section class="proj-sec off"><h2 class="lg-h">${esc(p.name)}<span class="lg-n">off, ${its.length} in flight</span></h2></section>`; }).join("") + section("Unsorted", unsorted, unsorted.length ? "sort them with the buttons" : "");
+  body.querySelectorAll("[data-assign]").forEach(b => b.onclick = (e) => { e.preventDefault(); post({ assign: { item: b.dataset.assign, project: b.dataset.to || null, key: b.dataset.key || undefined } }); });
+  icons();
+}
 // ---------- pull requests ----------
-let prList = [], prRepos = {}, prJira = {}, waitList = []; const prOpen = new Set(); let prFilter = "all";
+let prList = [], prRepos = {}, prJira = {}, waitList = [], projects = [], assign = {}; const prOpen = new Set(); let prFilter = "all";
 const PR_ICON = { changes: "message-square-warning", "checks-failing": "circle-x", conflict: "git-merge", ready: "circle-check", "approved-qa": "flask-conical", "claude-approved": "sparkles", "claude-reviewing": "orbit", "checks-running": "loader", review: "clock", draft: "pencil-line", shelf: "archive" };
 const PR_WORD = { changes: "Changes asked for", "checks-failing": "Checks failing", conflict: "Merge conflict", ready: "Ready to merge", "approved-qa": "Approved, in QA", "claude-approved": "Approved by Claude", "claude-reviewing": "Claude is reviewing", "checks-running": "Checks running", review: "Waiting on review", draft: "Draft", shelf: "Shelved" };
 function renderPrs() {
@@ -299,6 +334,7 @@ function connect() {
     const m = JSON.parse(e.data);
     if (m.type === "hello") { cwds = m.payload.cwds || []; if (!$("#ns-cwd").value && prefs.lastCwd) $("#ns-cwd").value = prefs.lastCwd; applyList(m.payload.sessions, m.payload.version); }
     if (m.type === "list") applyList(m.payload.sessions, m.payload.version);
+    if (m.type === "projects") { projects = (m.payload?.projects || []).slice().sort((a, b) => a.prio - b.prio || a.order - b.order); assign = m.payload?.assign || {}; renderSide(); if (!$("#projects").hidden) renderProjects(); if (roundsOn) renderRounds(); }
     if (m.type === "waits") { waitList = m.payload || []; renderSide(); if (roundsOn) renderRounds(); }
     if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; $("#prs-n").textContent = String(prList.filter(p => p.needsYou).length || ""); if (!$("#prs").hidden) renderPrs(); renderSide(); if (roundsOn) renderRounds(); }
     if (m.type === "ledger") { ledgerRows = m.payload?.entries || []; ledgerSums = m.payload?.summaries || {}; if (!$("#ledger").hidden) renderLedger(); }
@@ -313,17 +349,18 @@ function connect() {
 function withTitles(rows) { return (rows || []).map(x => (!x.managed && prefs.titles?.[x.sessionId]) ? { ...x, title: prefs.titles[x.sessionId] } : x); }
 function applyList(sessions, version) { // the sidebar is navigation and always updates; the home card holds still while you read
   list = withTitles(sessions); listVersion = version ?? listVersion; renderSide();
-  if (termId) renderTerm(); if (!$("#ledger").hidden) renderLedger();
+  if (termId) renderTerm(); if (!$("#ledger").hidden) renderLedger(); if (!$("#projects").hidden) renderProjects();
   if (!openId && !termId && !roundsOn) { if (document.hasFocus() && shownVersion >= 0 && listVersion !== shownVersion) $("#stale").hidden = false; else { renderNext(); shownVersion = listVersion; $("#stale").hidden = true; } }
 }
 async function refresh() { const d = await fetchState(); $("#error").hidden = !d.error && !d.pollError; $("#error").textContent = d.error || (d.pollError ? `Could not read sessions: ${d.pollError}` : ""); if (d.error) return; list = withTitles(d.sessions); listVersion = d.version; renderSide(); if (!openId && !termId && !roundsOn) { renderNext(); shownVersion = listVersion; $("#stale").hidden = true; } if (termId) renderTerm(); }
 
 // ---------- routing ----------
-function show(which) { $("#home").hidden = which !== "home"; $("#tsess").hidden = which !== "term"; $("#sess").hidden = which !== "sess"; $("#rounds").hidden = which !== "rounds"; $("#ledger").hidden = which !== "ledger"; $("#side-ledger").setAttribute("aria-current", String(which === "ledger")); $("#prs").hidden = which !== "prs"; $("#side-prs").setAttribute("aria-current", String(which === "prs")); roundsOn = which === "rounds"; document.body.classList.toggle("in-rounds", roundsOn); $("#side-rounds").setAttribute("aria-current", String(roundsOn)); if (which !== "sess") { openId = null; meta = null; transcript = []; } if (which !== "term") termId = null; }
+function show(which) { $("#home").hidden = which !== "home"; $("#tsess").hidden = which !== "term"; $("#sess").hidden = which !== "sess"; $("#rounds").hidden = which !== "rounds"; $("#ledger").hidden = which !== "ledger"; $("#side-ledger").setAttribute("aria-current", String(which === "ledger")); $("#prs").hidden = which !== "prs"; $("#side-prs").setAttribute("aria-current", String(which === "prs")); $("#projects").hidden = which !== "projects"; $("#side-projects").setAttribute("aria-current", String(which === "projects")); roundsOn = which === "rounds"; document.body.classList.toggle("in-rounds", roundsOn); $("#side-rounds").setAttribute("aria-current", String(roundsOn)); if (which !== "sess") { openId = null; meta = null; transcript = []; } if (which !== "term") termId = null; }
 function openSession(id) { termId = null; openId = id; transcript = []; meta = null; location.hash = "s/" + id; show("sess"); $("#transcript").innerHTML = ""; $("#pending").hidden = true; $("#park").hidden = true; send({ type: "open", sessionId: id }); renderSide(); setTimeout(() => $("#reply").focus(), 50); }
 function route() { const s = location.hash.match(/^#s\/(.+)$/), t = location.hash.match(/^#t\/(.+)$/);
   if (s) { if (openId !== s[1]) openSession(s[1]); return; }
   if (t) { show("term"); termId = t[1]; renderTerm(); renderSide(); return; }
+  if (location.hash === "#projects") { show("projects"); renderProjects(); renderSide(); return; }
   if (location.hash === "#prs") { show("prs"); renderPrs(); renderSide(); return; }
   if (location.hash === "#ledger") { show("ledger"); renderLedger(); renderSide(); return; }
   if (location.hash === "#rounds") { show("rounds"); sentCards.clear(); renderRounds(); renderSide(); refresh(); return; }
