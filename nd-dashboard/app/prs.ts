@@ -22,6 +22,7 @@ export interface Pr {
   claudeVerdict?: "approve" | "changes" | null; claudeAt?: number; reviewing?: boolean;
   tickets: string[]; sessionId?: string; sessionTitle?: string;
   slack?: { channel: string; askedAt: number; permalink?: string; nudgedAt?: number; note?: string };
+  requested?: string[]; // reviewers GitHub is waiting on
   prio?: 1 | 2 | 3; // hers; missing means the project's, else Med
   step?: { n: number; of: number; name: string }; // where it is on the road to merge: Draft, Claude review, Review, QA, Merge
   alert?: string; seen?: string[]; // a new human review on a watched PR brings it back once ("Ilya approved"); Keep waiting clears it
@@ -35,7 +36,7 @@ const JIRA_MS = 15 * 60_000;
 export class Prs {
   private s: Store = { prs: {}, searchedAt: 0 };
   private busy = false; private timer: any;
-  repos: Record<string, { channel?: string; approvers?: string[]; qa?: boolean }> = {}; // per repo: the Slack channel, who counts as the reviewer, whether QA signs off after
+  repos: Record<string, { channel?: string; reviewers?: string[]; approvers?: string[]; qa?: boolean }> = {}; // per repo: the Slack channel, who to ask, who counts as the approval, whether QA signs off after
   onGone: (pr: Pr, how: "merged" | "closed", by?: string) => void = () => {}; // set by the server: a PR that left the list
   constructor(private onChange: () => void, private link: (pr: Pr) => { sessionId: string; title: string } | null) {
     try { this.s = JSON.parse(readFileSync(FILE, "utf8")); } catch {}
@@ -45,7 +46,10 @@ export class Prs {
   jira() { return { connected: jiraReady(), error: this.s.jiraError, at: this.s.ticketsAt }; }
   list(): Pr[] { return Object.values(this.s.prs).sort((a, b) => (b.needsYou ? 1 : 0) - (a.needsYou ? 1 : 0) || a.updatedAt - b.updatedAt); }
   get(key: string) { return this.s.prs[key]; }
-  setChannel(repo: string, channel: string) { this.repos[repo] = { ...(this.repos[repo] || {}), channel }; try { mkdirSync(dirname(REPOS_FILE), { recursive: true }); writeFileSync(REPOS_FILE, JSON.stringify(this.repos, null, 1)); } catch {} }
+  setChannel(repo: string, channel: string) { this.setRepo(repo, { channel }); }
+  setRepo(repo: string, cfg: Partial<{ channel: string; reviewers: string[]; approvers: string[]; qa: boolean }>) { this.repos[repo] = { ...(this.repos[repo] || {}), ...cfg }; try { mkdirSync(dirname(REPOS_FILE), { recursive: true }); writeFileSync(REPOS_FILE, JSON.stringify(this.repos, null, 1)); } catch {} for (const p of Object.values(this.s.prs)) if (p.repo === repo) this.derive(p); this.save(); this.onChange(); }
+  /** A repo is set up when it has a channel and reviewers to ask. */
+  configured(repo: string) { const r = this.repos[repo]; return !!(r?.channel && r?.reviewers?.length); }
   start() { this.tick(); this.timer = setInterval(() => this.tick(), 60_000); }
   stop() { clearInterval(this.timer); }
 
@@ -89,17 +93,20 @@ export class Prs {
     const r = await fetchTickets(keys); this.s.jiraError = r.error; if (r.error) return;
     this.s.tickets = { ...(this.s.tickets || {}) }; for (const t of r.tickets) this.s.tickets[t.key] = t; this.s.ticketsAt = Date.now();
   }
+  /** Re-read one PR soon (after she acted on it). */
+  refreshOne(key: string) { const p = this.s.prs[key]; if (p) { p.viewedAt = 0; setTimeout(() => this.tick(), 1500); } }
   /** Force a ticket refresh now (after the token lands). */
   async refreshTickets() { this.s.ticketsAt = 0; await this.tick(); }
   /** Per PR: reviews, checks, mergeability, Claude's verdict, ticket keys. */
   private async view(p: Pr) {
-    const out = await run(["gh", "pr", "view", String(p.number), "-R", p.repo, "--json", "reviewDecision,mergeable,mergeStateStatus,headRefName,statusCheckRollup,reviews,comments,body,isDraft,updatedAt"]);
+    const out = await run(["gh", "pr", "view", String(p.number), "-R", p.repo, "--json", "reviewDecision,mergeable,mergeStateStatus,headRefName,statusCheckRollup,reviews,comments,body,isDraft,updatedAt,reviewRequests"]);
     p.viewedAt = Date.now(); if (out.error) { p.error = out.error; return; }
     const j = JSON.parse(out.text);
     p.reviewDecision = j.reviewDecision || ""; p.mergeable = j.mergeable; p.mergeState = j.mergeStateStatus; p.headRef = j.headRefName; p.isDraft = !!j.isDraft; p.updatedAt = Date.parse(j.updatedAt) || p.updatedAt;
     const seenChecks = new Map<string, boolean | null>();
     for (const c of j.statusCheckRollup || []) { const name = c.name || c.context || "check"; const st = (c.conclusion || c.state || c.status || "").toUpperCase(); const ok = ["SUCCESS", "NEUTRAL", "SKIPPED"].includes(st) ? true : ["FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"].includes(st) ? false : null; const prev = seenChecks.get(name); seenChecks.set(name, prev === false ? false : ok === null && prev === true ? true : ok); }
     p.checks = [...seenChecks].map(([name, ok]) => ({ name, ok }));
+    p.requested = (j.reviewRequests || []).map((r: any) => r.login || r.name).filter(Boolean);
     p.reviewers = (j.reviews || []).filter((r: any) => r.author?.login && !/claude-pr-loop/.test(r.body || "") && r.author.login !== "github-actions").map((r: any) => ({ login: r.author.login, state: r.state }));
     let verdict: Pr["claudeVerdict"] = null, at = 0;
     for (const x of [...(j.reviews || []), ...(j.comments || [])]) { const b = x.body || ""; if (!/claude-pr-loop/.test(b)) continue; const t = Date.parse(x.submittedAt || x.createdAt || "") || 0; if (t < at) continue; at = t; verdict = /Review:\s*Approved/i.test(b) || x.state === "APPROVED" ? "approve" : "changes"; }
@@ -138,8 +145,9 @@ export class Prs {
     if (p.watched) { const now = reviewMarks(p); const fresh = now.filter(m => !(p.seen || []).includes(m)); if (fresh.length) { p.alert = fresh.map(m => { const [l, s] = m.split(":"); return `${l} ${s === "APPROVED" ? "approved" : "asked for changes"}`; }).join(", "); } }
     // the road to merge, as steps: Draft, Claude review, Review, (QA), Merge
     // Draft, In progress (open, Claude not yet happy), Claude approved (no person yet), Review (a person has), QA (where the repo has it), Merge
-    const names = rule.qa ? ["Draft", "In progress", "Claude approved", "Review", "QA", "Merge"] : ["Draft", "In progress", "Claude approved", "Review", "Merge"]; const of = names.length;
-    let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : human.length ? 4 : 3; if (st === "approved-qa") n = names.indexOf("QA") + 1; if (st === "ready") n = of;
+    const names = ["Draft", "In progress", "Claude approved", "Review asked", "Review", ...(rule.qa ? ["QA"] : []), "Merge"]; const of = names.length;
+    const asked = !!(p.requested?.length || p.slack?.askedAt);
+    let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : human.length ? 5 : asked ? 4 : 3; if (st === "approved-qa") n = names.indexOf("QA") + 1; if (st === "ready") n = of;
     p.step = { n, of, name: names[n - 1] };
     p.state = st; p.reason = p.alert ? `${p.alert}. ${why}` : why; p.needsYou = (NEEDS_YOU.includes(st) || !!p.alert) && !p.shelved && !p.sessionId;
     if (p.sessionId && NEEDS_YOU.includes(st)) p.reason += " A session is on it.";

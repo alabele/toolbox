@@ -918,3 +918,14 @@ main{padding-bottom:60px}
 .sess-ctl-more{padding-top:6px}
 .sess-ctl #sess-back{text-decoration:none}
 .sess-ctl .rc-more{align-self:center}
+.pr-h{display:flex;align-items:baseline;gap:10px}
+.pr-setup{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:var(--caps);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--st-failed)}
+.pr-setup.ok{color:var(--text-tertiary)}
+.pr-setup:hover{color:var(--text-primary)}
+.pr-setup .ic{width:11px;height:11px}
+.repo-setup{display:flex;flex-direction:column;gap:8px;margin:8px 0 10px;padding:12px;border:1px solid var(--line-quiet);border-radius:var(--r)}
+.repo-setup label{display:flex;align-items:center;gap:10px;font-family:var(--caps);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary)}
+.repo-setup label>span{width:150px}
+.repo-setup input[type=text],.repo-setup input:not([type]){flex:1;font:inherit;font-size:13px;letter-spacing:0;text-transform:none;color:var(--text-primary);background:transparent;border:1px solid var(--line-quiet);border-radius:4px;padding:5px 8px}
+.repo-setup label.repo-qa{text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:13px;color:var(--text-secondary)}
+.hint .link{all:unset;cursor:pointer;color:var(--text-secondary);border-bottom:1px solid var(--border-medium)}
