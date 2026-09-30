@@ -22,6 +22,8 @@ export interface Pr {
   claudeVerdict?: "approve" | "changes" | null; claudeAt?: number; reviewing?: boolean;
   tickets: string[]; sessionId?: string; sessionTitle?: string;
   slack?: { channel: string; askedAt: number; permalink?: string; nudgedAt?: number; note?: string };
+  prio?: 1 | 2 | 3; // hers; missing means the project's, else Med
+  step?: { n: number; of: number; name: string }; // where it is on the road to merge: Draft, Claude review, Review, QA, Merge
   alert?: string; seen?: string[]; // a new human review on a watched PR brings it back once ("Ilya approved"); Keep waiting clears it
   watched?: boolean; // she handed this one off: it shows under Waiting on others and comes back to her; everything else stays on the Pull requests screen
   viewedAt?: number; firstSeen: number; shelved?: boolean; state: PrState; needsYou: boolean; reason: string; error?: string;
@@ -49,6 +51,7 @@ export class Prs {
 
   /** Marks a PR as under Claude's review while the loop runs; refreshes when it ends. */
   markReviewing(key: string, on: boolean) { const p = this.s.prs[key]; if (!p) return; p.reviewing = on; this.derive(p); this.save(); this.onChange(); if (!on) this.view(p).then(() => { this.save(); this.onChange(); }); }
+  setPrio(key: string, prio: number) { const p = this.s.prs[key]; if (!p) return false; p.prio = ([1, 2, 3].includes(prio) ? prio : undefined) as any; this.save(); this.onChange(); return true; }
   setWatch(key: string, on: boolean) { const p = this.s.prs[key]; if (!p) return false; p.watched = on; p.alert = undefined; p.seen = reviewMarks(p); this.derive(p); this.save(); this.onChange(); return true; }
   /** She saw the review; back to waiting. */
   keepWaiting(key: string) { const p = this.s.prs[key]; if (!p) return false; p.alert = undefined; p.seen = reviewMarks(p); this.derive(p); this.save(); this.onChange(); return true; }
@@ -133,6 +136,10 @@ export class Prs {
     else if (t && st === "ready" && !["Done", "Closed", "Deploy", "In Test", "Ready for QA"].includes(t.status)) p.mismatch = `${t.key} is ${t.status}`;
     else if (t && (t.status === "Done" || t.status === "Closed") && !["ready", "shelf"].includes(st)) p.mismatch = `${t.key} says ${t.status}`;
     if (p.watched) { const now = reviewMarks(p); const fresh = now.filter(m => !(p.seen || []).includes(m)); if (fresh.length) { p.alert = fresh.map(m => { const [l, s] = m.split(":"); return `${l} ${s === "APPROVED" ? "approved" : "asked for changes"}`; }).join(", "); } }
+    // the road to merge, as steps: Draft, Claude review, Review, (QA), Merge
+    const names = rule.qa ? ["Draft", "Claude review", "Review", "QA", "Merge"] : ["Draft", "Claude review", "Review", "Merge"]; const of = names.length;
+    let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : 3; if (st === "approved-qa") n = 4; if (st === "ready") n = of; if (decision === "APPROVED" && !rule.qa && st !== "ready") n = 3;
+    p.step = { n, of, name: names[n - 1] };
     p.state = st; p.reason = p.alert ? `${p.alert}. ${why}` : why; p.needsYou = (NEEDS_YOU.includes(st) || !!p.alert) && !p.shelved && !p.sessionId;
     if (p.sessionId && NEEDS_YOU.includes(st)) p.reason += " A session is on it.";
   }

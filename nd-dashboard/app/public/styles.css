@@ -904,3 +904,12 @@ main{padding-bottom:60px}
 .mute .ic{width:12px;height:12px}
 .sg.muted{opacity:.5}
 .sg.muted .mute{opacity:.9}
+.pr-step{font-family:var(--mono);font-size:10.5px;letter-spacing:0;text-transform:none;color:var(--text-secondary);margin-right:10px}
+.pr-word{color:inherit}
+.pr-prio{font-family:var(--caps);font-size:9.5px;letter-spacing:.12em;color:var(--text-tertiary);margin-right:10px}
+.pr-prio.p1{color:var(--action-primary)}
+.pr-filter .prio{margin-left:auto}
+.si .si-acts{display:flex;align-items:center;gap:4px;margin-top:2px}
+.iconbtn{all:unset;cursor:pointer;display:inline-flex;color:var(--text-tertiary);padding:3px;border-radius:4px}
+.iconbtn:hover{color:var(--text-primary);background:var(--bg-tertiary)}
+.iconbtn .ic{width:13px;height:13px}
