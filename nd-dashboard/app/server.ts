@@ -122,7 +122,9 @@ function deriveState(s: Session): State | null {
 interface View { live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
 let view: View[] = [];
 
+const pendingProj = new Map<any, { project: string; key?: string }>(); // sessions started from a project, waiting for their real id
 function recompute() {
+  for (const [meta, pa] of pendingProj) if (!meta.sessionId.startsWith("pending-")) { pendingProj.delete(meta); projects.assign(`s:${meta.sessionId}`, pa.project, pa.key); }
   const next: View[] = [];
   for (const s of sessions.values()) {
     const st = deriveState(s); if (!st) continue;
@@ -229,7 +231,8 @@ Bun.serve({
         switch (msg.type) {
           case "start": { const cwd = String(msg.cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(cwd).isDirectory(); } catch {}
             if (!ok) { ws.send(JSON.stringify({ type: "start-failed", payload: `That folder does not exist: ${cwd || "(empty)"}` })); break; } // a missing folder makes the binary fail to launch with a misleading message
-            const id = mgr.start({ cwd, prompt: msg.prompt, mode: msg.mode }); ws.send(JSON.stringify({ type: "started", payload: { tempId: id } })); break; }
+            const id = mgr.start({ cwd, prompt: msg.prompt, mode: msg.mode }); if (msg.project) { const m = mgr.get(id); if (m) pendingProj.set(m.meta, { project: String(msg.project), key: msg.key ? String(msg.key) : undefined }); }
+            ws.send(JSON.stringify({ type: "started", payload: { tempId: id, quiet: !!msg.quiet } })); break; }
           case "resume": { const id = mgr.start({ cwd: msg.cwd, resume: msg.sessionId, prompt: msg.prompt, mode: msg.mode }); ws.send(JSON.stringify({ type: "started", payload: { tempId: id } })); break; }
           case "open": ws.send(JSON.stringify({ type: "transcript", sessionId: msg.sessionId, payload: { meta: mgr.get(msg.sessionId)?.meta ?? null, events: mgr.events(msg.sessionId) } })); break;
           case "send": mgr.send(msg.sessionId, msg.text); break;

@@ -833,3 +833,27 @@ main{padding-bottom:60px}
 .rounds-top{display:none}
 .side-older{margin-top:auto}
 .side-older+.side-bottom{margin-top:8px}
+
+/* ===== session 012: work from a project ===== */
+.proj-next{font-size:14px;color:var(--text-primary);margin:0 0 4px}
+.proj-next .link{all:unset;cursor:pointer;color:var(--text-primary);border-bottom:1px solid var(--border-medium)}
+.proj-next .link:hover{color:var(--action-primary)}
+.proj-next.quiet{color:var(--text-tertiary)}
+.proj-next.quiet a{color:var(--text-secondary)}
+.proj-item{grid-template-columns:18px minmax(0,1fr) auto}
+.proj-open{all:unset;cursor:pointer;color:var(--text-primary);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-open:hover{color:var(--action-primary)}
+.proj-item.open{background:var(--bg-secondary);border-radius:var(--r);padding:8px 10px;margin:2px -10px}
+.proj-item.open .proj-open{white-space:normal;font-weight:500}
+.proj-work{grid-column:1 / -1;margin-top:6px}
+.proj-work .rc.plate{border:0;padding:0;margin:0;background:transparent}
+.proj-work .rc.plate .plate-label,.proj-work .rc.plate .rc-title,.proj-work .rc.plate .rc-next{display:none}
+.proj-new{display:flex;flex-direction:column;gap:8px;margin:6px 0 14px;padding:12px;border:1px solid var(--line-quiet);border-radius:var(--r)}
+.proj-new label{display:flex;align-items:flex-start;gap:10px;font-family:var(--caps);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary)}
+.proj-new label>span{width:90px;padding-top:7px}
+.proj-new input,.proj-new textarea{flex:1;font:inherit;font-size:13px;letter-spacing:0;text-transform:none;color:var(--text-primary);background:transparent;border:1px solid var(--line-quiet);border-radius:4px;padding:5px 8px;min-width:0}
+.proj-new input:focus,.proj-new textarea:focus{outline:none;border-color:var(--border-medium)}
+.proj-new input[name=ticket]{flex:0 0 120px}
+.proj-foot{display:flex;gap:10px;align-items:center}
+.proj-foot .rc-more{margin-left:auto}
+.proj-plate .hint a{color:var(--text-secondary)}
