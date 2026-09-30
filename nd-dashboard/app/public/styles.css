@@ -913,3 +913,8 @@ main{padding-bottom:60px}
 .iconbtn{all:unset;cursor:pointer;display:inline-flex;color:var(--text-tertiary);padding:3px;border-radius:4px}
 .iconbtn:hover{color:var(--text-primary);background:var(--bg-tertiary)}
 .iconbtn .ic{width:13px;height:13px}
+.sess-ctl{justify-content:flex-start}
+.sess-ctl .switch{white-space:nowrap}
+.sess-ctl-more{padding-top:6px}
+.sess-ctl #sess-back{text-decoration:none}
+.sess-ctl .rc-more{align-self:center}

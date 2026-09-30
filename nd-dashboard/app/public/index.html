@@ -105,17 +105,22 @@
       <span class="pill" id="sess-pill"><i class="ic ic-sm"></i><span class="pill-t"></span></span>
       <button class="btn tiny" id="earlier" hidden><i data-lucide="history" class="ic ic-sm"></i><span></span></button>
       <div class="sess-ctl">
-      <label class="switch" title="Show the commands Claude ran and the files it read or changed"><input type="checkbox" id="show-steps"><i data-lucide="wrench" class="ic ic-sm"></i>Show Claude's work</label>
       <a class="btn tiny" id="sess-back" href="#" hidden><i data-lucide="arrow-left" class="ic ic-sm"></i><span>Back</span></a>
-      <button class="btn tiny" id="sess-branch" title="Start another session in this folder, with a line pointing back here"><i data-lucide="git-branch" class="ic ic-sm"></i><span>New session here</span></button>
-      <button class="btn tiny" id="sess-wait" title="Put something from this session on the Waiting list"><i data-lucide="hourglass" class="ic ic-sm"></i><span>Wait on…</span></button>
-      <span id="sess-prio"></span>
-      <span id="sess-proj" class="sess-proj"></span>
+      <span class="grow"></span>
       <span id="sess-wt" class="sess-wt" hidden></span>
-      <button class="btn tiny" id="sess-star" title="Pin this session to the top of the sidebar"><i data-lucide="star" class="ic ic-sm"></i><span>Pin</span></button>
-      <button class="btn tiny" id="sess-park" title="Leave yourself a note that shows in the sidebar, so you can put this down and come back"><i data-lucide="pen-line" class="ic ic-sm"></i><span>Leave a note</span></button>
       <button class="btn tiny" id="sess-stop" title="Interrupt what Claude is doing right now. The session stays open"><i data-lucide="square" class="ic ic-sm"></i>Stop this turn</button>
       <button class="btn tiny" id="sess-end" title="Close this session and stop its process. The conversation stays on disk and can be reopened"><i data-lucide="x" class="ic ic-sm"></i>Close session</button>
+      <button class="rc-more" id="sess-more" type="button">More</button>
+      </div>
+      <div class="sess-ctl sess-ctl-more" id="sess-ctl-more" hidden>
+      <label class="switch" title="Show the commands Claude ran and the files it read or changed"><input type="checkbox" id="show-steps"><i data-lucide="wrench" class="ic ic-sm"></i>Show Claude's work</label>
+      <span class="grow"></span>
+      <button class="btn tiny" id="sess-branch" title="Start another session in this folder, with a line pointing back here"><i data-lucide="git-branch" class="ic ic-sm"></i><span>New session here</span></button>
+      <button class="btn tiny" id="sess-wait" title="Put something from this session on the Waiting list"><i data-lucide="hourglass" class="ic ic-sm"></i><span>Wait on…</span></button>
+      <button class="btn tiny" id="sess-park" title="Leave yourself a note that shows in the sidebar, so you can put this down and come back"><i data-lucide="pen-line" class="ic ic-sm"></i><span>Leave a note</span></button>
+      <button class="btn tiny" id="sess-star" title="Pin this session to the top of its room"><i data-lucide="star" class="ic ic-sm"></i><span>Pin</span></button>
+      <span id="sess-prio"></span>
+      <span id="sess-proj" class="sess-proj"></span>
       </div>
     </div>
     <div class="jar hidden-jar" id="sess-jar" hidden><svg class="shape" width="14" height="14"><use/></svg><span class="jar-label" id="sess-repo"></span></div>
