@@ -137,8 +137,9 @@ export class Prs {
     else if (t && (t.status === "Done" || t.status === "Closed") && !["ready", "shelf"].includes(st)) p.mismatch = `${t.key} says ${t.status}`;
     if (p.watched) { const now = reviewMarks(p); const fresh = now.filter(m => !(p.seen || []).includes(m)); if (fresh.length) { p.alert = fresh.map(m => { const [l, s] = m.split(":"); return `${l} ${s === "APPROVED" ? "approved" : "asked for changes"}`; }).join(", "); } }
     // the road to merge, as steps: Draft, Claude review, Review, (QA), Merge
-    const names = rule.qa ? ["Draft", "Claude review", "Review", "QA", "Merge"] : ["Draft", "Claude review", "Review", "Merge"]; const of = names.length;
-    let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : 3; if (st === "approved-qa") n = 4; if (st === "ready") n = of; if (decision === "APPROVED" && !rule.qa && st !== "ready") n = 3;
+    // Draft, In progress (open, Claude not yet happy), Claude approved (no person yet), Review (a person has), QA (where the repo has it), Merge
+    const names = rule.qa ? ["Draft", "In progress", "Claude approved", "Review", "QA", "Merge"] : ["Draft", "In progress", "Claude approved", "Review", "Merge"]; const of = names.length;
+    let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : human.length ? 4 : 3; if (st === "approved-qa") n = names.indexOf("QA") + 1; if (st === "ready") n = of;
     p.step = { n, of, name: names[n - 1] };
     p.state = st; p.reason = p.alert ? `${p.alert}. ${why}` : why; p.needsYou = (NEEDS_YOU.includes(st) || !!p.alert) && !p.shelved && !p.sessionId;
     if (p.sessionId && NEEDS_YOU.includes(st)) p.reason += " A session is on it.";
