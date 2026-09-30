@@ -83,10 +83,15 @@ export class SessionManager {
   constructor(private emit: (type: "meta" | "event" | "gone" | "transcript", sessionId: string, payload: any) => void) {}
   /** Set by the server: the session asked to wait on something. Returns one line to show her. */
   onWait: (sessionId: string, text: string, link?: string, until?: string) => Promise<string> = async () => "Not wired.";
+  /** Set by the server: a session asked for another session. Returns one line to show her. */
+  onSpawn: (fromSessionId: string, cwd: string, prompt: string) => Promise<string> = async () => "Not wired.";
   private stillroomTools() { const self = this; return createSdkMcpServer({ name: "stillroom", version: "1.0.0", tools: [
     tool("add_wait", "Put something on her Waiting on others list in Stillroom. Use when she asks to be told when something happens, to wait on a reply, a PR merge, or a ticket moving. It comes back to her on its own for tickets (status) and PRs (merge); other things return when she says so.",
       { text: z.string().describe("Plain words for what she is waiting on, like 'Alex to reply on the retry loop' or 'video-client #2244 to merge'"), link: z.string().optional().describe("A URL: the PR, the Slack message, the ticket"), until: z.string().optional().describe("For a ticket: the status to wait for, like 'Done' or 'Ready for QA'") },
-      async (a, extra: any) => { const sid = (extra?.sessionId as string) || self.currentSessionId || ""; const line = await self.onWait(sid, a.text, a.link, a.until); return { content: [{ type: "text", text: line }] }; }) ] }); }
+      async (a, extra: any) => { const sid = (extra?.sessionId as string) || self.currentSessionId || ""; const line = await self.onWait(sid, a.text, a.link, a.until); return { content: [{ type: "text", text: line }] }; }),
+    tool("start_session", "Start another Stillroom session. Use when she asks to spin up, start, open or kick off a new session (in this folder or another) for a piece of work. One session is one ticket, so lead the prompt with the ticket key when there is one.",
+      { cwd: z.string().describe("Absolute folder for the new session, like /Users/lauren.abele/code/docs. Use this session's folder when she does not say."), prompt: z.string().describe("The first message for the new session: the ticket key, then what to do, with any context it needs since it starts fresh") },
+      async (a) => { const line = await self.onSpawn(self.currentSessionId, a.cwd, a.prompt); return { content: [{ type: "text", text: line }] }; }) ] }); }
   private currentSessionId = "";
   /** Set by the server: called with the final text of each turn, after any reshaping. */
   onOutcome: (m: Meta, text: string, eventAt: number) => void = () => {};
@@ -123,7 +128,7 @@ export class SessionManager {
       options: {
         cwd: opts.cwd, resume: opts.resume, permissionMode: opts.mode ?? "bypassPermissions", abortController: abort, includePartialMessages: false, env: sessionEnv(),
         systemPrompt: { type: "preset", preset: "claude_code", append: STYLE, snapshot: false },
-        mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
+        mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait", "mcp__stillroom__start_session"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
         canUseTool: (toolName, input, o) => this.ask(m, toolName, input, o),
       },
     });
