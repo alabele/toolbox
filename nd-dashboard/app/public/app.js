@@ -50,67 +50,52 @@ function prioCtl(id) { return `<span class="prio" role="group" aria-label="Prior
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-prio]"); if (!b) return; e.preventDefault(); e.stopPropagation(); setPrio(b.dataset.id, +b.dataset.prio); }, true);
 function toggleStar(id) { const s = { ...(prefs.stars || {}) }; if (s[id] != null) delete s[id]; else s[id] = Math.max(-1, ...Object.values(s)) + 1; prefs.stars = s; save(); renderSide(); renderSessHead?.(); }
 function renderSide() {
-  const live = list.filter(x => !isDismissed(x) && projectOn(x));
-  const groups = { pinned: [], needs: [], working: [], done: [], older: [] }; const stars = prefs.stars || {};
-  for (const x of live) { if (stars[x.sessionId] != null) groups.pinned.push(x); else if (isOld(x) || x.state === "idle") groups.older.push(x); else if (x.needsYou && x.state !== "finished") groups.needs.push(x); else if (x.state === "working") groups.working.push(x); else groups.done.push(x); }
-  groups.pinned.sort((a, b) => stars[a.sessionId] - stars[b.sessionId]);
-  for (const k of ["needs", "done", "working"]) groups[k].sort((a, b) => prioOf(a.sessionId) - prioOf(b.sessionId) || a.stateSince - b.stateSince);
-  const byRepo = (a, b) => a.repo.localeCompare(b.repo) || b.startedAt - a.startedAt;
-  groups.needs.sort((a, b) => a.stateSince - b.stateSince); groups.working.sort(byRepo); groups.done.sort(byRepo); groups.older.sort((a, b) => b.stateSince - a.stateSince);
+  const live = list.filter(x => !isDismissed(x)); const groups = { older: [] };
+  for (const x of live) if (isOld(x) || x.state === "idle") groups.older.push(x);
+  groups.older.sort((a, b) => b.stateSince - a.stateSince);
   const item = (x, old) => { const st = STATE[x.state]; const ln = lineOf(x); const cur = x.sessionId === openId || x.sessionId === termId;
-    const pinned = (prefs.stars || {})[x.sessionId] != null;
-    const mixed = pinned || x.needsYou && x.state !== "finished"; // only groups that mix states repeat the mark on the row
-    return `<a class="si${old ? " older" : ""}${pinned ? " pinned" : ""}" href="${hrefOf(x)}" aria-current="${cur}" style="--sc:${st.color}" data-id="${x.sessionId}"${pinned ? ' draggable="true"' : ""}><span class="si-top"><span class="si-title">${esc(x.title)}</span>${prioOf(x.sessionId) !== 2 ? `<span class="si-prio p${prioOf(x.sessionId)}">${PRIO[prioOf(x.sessionId)]}</span>` : ""}<button type="button" class="pencil" data-edit title="Rename">${ic("pencil")}</button><button type="button" class="star${pinned ? " on" : ""}" data-star="${x.sessionId}" title="${pinned ? "Unpin" : "Pin to the top"}">${ic("star")}</button>${mixed ? `<span class="si-state">${ic(st.icon)}${st.short}</span>` : ""}</span>${ln.text ? `<span class="si-line${ln.note ? " note" : ""}">${esc(ln.text)}</span>` : ""}${old ? `<span class="si-acts"><span class="where">${ago(Date.now() - x.stateSince)}</span><button class="btn tiny letgo" data-id="${x.sessionId}" data-managed="${!!x.managed}">Let it go</button></span>` : ""}</a>`; };
-  const g = (key, label, arr, collapsible = true) => { if (!arr.length) return ""; const open = prefs.open?.[key] ?? (key === "pinned"); // collapsed unless she opened it; Pinned starts open
+    return `<a class="si${old ? " older" : ""}" href="${hrefOf(x)}" aria-current="${cur}" style="--sc:${st.color}" data-id="${x.sessionId}"><span class="si-top"><span class="si-title">${esc(x.title)}</span><button type="button" class="pencil" data-edit title="Rename">${ic("pencil")}</button></span>${ln.text ? `<span class="si-line${ln.note ? " note" : ""}">${esc(ln.text)}</span>` : ""}${old ? `<span class="si-acts"><span class="where">${ago(Date.now() - x.stateSince)}</span><button class="btn tiny letgo" data-id="${x.sessionId}" data-managed="${!!x.managed}">Let it go</button></span>` : ""}</a>`; };
+  const g = (key, label, arr, collapsible = true) => { if (!arr.length) return ""; const open = prefs.open?.[key] ?? false;
     return `<div class="sg sg-${key}"><${collapsible ? "button" : "div"} class="sg-h${collapsible ? " toggle" : ""}"${collapsible ? ` data-toggle="${key}" aria-expanded="${open}"` : ""}>${collapsible ? `<svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>` : ""}${label} <span class="where">${arr.length}</span></${collapsible ? "button" : "div"}>${open && key === "older" && arr.length > 1 ? `<button type="button" class="btn tiny sg-clear" data-clear="older">Clear all ${arr.length}</button>` : ""}${open ? arr.map(x => item(x, key === "older")).join("") : ""}</div>`; };
-  // pull requests join the sidebar: the ones that need her under Needs you, the rest under Waiting on others
-  const prNeeds = prList.filter(p => p.watched && p.needsYou && projectOn(p)); const prWait = prList.filter(p => p.watched && !p.needsYou && !p.shelved && projectOn(p)); // only PRs she handed off; the rest stay on the Pull requests screen
-  const prRow = (p) => { const day = p.slack?.askedAt && Date.now() - p.slack.askedAt > 24 * 3600e3; const since = new Date(p.updatedAt).toLocaleDateString(undefined, { weekday: "long" });
-    const line = p.needsYou ? p.reason : p.state === "checks-running" ? "Checks running" : p.state === "approved-qa" ? `Approved, in QA${p.ticket ? `, ${p.ticket.key} ${p.ticket.status}` : ""}` : p.state === "claude-approved" ? "Claude approved, waiting on a reviewer" : `Waiting on review since ${since}${p.slack?.askedAt ? `, asked in ${p.slack.channel}` : ""}`;
-    return `<a class="si pr${p.needsYou ? " needs" : ""}" href="#prs" data-pr="${esc(p.key)}"><span class="si-top"><span class="si-title">${esc(p.tickets[0] ? `${p.tickets[0]}: ${p.title}` : p.title)}</span>${p.needsYou ? `<span class="si-state">${ic(p.alert ? "message-square-text" : PR_ICON[p.state] || "circle")}${p.alert ? "Reviewed" : PR_WORD[p.state]}</span>` : `<span class="si-state">#${p.number}</span>`}</span><span class="si-line">${esc(line)}</span></a>`; };
-  const wBack = waitList.filter(w => w.back && projectOn(w)), wOpen = waitList.filter(w => !w.back && projectOn(w));
-  const waitRow = (w) => { const since = new Date(w.since).toLocaleDateString(undefined, { weekday: "long" }); const mark = w.kind === "ticket" ? "ticket" : w.kind === "slack" ? "message-circle" : w.kind === "pr" ? "git-pull-request" : "hourglass";
-    return `<a class="si wait${w.back ? " needs" : ""}" href="${w.link ? esc(w.link) : "#"}" ${w.link ? 'target="_blank" rel="noopener"' : ""} data-wait="${w.id}"><span class="si-top"><span class="si-title">${esc(w.text)}</span><span class="si-state">${ic(mark)}${w.kind === "ticket" && w.status ? esc(w.status) + (w.until ? `, until ${esc(w.until)}` : "") : w.kind === "pr" ? "merge" : w.kind}</span></span><span class="si-line">${w.back ? esc(w.back) : `Since ${since}`}</span><span class="si-acts">${w.back ? `<button class="btn tiny" data-wdone="${w.id}">Done with it</button>` : `<button class="btn tiny" data-wback="${w.id}">It came back</button>`}<button class="btn tiny" data-wdrop="${w.id}">Let it go</button></span></a>`; };
-  const waitAdd = `<form class="wait-add" id="wait-add"><input placeholder="Waiting on… (a ticket key or a link makes it track itself)" aria-label="What are you waiting on"><button class="btn tiny" type="submit">Add</button></form>`;
-  const gwait = () => { const rows = [...prWait.map(prRow), ...wOpen.map(waitRow)]; const open = prefs.open?.waiting ?? false; return `<div class="sg sg-waiting"><button class="sg-h toggle" data-toggle="waiting" aria-expanded="${open}"><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>Waiting on others <span class="where">${rows.length || ""}</span></button>${open ? waitAdd + rows.join("") : ""}</div>`; };
-  const needsHtml = groups.needs.length || prNeeds.length || wBack.length ? `<div class="sg sg-needs"><${"div"} class="sg-h">Needs you <span class="where">${groups.needs.length + prNeeds.length + wBack.length}</span></div>${groups.needs.map(x => item(x, false)).join("")}${prNeeds.map(prRow).join("")}${wBack.map(waitRow).join("")}</div>` : "";
-  $("#side-groups").innerHTML = g("pinned", "Pinned", groups.pinned) + needsHtml + (groups.done.length ? `<p class="menu-note side-working"><a href="#rounds">${groups.done.length} waiting for your turn, in Rounds</a></p>` : "") + (groups.working.length ? `<p class="menu-note side-working"><a href="#projects">${groups.working.length} working</a></p>` : "") || `<p class="menu-note">No sessions yet.</p>`;
-  $("#side-older").innerHTML = g("older", "Older", groups.older, true); // Older lives at the bottom, beside Ledger // Working and Waiting live on Projects; what comes back lands under Needs you
-  const wpost = (body) => fetch("/api/wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  $("#wait-add")?.addEventListener("submit", (e) => { e.preventDefault(); const inp = e.target.querySelector("input"); const t = inp.value.trim(); if (!t) return; inp.value = ""; wpost({ text: t, sessionId: openId || undefined }); });
-  document.querySelectorAll("[data-wback]").forEach(b => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); wpost({ back: b.dataset.wback, why: "You said it came back" }); });
-  document.querySelectorAll("[data-wdone],[data-wdrop]").forEach(b => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); wpost({ remove: b.dataset.wdone || b.dataset.wdrop }); });
-  document.querySelectorAll("[data-pr]").forEach(r => r.onclick = (e) => { e.preventDefault(); prOpen.add(r.dataset.pr); location.hash = "#prs"; setTimeout(() => document.querySelector(`.pr-row[data-key="${CSS.escape(r.dataset.pr)}"]`)?.scrollIntoView({ block: "center" }), 50); });
+  // the project list is the navigation: by her priority, then rooms with something for her, then in flight; off ones behind one line
+  const rooms = roomItems(); const cur = roomId();
+  const rowFor = (p, its) => { const n = its.filter(needsIt).length, blocked = its.find(it => it.t === "session" && it.o.needsYou && it.o.state !== "finished"); const fl = its.filter(it => !needsIt(it) && !waitingIt(it)).length, w = its.filter(waitingIt).length;
+    const word = n ? (blocked ? STATE[blocked.o.state].word.toLowerCase() : `${n} need${n === 1 ? "s" : ""} you`) : fl ? `${fl} in flight` : w ? `${w} waiting` : ""; const id = p ? p.id : "none";
+    return `<a class="proj-nav${n ? " needs" : ""}${p && !p.on ? " quiet" : ""}" href="#p/${id}" aria-current="${cur === id}" data-drop="${id}"><span class="pn-name">${esc(p ? p.name : "No project")}</span><span class="pn-word">${esc(word)}</span></a>`; };
+  const on = projects.filter(p => p.on), off = projects.filter(p => !p.on);
+  const order = on.slice().sort((x, y) => x.prio - y.prio || (rooms.get(y.id).some(needsIt) - rooms.get(x.id).some(needsIt)) || (rooms.get(y.id).length > 0) - (rooms.get(x.id).length > 0) || x.order - y.order);
+  const none = rooms.get("none") || [];
+  const nav = `<nav class="proj-list-nav">${order.map(p => rowFor(p, rooms.get(p.id))).join("")}${none.length ? rowFor(null, none) : ""}${off.length ? `<button type="button" class="menu-note side-off" data-showoff="1">${prefs.showOff ? "Hide" : ""} ${off.length} off</button>${prefs.showOff ? off.map(p => rowFor(p, rooms.get(p.id))).join("") : ""}` : ""}<button type="button" class="menu-note side-addproj" id="side-addproj">+ Add a project</button><form id="side-addproj-form" hidden><input placeholder="Project name, Enter to save" aria-label="Project name"></form></nav>`;
+  $("#side-groups").innerHTML = nav;
+  $("#side-older").innerHTML = g("older", "Older", groups.older, true);
+  $("#side-addproj").onclick = () => { const f = $("#side-addproj-form"); f.hidden = false; $("#side-addproj").hidden = true; f.querySelector("input").focus(); };
+  $("#side-addproj-form").onsubmit = (e) => { e.preventDefault(); const name = e.target.querySelector("input").value.trim(); if (!name) return; fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, prio: 1 }) }); };
+  document.querySelector("[data-showoff]")?.addEventListener("click", () => { prefs.showOff = !prefs.showOff; save(); renderSide(); });
+  // rows dragged from a room land on a project here
+  document.querySelectorAll("[data-drop]").forEach(el => { el.addEventListener("dragover", (e) => { if (!dragItem) return; e.preventDefault(); el.classList.add("over"); }); el.addEventListener("dragleave", () => el.classList.remove("over")); el.addEventListener("drop", (e) => { if (!dragItem) return; e.preventDefault(); el.classList.remove("over"); const to = el.dataset.drop === "none" ? null : el.dataset.drop; fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assign: { item: dragItem.item, project: to, key: dragItem.key || undefined } }) }); const u = $("#undo"); $("#undo-text").textContent = `Moved to ${to ? projects.find(p => p.id === to)?.name : "No project"}.`; u.hidden = false; setTimeout(() => { u.hidden = true; }, 5000); dragItem = null; }); });
+  document.querySelectorAll("[data-toggle]").forEach(t => t.onclick = () => { prefs.open = { ...(prefs.open || {}), [t.dataset.toggle]: !prefs.open?.[t.dataset.toggle] }; save(); renderSide(); });
   document.querySelector("[data-clear=older]")?.addEventListener("click", () => { const ids = groups.older.map(x => x.sessionId); if (!ids.length) return;
     if (!confirm(`Clear all ${ids.length} from Older? They leave the list. Conversations stay on disk; anything still running in a terminal keeps running.`)) return;
     prefs.dismissed = [...new Set([...(prefs.dismissed || []), ...ids])]; for (const id of ids) unpin(id); save(); renderSide(); renderNext(); });
-  document.querySelectorAll("[data-star]").forEach(b => b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); toggleStar(b.dataset.star); });
-  // quick edit: double-click a title, or the pencil on hover; Enter saves, Escape leaves it
   const startEdit = (row) => { const id = row.dataset.id; const x = list.find(s => s.sessionId === id); const tel = row.querySelector(".si-title"); if (!x || !tel || row.querySelector(".title-edit")) return;
     editTitle(tel, x.title, (v) => { if (x.managed) send({ type: "title", sessionId: id, title: v }); else { prefs.titles = { ...(prefs.titles || {}), [id]: v }; save(); } tel.textContent = v; renderSide(); }); const inp = row.querySelector(".title-edit"); inp.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); }); };
   document.querySelectorAll(".si").forEach(row => { row.querySelector("[data-edit]")?.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); startEdit(row); }); });
-  // drag a pinned item above or below another to reorder
-  let dragId = null; document.querySelectorAll(".si.pinned").forEach(el => { el.addEventListener("dragstart", (e) => { dragId = el.dataset.id; e.dataTransfer.effectAllowed = "move"; el.classList.add("dragging"); }); el.addEventListener("dragend", () => el.classList.remove("dragging"));
-    el.addEventListener("dragover", (e) => { if (!dragId || dragId === el.dataset.id) return; e.preventDefault(); const r = el.getBoundingClientRect(); el.classList.toggle("over-top", e.clientY < r.top + r.height / 2); el.classList.toggle("over-bottom", e.clientY >= r.top + r.height / 2); });
-    el.addEventListener("dragleave", () => el.classList.remove("over-top", "over-bottom"));
-    el.addEventListener("drop", (e) => { if (!dragId || dragId === el.dataset.id) return; e.preventDefault(); const before = el.classList.contains("over-top"); el.classList.remove("over-top", "over-bottom");
-      const order = groups.pinned.map(x => x.sessionId).filter(id => id !== dragId); const at = order.indexOf(el.dataset.id) + (before ? 0 : 1); order.splice(at, 0, dragId);
-      prefs.stars = Object.fromEntries(order.map((id, i) => [id, i])); save(); dragId = null; renderSide(); }); });
-  document.querySelectorAll("[data-toggle]").forEach(t => t.onclick = () => { prefs.open = { ...(prefs.open || {}), [t.dataset.toggle]: !prefs.open?.[t.dataset.toggle] }; save(); renderSide(); });
   document.querySelectorAll(".letgo").forEach(b => b.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); const id = b.dataset.id;
     if (!confirm("Let this session go? It ends now. The conversation stays on disk and can be resumed later.")) return;
     unpin(id); if (b.dataset.managed === "true") send({ type: "end", sessionId: id });
     else { try { const r = await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }) }); if (!r.ok) { $("#error").hidden = false; $("#error").textContent = "Could not end it: " + await r.text(); return; } } catch {} }
     prefs.dismissed = [...(prefs.dismissed || []), id]; save(); renderSide(); renderNext(); });
-  document.title = (groups.needs.length ? "Needs you · " : "") + "Stillroom"; document.body.dataset.needs = groups.needs.length ? "1" : "0"; icons();
-  const rn = list.filter(x => !isDismissed(x) && !isOld(x) && x.needsYou).length + prList.filter(p => p.watched && p.needsYou).length + waitList.filter(w => w.back).length; $("#rounds-n").textContent = rn ? String(rn) : ""; $("#side-rounds").setAttribute("aria-current", String(roundsOn));
-  if (roundsOn) renderRounds();
+  const needsAny = [...rooms.values()].flat().some(needsIt);
+  document.title = (needsAny ? "Needs you · " : "") + "Stillroom"; document.body.dataset.needs = needsAny ? "1" : "0"; icons();
 }
-// ---------- sidebar width: drag the edge ----------
-(() => { const grip = $("#side-grip"); const apply = (w) => document.documentElement.style.setProperty("--side-w", Math.min(600, Math.max(240, w)) + "px"); if (prefs.sideW) apply(prefs.sideW);
-  grip.addEventListener("pointerdown", (e) => { e.preventDefault(); const start = e.clientX, base = $("#side").getBoundingClientRect().width; const move = (ev) => apply(base + ev.clientX - start); const up = (ev) => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); prefs.sideW = Math.min(600, Math.max(240, base + ev.clientX - start)); save(); }; window.addEventListener("pointermove", move); window.addEventListener("pointerup", up); }); })();
-
-// ---------- home: the form and one next card ----------
+let dragItem = null;
+// every session, PR and wait, sorted into rooms by project; "none" holds the rest
+const needsIt = (it) => it.t === "pr" ? it.o.needsYou && it.o.watched : it.t === "wait" ? !!it.o.back : it.o.needsYou;
+const waitingIt = (it) => it.t === "pr" ? it.o.watched && !it.o.needsYou : it.t === "wait" ? !it.o.back : false;
+function roomItems() { const rooms = new Map(projects.map(p => [p.id, []])); rooms.set("none", []);
+  const items = [...list.filter(x => !isDismissed(x) && !isOld(x) && x.state !== "idle").map(x => ({ o: x, t: "session" })), ...prList.filter(p => !p.shelved && (p.watched || p.needsYou)).map(p => ({ o: p, t: "pr" })), ...waitList.map(w => ({ o: w, t: "wait" }))];
+  for (const it of items) { const p = projectOf(it.o); (rooms.get(p ? p.id : "none") || rooms.get("none")).push(it); } return rooms; }
+const roomId = () => { const m = location.hash.match(/^#p\/(.+)$/); return m ? m[1] : null; };
 function renderNext() {
   const el = $("#next"); const live = list.filter(x => !isDismissed(x) && !isOld(x));
   const urgent = live.filter(x => x.needsYou && x.state !== "finished").sort((a, b) => a.stateSince - b.stateSince);
@@ -127,37 +112,78 @@ function renderNext() {
 
 // ---------- Rounds: every session that needs you, as cards you answer in place ----------
 let roundsOn = false; const sentCards = new Map(); // id -> what the item looked like when you answered; a new reply drops it
-let openRound = null;
+let openRound = null; let roomTimer = {}; // roomTimer[id] = end time she asked for
 const sentKey = (x) => `${x.pending?.id || ""}:${(x.lastReply || "").length}`;
-function renderRounds() {
-  const el = $("#rounds-list"); const live = list.filter(x => !isDismissed(x) && !isOld(x) && projectOn(x));
-  for (const x of live) if (sentCards.has(x.sessionId) && sentCards.get(x.sessionId) !== sentKey(x) && x.needsYou) sentCards.delete(x.sessionId); // it came back to you
-  const waiting = (x) => x.needsYou && !sentCards.has(x.sessionId);
-  const rank = (x) => { const s = (prefs.stars || {})[x.sessionId]; const pp = projectOf(x)?.prio || 2; return pp * 1e7 + prioOf(x.sessionId) * 1e6 + (s == null ? 1e5 : s); }; // project priority, then hers, then Pinned order // High before Med before Low; inside a level, her Pinned order
-  let cards = live.filter(x => x.needsYou || sentCards.has(x.sessionId)).sort((a, b) => waiting(b) - waiting(a) || rank(a) - rank(b) || (a.state === "finished") - (b.state === "finished") || a.stateSince - b.stateSince);
-  for (const p of prList.filter(p => p.watched && p.needsYou && projectOn(p))) cards.push({ sessionId: `pr:${p.key}`, pr: p, needsYou: true, state: "finished", stateSince: p.updatedAt, title: p.tickets[0] ? `${p.tickets[0]}: ${p.title}` : p.title, managed: false, cwd: "" }); // PRs come after sessions
-  if (!cards.length) { el.innerHTML = `<p class="quiet">Nothing needs you right now.</p>`; openRound = null; return; }
-  if (!openRound || !cards.some(x => x.sessionId === openRound)) { const next = cards.find(waiting); openRound = next ? next.sessionId : null; } // stays open until you move on
-  cards = cards.sort((a, b) => (b.sessionId === openRound) - (a.sessionId === openRound)); // the open one is always on top
-  const keep = new Set(cards.map(x => x.sessionId)); for (const old of [...el.children]) if (!keep.has(old.dataset.id)) old.remove();
-  cards.forEach((x, i) => {
-    const isOpen = x.sessionId === openRound;
-    const key = JSON.stringify([x.state, x.pending?.id, (x.lastReply || "").length, sentCards.has(x.sessionId), i, isOpen, x.title, x.note || prefs.notes?.[x.sessionId] || "", cards.filter(waiting).length]);
-    let card = el.querySelector(`[data-id="${x.sessionId}"]`);
-    if (card && card.dataset.key === key) { if (el.children[i] !== card) el.insertBefore(card, el.children[i] || null); return; }
-    const fresh = roundCard(x, isOpen, cards.some(y => y !== x && waiting(y))); fresh.dataset.key = key;
-    const draft = card?.querySelector("textarea")?.value; if (draft) { const t = fresh.querySelector("textarea"); if (t) t.value = draft; } // a new reply must not eat what you were typing
-    if (card) card.replaceWith(fresh); else el.insertBefore(fresh, el.children[i] || null);
-  }); icons();
-  const focusBox = el.querySelector(".rc.is-open textarea"); if (focusBox && document.activeElement?.tagName !== "TEXTAREA") focusBox.focus({ preventScroll: true });
+function renderRounds() { renderRoom(); }
+function renderRoom() {
+  const id = roomId() || ""; const p = id === "none" ? null : projects.find(x => x.id === id); if (!p && id !== "none") { $("#room-head").innerHTML = `<p class="quiet">That project is gone.</p>`; $("#rounds-list").innerHTML = ""; $("#room-rest").innerHTML = ""; return; }
+  const rooms = roomItems(); const its = rooms.get(id) || []; const el = $("#rounds-list");
+  for (const it of its) if (it.t === "session") { const x = it.o; if (sentCards.has(x.sessionId) && sentCards.get(x.sessionId) !== sentKey(x) && x.needsYou) sentCards.delete(x.sessionId); }
+  // what needs her: blocked first, then your turn, then PRs and waits that came back; inside, her priority, pinned order, longest wait
+  const blockedRank = (it) => it.t === "session" ? (it.o.state === "needs-permission" ? 0 : it.o.state === "needs-answer" ? 1 : it.o.state === "failed" ? 2 : 3) : 4;
+  const rank = (it) => { const sid = it.t === "session" ? it.o.sessionId : ""; const s = sid ? (prefs.stars || {})[sid] : null; return (sid ? prioOf(sid) : 2) * 1e6 + (s == null ? 1e5 : s); };
+  const waiting = (it) => needsIt(it) && !(it.t === "session" && sentCards.has(it.o.sessionId));
+  const queue = its.filter(it => needsIt(it) || (it.t === "session" && sentCards.has(it.o.sessionId))).sort((a, b) => waiting(b) - waiting(a) || blockedRank(a) - blockedRank(b) || rank(a) - rank(b) || (a.o.stateSince || a.o.updatedAt || a.o.since || 0) - (b.o.stateSince || b.o.updatedAt || b.o.since || 0));
+  const cards = queue.map(it => it.t === "session" ? it.o : it.t === "pr" ? { sessionId: `pr:${it.o.key}`, pr: it.o, needsYou: true, state: "finished", stateSince: it.o.updatedAt, title: it.o.tickets[0] ? `${it.o.tickets[0]}: ${it.o.title}` : it.o.title, managed: false, cwd: "" } : { sessionId: `wait:${it.o.id}`, wait: it.o, needsYou: true, state: "finished", stateSince: it.o.backAt || it.o.since, title: it.o.text, managed: false, cwd: "" });
+  const n = its.filter(needsIt).length, fl = its.filter(it => !needsIt(it) && !waitingIt(it)).length, w = its.filter(waitingIt).length;
+  const counts = [n ? `<b>${n} need${n === 1 ? "s" : ""} you</b>` : "", fl ? `${fl} in flight` : "", w ? `${w} waiting on others` : ""].filter(Boolean).join(", ");
+  // elsewhere: only blocked items in other rooms
+  const elsewhere = []; for (const [rid, ris] of rooms) { if (rid === id) continue; for (const it of ris) if (it.t === "session" && it.o.needsYou && it.o.state !== "finished" && (rid === "none" || projects.find(q => q.id === rid)?.on)) elsewhere.push({ rid, it }); }
+  const nextRoom = (() => { const on = projects.filter(q => q.on && q.id !== id).sort((x, y) => x.prio - y.prio || x.order - y.order); for (const q of on) { const k = rooms.get(q.id).filter(needsIt).length; if (k) return { name: q.name, id: q.id, k }; } const k = (rooms.get("none") || []).filter(needsIt).length; return k && id !== "none" ? { name: "No project", id: "none", k } : null; })();
+  const timer = roomTimer[id]; const timerLine = timer ? (Date.now() > timer ? `<span class="room-timer">Your hour is up. Stay, or ${nextRoom ? `<a href="#p/${nextRoom.id}">go to ${esc(nextRoom.name)}</a>` : "find a good place"}.</span>` : `<span class="room-timer">Here until ${new Date(timer).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>`) : `<button type="button" class="btn tiny" id="room-hour">Work here for an hour</button>`;
+  $("#room-head").innerHTML = `<div class="room-top"><h1 class="room-name">${esc(p ? p.name : "No project")}</h1>${p ? `<span class="room-prio">${PRIO[p.prio]}${p.on ? "" : ", quiet"}</span>` : ""}<span class="grow"></span>${timerLine}</div><p class="room-counts">${counts || "Nothing in flight."}</p>${!p ? `<p class="hint">These have no project yet. Drag a row onto a project in the sidebar, or leave them.</p>` : ""}`;
+  $("#room-hour")?.addEventListener("click", () => { roomTimer[id] = Date.now() + 3600e3; renderRoom(); });
+  // the accordion
+  if (!cards.length) { el.innerHTML = `<div class="plate room-done"><span class="plate-label">${ic("moon-star")}Good place</span><p>Nothing here needs you.${fl || w ? ` ${[fl ? `${fl} in flight` : "", w ? `${w} waiting on others` : ""].filter(Boolean).join(", ")}.` : ""}</p>${nextRoom ? `<a class="btn primary" href="#p/${nextRoom.id}">Open ${esc(nextRoom.name)}, ${nextRoom.k} need${nextRoom.k === 1 ? "s" : ""} you</a>` : `<p class="quiet">Nothing needs you in any project.</p>`}</div>`; openRound = null; }
+  else {
+    if (!openRound || !cards.some(x => x.sessionId === openRound)) { const nx = cards.find(x => !(sentCards.has(x.sessionId) && !x.needsYou)); openRound = nx ? nx.sessionId : null; }
+    const ordered = cards.slice().sort((a, b) => (b.sessionId === openRound) - (a.sessionId === openRound));
+    const keep = new Set(ordered.map(x => x.sessionId)); for (const old of [...el.children]) if (!keep.has(old.dataset.id)) old.remove();
+    ordered.forEach((x, i) => { const isOpen = x.sessionId === openRound;
+      const key = JSON.stringify([x.state, x.pending?.id, (x.lastReply || "").length, sentCards.has(x.sessionId), i, isOpen, x.title, x.note || prefs.notes?.[x.sessionId] || "", ordered.length, x.wait?.back || "", x.pr?.reason || ""]);
+      let card = el.querySelector(`[data-id="${CSS.escape(x.sessionId)}"]`); if (card && card.dataset.key === key) { if (el.children[i] !== card) el.insertBefore(card, el.children[i] || null); return; }
+      const fresh = roundCard(x, isOpen, ordered.some(y => y !== x && !(sentCards.has(y.sessionId) && !y.needsYou))); fresh.dataset.key = key; fresh.draggable = true; fresh.dataset.item = itemId(x.pr || x.wait || x); fresh.dataset.key2 = itemKey(x.pr || x.wait || x);
+      fresh.addEventListener("dragstart", (e) => { dragItem = { item: fresh.dataset.item, key: fresh.dataset.key2 }; e.dataTransfer.effectAllowed = "move"; });
+      const draft = card?.querySelector("textarea")?.value; if (draft) { const t = fresh.querySelector("textarea"); if (t) t.value = draft; }
+      if (card) card.replaceWith(fresh); else el.insertBefore(fresh, el.children[i] || null); });
+    const focusBox = el.querySelector(".rc.is-open textarea"); if (focusBox && document.activeElement?.tagName !== "TEXTAREA") focusBox.focus({ preventScroll: true });
+  }
+  // the rest: in flight, waiting on others, new session, elsewhere, more
+  const row = (it) => { const o = it.o; const title = it.t === "pr" ? (o.tickets?.[0] ? `${o.tickets[0]}: ${o.title}` : o.title) : it.t === "wait" ? o.text : o.title; const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? "Waiting" : (sentCards.has(o.sessionId) ? "Sent" : STATE[o.state].word); const href = it.t === "pr" ? "#prs" : it.t === "wait" ? (o.link || "#") : hrefOf(o);
+    return `<li class="proj-item" draggable="true" data-item="${esc(itemId(o))}" data-key="${esc(itemKey(o))}"><span class="proj-kind">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : "message-circle")}</span><a href="${esc(href)}" class="proj-title" ${it.t === "wait" && o.link ? 'target="_blank" rel="noopener"' : ""}>${esc(title)}</a><span class="proj-state">${esc(state)}</span>${it.t === "wait" ? `<span class="rc-acts"><button class="btn tiny" data-wback="${o.id}">It came back</button><button class="btn tiny" data-wdrop="${o.id}">Let it go</button></span>` : ""}</li>`; };
+  const group = (name, arr) => arr.length ? `<h3 class="lg-h">${name}</h3><ul class="proj-items">${arr.map(row).join("")}</ul>` : "";
+  const folders = [...new Set(its.filter(it => it.t === "session").map(it => it.o.cwd).filter(Boolean))]; const lastCwd = folders[0] || prefs.lastCwd || "";
+  const going = its.filter(it => it.t === "session" && (it.o.state === "working" || it.o.needsYou)).length;
+  const newForm = projNewOpen === id ? `<form class="proj-new" data-new="${id}"><label><span>Folder</span><input name="cwd" value="${esc(tilde(lastCwd))}" list="room-folders"><datalist id="room-folders">${folders.map(f => `<option value="${esc(tilde(f))}">`).join("")}</datalist></label><label><span>Ticket</span><input name="ticket" placeholder="VDC-1234"></label><label><span>First message</span><textarea name="msg" rows="2" placeholder="What should it do first? Enter to start."></textarea></label>${going >= 3 ? `<p class="hint">${going} already going here.</p>` : ""}<div class="rc-acts"><button class="btn primary" type="submit">Start</button><button class="btn tiny" type="button" data-cancel="1">Cancel</button></div></form>` : "";
+  const editP = p && projEditOpen === id ? `<div class="rc-extra proj-extra"><div class="proj-edit"><label>Name <input class="proj-name-in" value="${esc(p.name)}"></label><label>Matches <input class="proj-words-in" value="${esc(p.words.join(", "))}" placeholder="words from titles, comma separated"></label><label>Keys <input class="proj-keys-in" value="${esc(p.keys.join(", "))}" placeholder="ticket keys it learned"></label></div><div class="rc-acts"><span class="prio">${[1, 2, 3].map(k => `<button type="button" class="prio-b${p.prio === k ? " on" : ""} p${k}" data-pprio="${k}">${PRIO[k]}</button>`).join("")}</span><button class="btn tiny" data-quiet="1">${p.on ? "Quiet" : "Wake"}</button><button class="btn tiny" data-remove="1">Remove project</button></div><p class="hint">Quiet projects leave the list and sit behind "off". Their items stay.</p></div>` : "";
+  $("#room-rest").innerHTML = `${group("In flight", its.filter(it => !needsIt(it) && !waitingIt(it)))}${group("Waiting on others", its.filter(waitingIt))}${newForm}<div class="rc-tail proj-foot">${p ? `<button class="btn tiny" type="button" data-newsess="${id}">New session in ${esc(p.name)}</button>` : ""}${p ? `<button class="rc-more" type="button" data-editp="1">${projEditOpen === id ? "Done" : "Edit this project"}</button>` : ""}</div>${editP}${elsewhere.length ? `<p class="hint">Elsewhere: ${esc(elsewhere[0].it.o.title)} is ${STATE[elsewhere[0].it.o.state].word.toLowerCase()}. <a href="#p/${elsewhere[0].rid}">Open it</a>${elsewhere.length > 1 ? `, and ${elsewhere.length - 1} more.` : "."}</p>` : ""}`;
+  const post = (b) => fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) });
+  const rest = $("#room-rest");
+  rest.querySelectorAll(".proj-item[draggable]").forEach(r => r.addEventListener("dragstart", (e) => { dragItem = { item: r.dataset.item, key: r.dataset.key }; e.dataTransfer.effectAllowed = "move"; }));
+  const wpost = (body) => fetch("/api/wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  rest.querySelectorAll("[data-wback]").forEach(b => b.onclick = (e) => { e.preventDefault(); wpost({ back: b.dataset.wback, why: "You said it came back" }); });
+  rest.querySelectorAll("[data-wdrop]").forEach(b => b.onclick = (e) => { e.preventDefault(); wpost({ remove: b.dataset.wdrop }); });
+  rest.querySelector("[data-newsess]")?.addEventListener("click", () => { projNewOpen = id; renderRoom(); $("#room-rest .proj-new textarea")?.focus(); });
+  const f = rest.querySelector(".proj-new"); if (f) { f.querySelector("[data-cancel]").onclick = () => { projNewOpen = false; renderRoom(); };
+    f.querySelector("textarea").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } if (e.key === "Escape") { projNewOpen = false; renderRoom(); } });
+    f.onsubmit = (e) => { e.preventDefault(); const cwd = resolveCwd(f.cwd.value), ticket = f.ticket.value.trim().toUpperCase(), msg = f.msg.value.trim(); if (!cwd || !msg) { (cwd ? f.msg : f.cwd).focus(); return; } prefs.lastCwd = tilde(cwd); save(); send({ type: "start", cwd, prompt: ticket ? `${ticket}: ${msg}` : msg, project: id === "none" ? undefined : id, key: ticket || undefined, quiet: true }); projNewOpen = false; renderRoom(); }; }
+  rest.querySelector("[data-editp]")?.addEventListener("click", () => { projEditOpen = projEditOpen === id ? null : id; renderRoom(); });
+  if (p && projEditOpen === id) { const saveFields = () => { const name = rest.querySelector(".proj-name-in").value.trim() || p.name; const words = rest.querySelector(".proj-words-in").value.split(",").map(s => s.trim()).filter(Boolean); const keys = rest.querySelector(".proj-keys-in").value.split(",").map(s => s.trim().toUpperCase()).filter(Boolean); if (name !== p.name || words.join() !== p.words.join() || keys.join() !== p.keys.join()) post({ id, name, words, keys }); };
+    rest.querySelectorAll(".proj-name-in,.proj-words-in,.proj-keys-in").forEach(i => { i.onchange = saveFields; i.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); i.blur(); } }; });
+    rest.querySelectorAll("[data-pprio]").forEach(b => b.onclick = () => post({ id, name: p.name, prio: +b.dataset.pprio }));
+    rest.querySelector("[data-quiet]").onclick = () => post({ id, name: p.name, on: !p.on });
+    rest.querySelector("[data-remove]").onclick = () => { const snap = { ...p }; post({ remove: id }); location.hash = ""; const u = $("#undo"); $("#undo-text").textContent = `Removed "${p.name}". Its items are under No project.`; u.hidden = false; $("#undo-btn").onclick = () => { post({ name: snap.name, prio: snap.prio, on: snap.on, keys: snap.keys, words: snap.words }); u.hidden = true; }; setTimeout(() => { u.hidden = true; }, 12000); }; }
+  icons();
 }
+let projEditOpen = null; let landed = false;
+function moonSvg(p) { return ""; }
 function aboveRule(t) { const m = String(t || "").match(/\n\s*(-{3,}|\*{3,})\s*\n/); return m ? t.slice(0, m.index) : t; }
 function prPlate(x, isOpen, hasNext) { const p = x.pr; const card = document.createElement("article"); card.className = "rc plate " + (isOpen ? "is-open" : "is-collapsed"); card.dataset.id = x.sessionId;
   const label = `<span class="plate-label">${ic(PR_ICON[p.state] || "circle")}${PR_WORD[p.state]}</span>`;
   if (!isOpen) { card.innerHTML = `${label}<button class="rc-row" type="button"><span class="rc-title">${esc(x.title)}</span><span class="rc-note">${esc(p.short)}</span></button>`; card.querySelector(".rc-row").onclick = () => { openRound = x.sessionId; renderRounds(); }; return card; }
   card.innerHTML = `${hasNext ? `<button class="rc-next" type="button">Next one</button>` : ""}${label}<h3 class="rc-title">${esc(x.title)}</h3><p class="rc-need">${esc(p.reason)} This is the one you were waiting on.</p><div class="rc-acts">${p.sessionId ? `<a class="btn primary" href="#s/${p.sessionId}">Open its session</a>` : `<button class="btn primary" data-a="start">Start a session on this</button>`}<a class="btn tiny" href="${esc(p.url)}" target="_blank" rel="noopener">Open on GitHub</a>${p.alert ? `<button class="btn tiny" data-a="keep">Keep waiting</button>` : ""}<a class="btn tiny" href="#prs">See the PR</a></div>`;
   card.querySelector('[data-a="keep"]')?.addEventListener("click", () => fetch("/api/pr/keep-waiting", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: p.key }) }));
-  card.querySelector(".rc-next")?.addEventListener("click", () => { const rest = list.filter(y => y.needsYou && !sentCards.has(y.sessionId) && !isDismissed(y) && !isOld(y)); openRound = rest[0]?.sessionId || null; renderRounds(); });
+  card.querySelector(".rc-next")?.addEventListener("click", () => { const others = [...$("#rounds-list").children].map(c => c.dataset.id).filter(id => id !== x.sessionId); openRound = others[0] || null; renderRoom(); });
   card.querySelector('[data-a="start"]')?.addEventListener("click", () => { location.hash = ""; show("home"); $("#ns-cwd").value = guessCwd(p); $("#ns-prompt").value = `${p.tickets[0] ? p.tickets[0] + ": " : ""}pick up ${p.short}, ${p.url}. Read the newest review comments and the failing checks first.`; $("#ns-prompt").focus(); });
   return card; }
 function needLine(x, sent) { // one plain line: what this item wants from you
@@ -168,7 +194,13 @@ function needLine(x, sent) { // one plain line: what this item wants from you
   if (x.state === "failed") return "It failed. Reply to try again, or close it.";
   return ""; // finished: the reply's own first line says what happened
 }
+function waitPlate(x, isOpen) { const w = x.wait; const card = document.createElement("article"); card.className = "rc plate " + (isOpen ? "is-open" : "is-collapsed"); card.dataset.id = x.sessionId;
+  const label = `<span class="plate-label">${ic("hourglass")}Came back</span>`;
+  if (!isOpen) { card.innerHTML = `${label}<button class="rc-row" type="button"><span class="rc-title">${esc(w.text)}</span><span class="rc-note">${esc(w.back || "")}</span></button>`; card.querySelector(".rc-row").onclick = () => { openRound = x.sessionId; renderRoom(); }; return card; }
+  card.innerHTML = `${label}<h3 class="rc-title">${esc(w.text)}</h3><p class="rc-need">${esc(w.back || "It came back.")}</p><div class="rc-acts">${w.link ? `<a class="btn primary" href="${esc(w.link)}" target="_blank" rel="noopener">Open it</a>` : ""}<button class="btn tiny" data-a="done">Done with it</button></div>`;
+  card.querySelector('[data-a="done"]').onclick = () => fetch("/api/wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ remove: w.id }) }); return card; }
 function roundCard(x, isOpen, hasNext) {
+  if (x.wait) return waitPlate(x, isOpen);
   if (x.pr) return prPlate(x, isOpen, hasNext);
   const st = STATE[x.state]; const sent = sentCards.has(x.sessionId); const note = x.note || prefs.notes?.[x.sessionId] || "";
   const card = document.createElement("article"); card.className = "rc plate " + (isOpen ? "is-open" : "is-collapsed") + (sent ? " sent" : ""); card.dataset.id = x.sessionId;
@@ -181,7 +213,7 @@ function roundCard(x, isOpen, hasNext) {
   else if (x.lastReply || x.last) { const body = document.createElement("div"); body.className = "rc-body clamp"; body.appendChild(docHtml(x.lastReply || x.last, x.managed ? x.sessionId : undefined)); card.appendChild(body);
     const more = document.createElement("button"); more.className = "btn tiny rc-fold"; more.textContent = "Read the whole reply"; more.onclick = () => { body.classList.toggle("clamp"); more.textContent = body.classList.contains("clamp") ? "Read the whole reply" : "Show less"; }; card.appendChild(more);
     requestAnimationFrame(() => { if (body.scrollHeight <= body.clientHeight + 4) { body.classList.remove("clamp"); more.hidden = true; } }); }
-  const answered = () => { sentCards.set(x.sessionId, sentKey(x)); if (!$("#projects").hidden) { projRowOpen = null; renderProjects(); } else renderRounds(); }; // the plate stays open; the reply lands here
+  const answered = () => { sentCards.set(x.sessionId, sentKey(x)); openRound = null; renderRoom(); }; // the next item opens with the cursor in its box
   if (!x.managed) { card.insertAdjacentHTML("beforeend", `<div class="rc-answer"><button class="btn primary" data-a="resume">Resume in Terminal</button></div>`); card.querySelector('[data-a="resume"]').onclick = (e) => act("/api/resume", x.sessionId, e.target); }
   else if (!(sent && !x.needsYou)) {
     const f = document.createElement("form"); f.className = "rc-reply";
@@ -194,7 +226,7 @@ function roundCard(x, isOpen, hasNext) {
   }
   const row = document.createElement("div"); row.className = "rc-tail"; row.insertAdjacentHTML("beforeend", prioCtl(x.sessionId));
   const more = document.createElement("button"); more.className = "rc-more"; more.type = "button"; more.textContent = "More"; row.appendChild(more);
-  if (hasNext) { const nx = document.createElement("button"); nx.className = "rc-next"; nx.type = "button"; nx.textContent = "Next one"; nx.onclick = () => { const rest = list.filter(y => y.sessionId !== x.sessionId && y.needsYou && !sentCards.has(y.sessionId) && !isDismissed(y) && !isOld(y)); openRound = rest[0]?.sessionId || null; renderRounds(); $("#main").scrollTo(0, 0); }; card.insertAdjacentElement("afterbegin", nx); }
+  if (hasNext) { const nx = document.createElement("button"); nx.className = "rc-next"; nx.type = "button"; nx.textContent = "Next one"; nx.onclick = () => { const others = [...$("#rounds-list").children].map(c => c.dataset.id).filter(id => id !== x.sessionId); openRound = others[0] || null; renderRoom(); $("#main").scrollTo(0, 0); }; card.insertAdjacentElement("afterbegin", nx); }
   card.appendChild(row);
   const extra = document.createElement("div"); extra.className = "rc-extra"; extra.hidden = true;
   extra.innerHTML = `<div class="rc-acts"><button class="btn tiny" data-a="note">Leave a note</button>${x.managed ? `<button class="btn tiny" data-a="close">Close session</button><a class="btn tiny" href="#s/${x.sessionId}">Open in focus</a>` : `<button class="btn tiny" data-a="letgo">Let it go</button>`}</div><p class="rc-foot">${ago(Date.now() - x.stateSince)} waiting<span class="path">${esc(x.cwd)}</span></p>`;
@@ -378,11 +410,12 @@ function connect() {
     const m = JSON.parse(e.data);
     if (m.type === "hello") { cwds = m.payload.cwds || []; if (!$("#ns-cwd").value && prefs.lastCwd) $("#ns-cwd").value = prefs.lastCwd; applyList(m.payload.sessions, m.payload.version); }
     if (m.type === "list") applyList(m.payload.sessions, m.payload.version);
-    if (m.type === "projects") { projects = (m.payload?.projects || []).slice().sort((a, b) => a.prio - b.prio || a.order - b.order); assign = m.payload?.assign || {}; renderSide(); if (!$("#projects").hidden) renderProjects(); if (roundsOn) renderRounds(); if (openId) renderSessHead(); }
-    if (m.type === "waits") { waitList = m.payload || []; renderSide(); if (roundsOn) renderRounds(); }
-    if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; $("#prs-n").textContent = String(prList.filter(p => p.needsYou).length || ""); if (!$("#prs").hidden) renderPrs(); renderSide(); if (roundsOn) renderRounds(); }
+    if (m.type === "projects") { projects = (m.payload?.projects || []).slice().sort((a, b) => a.prio - b.prio || a.order - b.order); assign = m.payload?.assign || {}; renderSide(); if (roundsOn) renderRoom(); if (openId) renderSessHead();
+      if (!landed) { landed = true; if (!location.hash || location.hash === "#projects" || location.hash === "#rounds") { const top = topRoom(); if (top) location.hash = `#p/${top}`; } } }
+    if (m.type === "waits") { waitList = m.payload || []; renderSide(); if (roundsOn) renderRoom(); }
+    if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; $("#prs-n").textContent = String(prList.filter(p => p.needsYou).length || ""); if (!$("#prs").hidden) renderPrs(); renderSide(); if (roundsOn) renderRoom(); }
     if (m.type === "ledger") { ledgerRows = m.payload?.entries || []; ledgerSums = m.payload?.summaries || {}; if (!$("#ledger").hidden) renderLedger(); }
-    if (m.type === "started") { pendingStarts.push(m.payload.tempId); if (m.payload.quiet) { const u = $("#undo"); $("#undo-text").textContent = "Started. It's under In flight."; u.hidden = false; setTimeout(() => { u.hidden = true; }, 6000); } else openSession(m.payload.tempId); }
+    if (m.type === "started") { pendingStarts.push(m.payload.tempId); if (m.payload.quiet) { const u = $("#undo"); $("#undo-text").textContent = "Started. It's under In flight."; if (roundsOn) setTimeout(renderRoom, 300); u.hidden = false; setTimeout(() => { u.hidden = true; }, 6000); } else openSession(m.payload.tempId); }
     if (m.type === "start-failed") { const e = $("#error"); e.hidden = false; e.textContent = m.payload; $("#ns-cwd").focus(); setTimeout(() => { e.hidden = true; }, 8000); }
     if (m.type === "meta") { const mm = m.payload; if (openId === m.sessionId || (openId && openId.startsWith("pending-") && pendingStarts.includes(openId))) { if (openId !== mm.sessionId) { openId = mm.sessionId; location.hash = "s/" + mm.sessionId; send({ type: "open", sessionId: mm.sessionId }); } meta = mm; renderSessHead(); renderPending(); } }
     if (m.type === "event" && m.sessionId === openId) { const ev = m.payload; const i = ev.kind === "tool" ? transcript.findIndex(x => x.kind === "tool" && x.id === ev.id) : -1; if (i >= 0) transcript[i] = ev; else transcript.push(ev); renderTranscript(); }
@@ -393,22 +426,23 @@ function connect() {
 function withTitles(rows) { return (rows || []).map(x => (!x.managed && prefs.titles?.[x.sessionId]) ? { ...x, title: prefs.titles[x.sessionId] } : x); }
 function applyList(sessions, version) { // the sidebar is navigation and always updates; the home card holds still while you read
   list = withTitles(sessions); listVersion = version ?? listVersion; renderSide();
-  if (termId) renderTerm(); if (!$("#ledger").hidden) renderLedger(); if (!$("#projects").hidden) renderProjects();
+  if (termId) renderTerm(); if (!$("#ledger").hidden) renderLedger(); if (roundsOn) renderRoom();
   if (!openId && !termId && !roundsOn) { if (document.hasFocus() && shownVersion >= 0 && listVersion !== shownVersion) $("#stale").hidden = false; else { renderNext(); shownVersion = listVersion; $("#stale").hidden = true; } }
 }
 async function refresh() { const d = await fetchState(); $("#error").hidden = !d.error && !d.pollError; $("#error").textContent = d.error || (d.pollError ? `Could not read sessions: ${d.pollError}` : ""); if (d.error) return; list = withTitles(d.sessions); listVersion = d.version; renderSide(); if (!openId && !termId && !roundsOn) { renderNext(); shownVersion = listVersion; $("#stale").hidden = true; } if (termId) renderTerm(); }
 
 // ---------- routing ----------
-function show(which) { $("#home").hidden = which !== "home"; $("#tsess").hidden = which !== "term"; $("#sess").hidden = which !== "sess"; $("#rounds").hidden = which !== "rounds"; $("#ledger").hidden = which !== "ledger"; $("#side-ledger").setAttribute("aria-current", String(which === "ledger")); $("#prs").hidden = which !== "prs"; $("#side-prs").setAttribute("aria-current", String(which === "prs")); $("#projects").hidden = which !== "projects"; $("#side-projects").setAttribute("aria-current", String(which === "projects")); roundsOn = which === "rounds"; document.body.classList.toggle("in-rounds", roundsOn); $("#side-rounds").setAttribute("aria-current", String(roundsOn)); if (which !== "sess") { openId = null; meta = null; transcript = []; } if (which !== "term") termId = null; }
+function show(which) { $("#home").hidden = which !== "home"; $("#tsess").hidden = which !== "term"; $("#sess").hidden = which !== "sess"; $("#rounds").hidden = which !== "rounds"; $("#ledger").hidden = which !== "ledger"; $("#side-ledger").setAttribute("aria-current", String(which === "ledger")); $("#prs").hidden = which !== "prs"; $("#side-prs").setAttribute("aria-current", String(which === "prs")); $("#projects").hidden = true; roundsOn = which === "rounds"; document.body.classList.toggle("in-rounds", roundsOn); $("#side-rounds").setAttribute("aria-current", String(roundsOn)); if (which !== "sess") { openId = null; meta = null; transcript = []; } if (which !== "term") termId = null; }
 function openSession(id) { termId = null; openId = id; transcript = []; meta = null; location.hash = "s/" + id; show("sess"); $("#transcript").innerHTML = ""; $("#pending").hidden = true; $("#park").hidden = true; send({ type: "open", sessionId: id }); renderSide(); setTimeout(() => $("#reply").focus(), 50); }
 function route() { const s = location.hash.match(/^#s\/(.+)$/), t = location.hash.match(/^#t\/(.+)$/);
   if (s) { if (openId !== s[1]) openSession(s[1]); return; }
   if (t) { show("term"); termId = t[1]; renderTerm(); renderSide(); return; }
-  if (location.hash === "#projects") { show("projects"); renderProjects(); renderSide(); return; }
+  const pr = location.hash.match(/^#p\/(.+)$/); if (pr) { show("rounds"); sentCards.clear(); openRound = null; projNewOpen = false; renderRoom(); renderSide(); return; }
+  if (location.hash === "#projects" || location.hash === "#rounds") { const top = topRoom(); location.hash = top ? `#p/${top}` : ""; return; }
   if (location.hash === "#prs") { show("prs"); renderPrs(); renderSide(); return; }
   if (location.hash === "#ledger") { show("ledger"); renderLedger(); renderSide(); return; }
-  if (location.hash === "#rounds") { show("rounds"); sentCards.clear(); renderRounds(); renderSide(); refresh(); return; }
   show("home"); refresh(); }
+function topRoom() { const rooms = roomItems(); const on = projects.filter(p => p.on).sort((x, y) => x.prio - y.prio || x.order - y.order); const withNeeds = on.find(p => rooms.get(p.id).some(needsIt)); if (withNeeds) return withNeeds.id; if ((rooms.get("none") || []).some(needsIt)) return "none"; return on[0]?.id || null; }
 window.addEventListener("hashchange", route);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !openId) refresh(); });
 window.addEventListener("focus", () => { if (!openId) refresh(); });
@@ -440,6 +474,7 @@ cwdList.addEventListener("mousedown", (e) => { const li = e.target.closest("li")
 // ---------- session view ----------
 const MSTATE = { starting: "working", working: "working", waiting: "needs-permission", idle: "finished", failed: "failed", ended: "idle" };
 function renderSessHead() { $("#sess-star")?.classList.toggle("on", (prefs.stars || {})[openId] != null);
+  { const me = list.find(s => s.sessionId === openId); const p = me ? projectOf(me) : null; const b = $("#sess-back"); if (b) { b.hidden = false; b.href = p ? `#p/${p.id}` : "#p/none"; b.querySelector("span").textContent = `Back to ${p ? p.name : "No project"}`; } }
   const pe = $("#sess-proj"); if (pe) { const me = list.find(s => s.sessionId === openId); const cur = me ? projectOf(me) : null; pe.innerHTML = `<button type="button" class="proj-link" id="proj-link">Project: ${cur ? esc(cur.name) : "none"}</button><span class="proj-pills" hidden>${projects.map(p => `<button type="button" class="btn tiny" data-pp="${p.id}">${esc(p.name)}</button>`).join("")}<button type="button" class="btn tiny" data-pp="">None</button></span>`;
     pe.querySelector("#proj-link").onclick = () => { const s = pe.querySelector(".proj-pills"); s.hidden = !s.hidden; };
     pe.querySelectorAll("[data-pp]").forEach(b => b.onclick = () => fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assign: { item: `s:${openId}`, project: b.dataset.pp || null, key: me ? keyOf(me.title) || undefined : undefined } }) })); } const pc = $("#sess-prio"); if (pc) pc.innerHTML = prioCtl(openId);

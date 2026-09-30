@@ -58,12 +58,12 @@
 <aside class="side" id="side">
   <div class="side-top">
     <a href="#" class="side-new" id="side-new"><i data-lucide="plus" class="ic"></i>New session</a>
-    <a href="#rounds" class="side-rounds" id="side-rounds" title="Read and answer everything that needs you, one after another"><i data-lucide="list-checks" class="ic"></i>Rounds <span id="rounds-n"></span></a>
-    <a href="#projects" class="side-rounds side-projects" id="side-projects" title="Everything in flight, by project"><i data-lucide="layers" class="ic"></i>Projects</a>
-    <a href="#prs" class="side-rounds side-prs" id="side-prs" title="Every pull request of yours that is open"><i data-lucide="git-pull-request" class="ic"></i>Pull requests <span id="prs-n"></span></a>
+    <a href="#rounds" class="side-rounds" id="side-rounds" hidden><span id="rounds-n"></span></a>
+    <a href="#projects" class="side-rounds side-projects" id="side-projects" hidden></a>
   </div>
   <div id="side-groups"></div>
   <div id="side-older" class="side-older"></div>
+  <a href="#prs" class="side-rounds side-prs side-bottom" id="side-prs" title="Every pull request of yours that is open"><i data-lucide="git-pull-request" class="ic"></i>Pull requests <span id="prs-n"></span></a>
   <a href="#ledger" class="side-rounds side-ledger side-bottom" id="side-ledger" title="What got done, day by day"><i data-lucide="book-open" class="ic"></i>Ledger</a>
   <div class="side-grip" id="side-grip" title="Drag to resize"></div>
 </aside>
@@ -93,9 +93,10 @@
     <div class="lg-filter" id="ledger-filter"><button class="btn tiny" data-f="all" aria-pressed="true">All</button><button class="btn tiny" data-f="today">Today</button><button class="btn tiny" data-f="week">This week</button><input type="date" id="ledger-date" aria-label="Pick a day"></div>
     <div id="ledger-days"></div>
   </section>
-  <section id="rounds" class="rounds" hidden>
-    <div class="rounds-top"><a href="#" class="btn tiny">Back to sessions</a></div>
+  <section id="rounds" class="rounds room" hidden>
+    <div id="room-head"></div>
     <div id="rounds-list"></div>
+    <div id="room-rest"></div>
   </section>
 
   <section id="sess" class="sess" hidden>
@@ -105,6 +106,7 @@
       <button class="btn tiny" id="earlier" hidden><i data-lucide="history" class="ic ic-sm"></i><span></span></button>
       <div class="sess-ctl">
       <label class="switch" title="Show the commands Claude ran and the files it read or changed"><input type="checkbox" id="show-steps"><i data-lucide="wrench" class="ic ic-sm"></i>Show Claude's work</label>
+      <a class="btn tiny" id="sess-back" href="#" hidden><i data-lucide="arrow-left" class="ic ic-sm"></i><span>Back</span></a>
       <button class="btn tiny" id="sess-branch" title="Start another session in this folder, with a line pointing back here"><i data-lucide="git-branch" class="ic ic-sm"></i><span>New session here</span></button>
       <button class="btn tiny" id="sess-wait" title="Put something from this session on the Waiting list"><i data-lucide="hourglass" class="ic ic-sm"></i><span>Wait on…</span></button>
       <span id="sess-prio"></span>

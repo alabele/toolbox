@@ -857,3 +857,37 @@ main{padding-bottom:60px}
 .proj-foot{display:flex;gap:10px;align-items:center}
 .proj-foot .rc-more{margin-left:auto}
 .proj-plate .hint a{color:var(--text-secondary)}
+
+/* ===== session 013: rooms. The sidebar is the project list; the room holds its Rounds ===== */
+.proj-list-nav{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.proj-nav{display:flex;align-items:baseline;gap:10px;padding:7px 12px;border-radius:4px;text-decoration:none;color:var(--text-secondary)}
+.proj-nav:hover{color:var(--text-primary);background:color-mix(in srgb,var(--bg-secondary) 70%,transparent)}
+.proj-nav[aria-current="true"]{background:var(--bg-secondary);color:var(--text-primary)}
+.proj-nav .pn-name{font-family:var(--serif);font-size:14px;font-weight:500;letter-spacing:.02em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proj-nav .pn-word{font-size:11px;color:var(--text-tertiary);white-space:nowrap}
+.proj-nav.needs .pn-word{color:var(--text-primary)}
+.proj-nav.needs .pn-word{color:var(--text-primary)}
+.proj-nav.quiet{opacity:.55}
+.proj-nav.over{box-shadow:inset 0 0 0 1px var(--action-primary)}
+.side-off,.side-addproj{all:unset;cursor:pointer;display:block;padding:6px 12px;font-size:12px;color:var(--text-tertiary)}
+.side-off:hover,.side-addproj:hover{color:var(--text-primary)}
+#side-addproj-form input{margin:0 12px 6px;width:calc(100% - 24px);font:inherit;font-size:12.5px;color:var(--text-primary);background:transparent;border:1px solid var(--line-quiet);border-radius:4px;padding:5px 8px}
+.side-bottom+.side-bottom{margin-top:0}
+.side-prs.side-bottom span{margin-left:6px;color:var(--text-tertiary)}
+.room{max-width:840px;margin:0 auto;width:100%;display:flex;flex-direction:column;gap:14px}
+.room-top{display:flex;align-items:baseline;gap:12px}
+.room-name{font-family:var(--serif);font-size:22px;font-weight:500;letter-spacing:.03em;margin:0}
+.room-prio{font-family:var(--caps);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary)}
+.room-counts{font-size:14px;color:var(--text-secondary);margin:2px 0 0}
+.room-counts b{font-weight:500;color:var(--action-primary)}
+.room-timer{font-size:12px;color:var(--text-tertiary)}
+.room-timer a{color:var(--text-secondary)}
+.room-done{padding:18px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.room-done p{margin:0;font-size:15px}
+.room-done .btn.primary{align-self:flex-start}
+#room-rest{display:flex;flex-direction:column;gap:4px}
+#room-rest .lg-h{margin:14px 0 2px}
+#room-rest .proj-item{grid-template-columns:18px minmax(0,1fr) auto}
+#room-rest .proj-item .rc-acts{grid-column:2 / -1;margin-top:2px}
+#room-rest .proj-foot{margin-top:14px}
+.rc.plate[draggable]{cursor:default}
