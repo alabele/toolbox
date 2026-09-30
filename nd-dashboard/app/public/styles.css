@@ -831,8 +831,8 @@ main{padding-bottom:60px}
 .lg-proj{display:flex;flex-direction:column;gap:4px}
 #ledger-days{display:flex;flex-direction:column;gap:18px}
 .rounds-top{display:none}
-.side-older{margin-top:auto}
-.side-older+.side-bottom{margin-top:8px}
+.side-prs.side-bottom{margin-top:auto}
+.side-older{margin-top:8px}
 
 /* ===== session 012: work from a project ===== */
 .proj-next{font-size:14px;color:var(--text-primary);margin:0 0 4px}

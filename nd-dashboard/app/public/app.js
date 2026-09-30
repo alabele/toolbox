@@ -72,7 +72,7 @@ function renderSide() {
   const none = rooms.get("none") || [];
   const nav = `<nav class="proj-list-nav"><div class="sg-title">Projects</div>${pg("p1", "High", byPrio[1], sortP(byPrio[1]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p2", "Medium", byPrio[2], sortP(byPrio[2]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p3", "Low", byPrio[3], sortP(byPrio[3]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p0", "Unassigned", [], rowFor(null, none)).replace('<span class="where"></span>', `<span class="where${none.some(needsIt) ? " needs" : ""}">${none.filter(needsIt).length ? `${none.filter(needsIt).length} need${none.filter(needsIt).length === 1 ? "s" : ""} you` : none.length ? `${none.length} in flight` : ""}</span>`)}<button type="button" class="menu-note side-addproj" id="side-addproj">+ Add a project</button><form id="side-addproj-form" hidden><input placeholder="Project name, Enter to save" aria-label="Project name"></form></nav>`;
   $("#side-groups").innerHTML = nav;
-  $("#side-older").innerHTML = g("older", "Older", groups.older, true);
+  $("#side-older").innerHTML = g("older", "Archive", groups.older, true);
   $("#side-addproj").onclick = () => { const f = $("#side-addproj-form"); f.hidden = false; $("#side-addproj").hidden = true; f.querySelector("input").focus(); };
   $("#side-addproj-form").onsubmit = (e) => { e.preventDefault(); const name = e.target.querySelector("input").value.trim(); if (!name) return; fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, prio: 1 }) }); };
   // rows dragged from a room land on a project here
@@ -80,7 +80,7 @@ function renderSide() {
   document.querySelectorAll("[data-mute]").forEach(b => b.onclick = (e) => { e.stopPropagation(); prefs.mute = { ...(prefs.mute || {}), [b.dataset.mute]: !prefs.mute?.[b.dataset.mute] }; save(); renderSide(); if (roundsOn) renderRoom(); });
   document.querySelectorAll("[data-toggle]").forEach(t => t.onclick = () => { prefs.open = { ...(prefs.open || {}), [t.dataset.toggle]: !prefs.open?.[t.dataset.toggle] }; save(); renderSide(); });
   document.querySelector("[data-clear=older]")?.addEventListener("click", () => { const ids = groups.older.map(x => x.sessionId); if (!ids.length) return;
-    if (!confirm(`Clear all ${ids.length} from Older? They leave the list. Conversations stay on disk; anything still running in a terminal keeps running.`)) return;
+    if (!confirm(`Clear all ${ids.length} from the Archive? They leave the list. Conversations stay on disk; anything still running in a terminal keeps running.`)) return;
     prefs.dismissed = [...new Set([...(prefs.dismissed || []), ...ids])]; for (const id of ids) unpin(id); save(); renderSide(); renderNext(); });
   const startEdit = (row) => { const id = row.dataset.id; const x = list.find(s => s.sessionId === id); const tel = row.querySelector(".si-title"); if (!x || !tel || row.querySelector(".title-edit")) return;
     editTitle(tel, x.title, (v) => { if (x.managed) send({ type: "title", sessionId: id, title: v }); else { prefs.titles = { ...(prefs.titles || {}), [id]: v }; save(); } tel.textContent = v; renderSide(); }); const inp = row.querySelector(".title-edit"); inp.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); }); };

@@ -56,7 +56,7 @@ Rust marks only "failed". Nothing else in the app is red or orange. "Behind" and
 ## Density and hierarchy (D1 to D4)
 
 ### D1 — Sidebar groups: at most six **[CI]**
-The sidebar is the project list by her priority, then No project, then Older (session 013). Each project row carries one word, never a count that outranks her priority. Rounds lives inside each room. Pinned is hers: sessions she starred, in the order she drags them. Waiting on others holds pull requests in someone else's court (session 009). All start collapsed except Pinned.
+The sidebar is the project list by her priority, then No project, then the Archive of closed sessions at the very bottom (session 013). Each project row carries one word, never a count that outranks her priority. Rounds lives inside each room. Pinned is hers: sessions she starred, in the order she drags them. Waiting on others holds pull requests in someone else's court (session 009). All start collapsed except Pinned.
 
 ### D2 — Sidebar entries lead with the title **[review]**
 A two-letter repo monogram in mono, then the title on one line, then one line of preview or her note. The state word stays on the group heading, not the row, except where a group mixes states (session 008). No age on her own items.
