@@ -139,7 +139,7 @@ function renderRoom() {
   if (!cards.length) { el.innerHTML = `<div class="plate room-done"><span class="plate-label">${ic("moon-star")}Good place</span><p>Nothing here needs you.${fl || w ? ` ${[fl ? `${fl} in flight` : "", w ? `${w} waiting on others` : ""].filter(Boolean).join(", ")}.` : ""}</p>${nextRoom ? `<a class="btn primary" href="#p/${nextRoom.id}">Open ${esc(nextRoom.name)}, ${nextRoom.k} need${nextRoom.k === 1 ? "s" : ""} you</a>` : `<p class="quiet">Nothing needs you in any project.</p>`}</div>`; openRound = null; }
   else {
     if (!openRound || !cards.some(x => x.sessionId === openRound)) { const nx = cards.find(x => !(sentCards.has(x.sessionId) && !x.needsYou)); openRound = nx ? nx.sessionId : null; }
-    const ordered = cards.slice().sort((a, b) => (b.sessionId === openRound) - (a.sessionId === openRound));
+    const ordered = cards.slice(); // in room order; the open one stays where it is, so Cmd+Down walks down the list
     const keep = new Set(ordered.map(x => x.sessionId)); for (const old of [...el.children]) if (!keep.has(old.dataset.id)) old.remove();
     ordered.forEach((x, i) => { const isOpen = x.sessionId === openRound;
       const key = JSON.stringify([x.state, x.pending?.id, (x.lastReply || "").length, sentCards.has(x.sessionId), i, isOpen, x.title, x.note || prefs.notes?.[x.sessionId] || "", ordered.length, x.wait?.back || "", x.pr?.reason || ""]);
@@ -215,7 +215,7 @@ function roundCard(x, isOpen, hasNext) {
   else if (x.lastReply || x.last) { const body = document.createElement("div"); body.className = "rc-body clamp"; body.appendChild(docHtml(x.lastReply || x.last, x.managed ? x.sessionId : undefined)); card.appendChild(body);
     const more = document.createElement("button"); more.className = "btn tiny rc-fold"; more.textContent = "Read the whole reply"; more.onclick = () => { body.classList.toggle("clamp"); more.textContent = body.classList.contains("clamp") ? "Read the whole reply" : "Show less"; }; card.appendChild(more);
     requestAnimationFrame(() => { if (body.scrollHeight <= body.clientHeight + 4) { body.classList.remove("clamp"); more.hidden = true; } }); }
-  const answered = () => { sentCards.set(x.sessionId, sentKey(x)); openRound = null; renderRoom(); }; // the next item opens with the cursor in its box
+  const answered = () => { sentCards.set(x.sessionId, sentKey(x)); renderRoom(); }; // stays here; the reply lands in this plate. Cmd+Down moves on
   if (!x.managed) { card.insertAdjacentHTML("beforeend", `<div class="rc-answer"><button class="btn primary" data-a="resume">Resume in Terminal</button></div>`); card.querySelector('[data-a="resume"]').onclick = (e) => act("/api/resume", x.sessionId, e.target); }
   else if (!(sent && !x.needsYou)) {
     const f = document.createElement("form"); f.className = "rc-reply";
@@ -228,7 +228,7 @@ function roundCard(x, isOpen, hasNext) {
   }
   const row = document.createElement("div"); row.className = "rc-tail"; row.insertAdjacentHTML("beforeend", prioCtl(x.sessionId));
   const more = document.createElement("button"); more.className = "rc-more"; more.type = "button"; more.textContent = "More"; row.appendChild(more);
-  if (hasNext) { const nx = document.createElement("button"); nx.className = "rc-next"; nx.type = "button"; nx.textContent = "Next one"; nx.onclick = () => { const others = [...$("#rounds-list").children].map(c => c.dataset.id).filter(id => id !== x.sessionId); openRound = others[0] || null; renderRoom(); $("#main").scrollTo(0, 0); }; card.insertAdjacentElement("afterbegin", nx); }
+  if (hasNext) { const nx = document.createElement("button"); nx.className = "rc-next"; nx.type = "button"; nx.textContent = "Next one"; nx.title = "Next one (Cmd+Down; Cmd+Up goes back)"; nx.onclick = () => { const ids = [...$("#rounds-list").children].map(c => c.dataset.id); const i = ids.indexOf(x.sessionId); openRound = ids[i + 1] || ids.find(id => id !== x.sessionId) || null; renderRoom(); $("#rounds-list").querySelector(".rc.is-open")?.scrollIntoView({ block: "start" }); }; card.insertAdjacentElement("afterbegin", nx); }
   card.appendChild(row);
   const extra = document.createElement("div"); extra.className = "rc-extra"; extra.hidden = true;
   extra.innerHTML = `<div class="rc-acts"><button class="btn tiny" data-a="note">Leave a note</button>${x.managed ? `<button class="btn tiny" data-a="close">Close session</button><a class="btn tiny" href="#s/${x.sessionId}">Open in focus</a>` : `<button class="btn tiny" data-a="letgo">Let it go</button>`}</div><p class="rc-foot">${ago(Date.now() - x.stateSince)} waiting<span class="path">${esc(x.cwd)}</span></p>`;
@@ -545,6 +545,9 @@ const stripReplyLine = (t) => String(t || "").replace(REPLY_LINE, "").replace(/\
 function armSuggestion(box, text) { // grey suggestion in the box; Tab takes it
   const s = suggestReply(text); box.dataset.suggest = s; const base = box.dataset.basePlaceholder || (box.dataset.basePlaceholder = box.placeholder);
   box.placeholder = s ? `${s}   (Tab to use this)` : base; box.classList.toggle("has-suggest", !!s); }
+document.addEventListener("keydown", (e) => { if (!roundsOn || !(e.metaKey || e.ctrlKey)) return; if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return; e.preventDefault();
+  const ids = [...$("#rounds-list").children].map(c => c.dataset.id); if (!ids.length) return; const i = ids.indexOf(openRound); const j = e.key === "ArrowDown" ? (i < 0 ? 0 : Math.min(ids.length - 1, i + 1)) : (i <= 0 ? 0 : i - 1); if (ids[j] === openRound) return;
+  openRound = ids[j]; renderRoom(); $("#rounds-list").querySelector(".rc.is-open")?.scrollIntoView({ block: "start" }); $("#rounds-list").querySelector(".rc.is-open textarea")?.focus({ preventScroll: true }); });
 document.addEventListener("keydown", (e) => { if (e.key !== "Tab" || e.shiftKey) return; const t = e.target; if (!(t instanceof HTMLTextAreaElement) || t.value || !t.dataset.suggest) return; e.preventDefault(); t.value = t.dataset.suggest; t.setSelectionRange(t.value.length, t.value.length); }, true);
 const STATUS_CLASS = { done: "s-done", "partly done": "s-part", blocked: "s-block", found: "s-found", question: "s-ask", working: "s-work", failed: "s-block", "not done": "s-block" };
 const STATUS_ICON = { "s-done": "circle-check", "s-part": "circle-dashed", "s-block": "circle-x", "s-found": "search", "s-ask": "circle-help", "s-work": "orbit" };
