@@ -66,7 +66,9 @@ function renderSide() {
   const byPrio = { 1: [], 2: [], 3: [] }; for (const p of projects) byPrio[p.prio].push(p);
   const sortP = (arr) => arr.slice().sort((x, y) => (x.on ? 0 : 1) - (y.on ? 0 : 1) || (rooms.get(y.id).some(needsIt) - rooms.get(x.id).some(needsIt)) || (rooms.get(y.id).length > 0) - (rooms.get(x.id).length > 0) || x.order - y.order);
   const gword = (arr) => { const n = arr.reduce((s, p) => s + rooms.get(p.id).filter(needsIt).length, 0); const fl = arr.reduce((s, p) => s + rooms.get(p.id).filter(it => !needsIt(it) && !waitingIt(it)).length, 0); return n ? `${n} need${n === 1 ? "s" : ""} you` : fl ? `${fl} in flight` : ""; };
-  const pg = (key, label, arr, rowsHtml) => { const open = prefs.open?.[key] ?? false; const w = gword(arr); return `<div class="sg sg-${key}"><button class="sg-h toggle" data-toggle="${key}" aria-expanded="${open}"><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>${label}<span class="where${w.includes("need") ? " needs" : ""}">${w}</span></button>${open ? rowsHtml : ""}</div>`; };
+  // a muted group stays in the list but says nothing: no words, no counts, nothing from it anywhere else
+  const pg = (key, label, arr, rowsHtml) => { const open = prefs.open?.[key] ?? false; const muted = !!prefs.mute?.[key]; const w = muted ? "muted" : open ? "" : gword(arr);
+    return `<div class="sg sg-${key}${muted ? " muted" : ""}"><div class="sg-row"><button class="sg-h toggle" data-toggle="${key}" aria-expanded="${open}"><svg class="chev" width="11" height="11"><use href="#i-chev"/></svg>${label}<span class="where${w.includes("need") ? " needs" : ""}">${w}</span></button><button type="button" class="mute" data-mute="${key}" title="${muted ? "Unmute" : "Mute: nothing from here counts until you unmute"}">${ic(muted ? "bell-off" : "bell")}</button></div>${open ? rowsHtml : ""}</div>`; };
   const none = rooms.get("none") || [];
   const nav = `<nav class="proj-list-nav"><div class="sg-title">Projects</div>${pg("p1", "High", byPrio[1], sortP(byPrio[1]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p2", "Medium", byPrio[2], sortP(byPrio[2]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p3", "Low", byPrio[3], sortP(byPrio[3]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p0", "Unassigned", [], rowFor(null, none)).replace('<span class="where"></span>', `<span class="where${none.some(needsIt) ? " needs" : ""}">${none.filter(needsIt).length ? `${none.filter(needsIt).length} need${none.filter(needsIt).length === 1 ? "s" : ""} you` : none.length ? `${none.length} in flight` : ""}</span>`)}<button type="button" class="menu-note side-addproj" id="side-addproj">+ Add a project</button><form id="side-addproj-form" hidden><input placeholder="Project name, Enter to save" aria-label="Project name"></form></nav>`;
   $("#side-groups").innerHTML = nav;
@@ -75,6 +77,7 @@ function renderSide() {
   $("#side-addproj-form").onsubmit = (e) => { e.preventDefault(); const name = e.target.querySelector("input").value.trim(); if (!name) return; fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, prio: 1 }) }); };
   // rows dragged from a room land on a project here
   document.querySelectorAll("[data-drop]").forEach(el => { el.addEventListener("dragover", (e) => { if (!dragItem) return; e.preventDefault(); el.classList.add("over"); }); el.addEventListener("dragleave", () => el.classList.remove("over")); el.addEventListener("drop", (e) => { if (!dragItem) return; e.preventDefault(); el.classList.remove("over"); const to = el.dataset.drop === "none" ? null : el.dataset.drop; fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assign: { item: dragItem.item, project: to, key: dragItem.key || undefined } }) }); const u = $("#undo"); $("#undo-text").textContent = `Moved to ${to ? projects.find(p => p.id === to)?.name : "No project"}.`; u.hidden = false; setTimeout(() => { u.hidden = true; }, 5000); dragItem = null; }); });
+  document.querySelectorAll("[data-mute]").forEach(b => b.onclick = (e) => { e.stopPropagation(); prefs.mute = { ...(prefs.mute || {}), [b.dataset.mute]: !prefs.mute?.[b.dataset.mute] }; save(); renderSide(); if (roundsOn) renderRoom(); });
   document.querySelectorAll("[data-toggle]").forEach(t => t.onclick = () => { prefs.open = { ...(prefs.open || {}), [t.dataset.toggle]: !prefs.open?.[t.dataset.toggle] }; save(); renderSide(); });
   document.querySelector("[data-clear=older]")?.addEventListener("click", () => { const ids = groups.older.map(x => x.sessionId); if (!ids.length) return;
     if (!confirm(`Clear all ${ids.length} from Older? They leave the list. Conversations stay on disk; anything still running in a terminal keeps running.`)) return;
@@ -88,7 +91,7 @@ function renderSide() {
     unpin(id); if (b.dataset.managed === "true") send({ type: "end", sessionId: id });
     else { try { const r = await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }) }); if (!r.ok) { $("#error").hidden = false; $("#error").textContent = "Could not end it: " + await r.text(); return; } } catch {} }
     prefs.dismissed = [...(prefs.dismissed || []), id]; save(); renderSide(); renderNext(); });
-  const needsAny = [...rooms.values()].flat().some(needsIt);
+  const needsAny = [...rooms].some(([rid, its]) => !mutedRoom(rid) && its.some(needsIt));
   document.title = (needsAny ? "Needs you · " : "") + "Stillroom"; document.body.dataset.needs = needsAny ? "1" : "0"; icons();
 }
 let dragItem = null;
@@ -98,6 +101,7 @@ const waitingIt = (it) => it.t === "pr" ? it.o.watched && !it.o.needsYou : it.t 
 function roomItems() { const rooms = new Map(projects.map(p => [p.id, []])); rooms.set("none", []);
   const items = [...list.filter(x => !isDismissed(x) && !isOld(x) && x.state !== "idle").map(x => ({ o: x, t: "session" })), ...prList.filter(p => !p.shelved && (p.watched || p.needsYou)).map(p => ({ o: p, t: "pr" })), ...waitList.map(w => ({ o: w, t: "wait" }))];
   for (const it of items) { const p = projectOf(it.o); (rooms.get(p ? p.id : "none") || rooms.get("none")).push(it); } return rooms; }
+const mutedRoom = (rid) => { const p = rid === "none" ? null : projects.find(x => x.id === rid); const key = rid === "none" ? "p0" : p ? `p${p.prio}` : "p0"; return !!prefs.mute?.[key]; };
 const roomId = () => { const m = location.hash.match(/^#p\/(.+)$/); return m ? m[1] : null; };
 function renderNext() {
   const el = $("#next"); const live = list.filter(x => !isDismissed(x) && !isOld(x));
@@ -131,8 +135,8 @@ function renderRoom() {
   const n = its.filter(needsIt).length, fl = its.filter(it => !needsIt(it) && !waitingIt(it)).length, w = its.filter(waitingIt).length;
   const counts = [n ? `<b>${n} need${n === 1 ? "s" : ""} you</b>` : "", fl ? `${fl} in flight` : "", w ? `${w} waiting on others` : ""].filter(Boolean).join(", ");
   // elsewhere: only blocked items in other rooms
-  const elsewhere = []; for (const [rid, ris] of rooms) { if (rid === id) continue; for (const it of ris) if (it.t === "session" && it.o.needsYou && it.o.state !== "finished" && (rid === "none" || projects.find(q => q.id === rid)?.on)) elsewhere.push({ rid, it }); }
-  const nextRoom = (() => { const on = projects.filter(q => q.on && q.id !== id).sort((x, y) => x.prio - y.prio || x.order - y.order); for (const q of on) { const k = rooms.get(q.id).filter(needsIt).length; if (k) return { name: q.name, id: q.id, k }; } const k = (rooms.get("none") || []).filter(needsIt).length; return k && id !== "none" ? { name: "No project", id: "none", k } : null; })();
+  const elsewhere = []; for (const [rid, ris] of rooms) { if (rid === id || mutedRoom(rid)) continue; for (const it of ris) if (it.t === "session" && it.o.needsYou && it.o.state !== "finished" && (rid === "none" || projects.find(q => q.id === rid)?.on)) elsewhere.push({ rid, it }); }
+  const nextRoom = (() => { const on = projects.filter(q => q.on && q.id !== id && !mutedRoom(q.id)).sort((x, y) => x.prio - y.prio || x.order - y.order); for (const q of on) { const k = rooms.get(q.id).filter(needsIt).length; if (k) return { name: q.name, id: q.id, k }; } const k = mutedRoom("none") ? 0 : (rooms.get("none") || []).filter(needsIt).length; return k && id !== "none" ? { name: "Unassigned", id: "none", k } : null; })();
   const timer = roomTimer[id]; const timerLine = timer ? (Date.now() > timer ? `<span class="room-timer">Your hour is up. Stay, or ${nextRoom ? `<a href="#p/${nextRoom.id}">go to ${esc(nextRoom.name)}</a>` : "find a good place"}.</span>` : `<span class="room-timer">Here until ${new Date(timer).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>`) : `<button type="button" class="btn tiny" id="room-hour">Work here for an hour</button>`;
   $("#room-head").innerHTML = `<div class="room-top"><h1 class="room-name">${esc(p ? p.name : "No project")}</h1>${p ? `<span class="room-prio">${PRIO[p.prio]}${p.on ? "" : ", quiet"}</span>` : ""}<span class="grow"></span>${timerLine}</div><p class="room-counts">${counts || "Nothing in flight."}</p>${!p ? `<p class="hint">These have no project yet. Drag a row onto a project in the sidebar, or leave them.</p>` : ""}`;
   $("#room-hour")?.addEventListener("click", () => { roomTimer[id] = Date.now() + 3600e3; renderRoom(); });
@@ -445,7 +449,7 @@ function route() { const s = location.hash.match(/^#s\/(.+)$/), t = location.has
   if (location.hash === "#prs") { show("prs"); renderPrs(); renderSide(); return; }
   if (location.hash === "#ledger") { show("ledger"); renderLedger(); renderSide(); return; }
   show("home"); refresh(); }
-function topRoom() { const rooms = roomItems(); const on = projects.filter(p => p.on).sort((x, y) => x.prio - y.prio || x.order - y.order); const withNeeds = on.find(p => rooms.get(p.id).some(needsIt)); if (withNeeds) return withNeeds.id; if ((rooms.get("none") || []).some(needsIt)) return "none"; return on[0]?.id || null; }
+function topRoom() { const rooms = roomItems(); const on = projects.filter(p => p.on && !mutedRoom(p.id)).sort((x, y) => x.prio - y.prio || x.order - y.order); const withNeeds = on.find(p => rooms.get(p.id).some(needsIt)); if (withNeeds) return withNeeds.id; if (!mutedRoom("none") && (rooms.get("none") || []).some(needsIt)) return "none"; return on[0]?.id || null; }
 window.addEventListener("hashchange", route);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !openId) refresh(); });
 window.addEventListener("focus", () => { if (!openId) refresh(); });
