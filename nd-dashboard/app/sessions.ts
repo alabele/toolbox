@@ -54,7 +54,7 @@ export interface Pending {
   suggestions?: PermissionUpdate[]; blockedPath?: string; decisionReason?: string;
 }
 export type MStatus = "starting" | "working" | "waiting" | "idle" | "failed" | "ended";
-export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string }
+export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string } }
 
 class Inbox implements AsyncIterable<SDKUserMessage> {
   private q: SDKUserMessage[] = []; private waiters: ((v: IteratorResult<SDKUserMessage>) => void)[] = []; private closed = false;
@@ -108,26 +108,26 @@ export class SessionManager {
 
   private persist() {
     if (this.shuttingDown && this.persistedOnShutdown) return; this.persistedOnShutdown = this.shuttingDown;
-    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle }));
+    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree }));
     try { mkdirSync(dirname(STATE_FILE), { recursive: true }); writeFileSync(STATE_FILE + ".tmp", JSON.stringify(rows, null, 2)); renameSync(STATE_FILE + ".tmp", STATE_FILE); } catch {}
   }
   /** Reopen every session this server owned before it last stopped. Each waits for input; no turn is started. */
   restore(): number {
     let rows: any[] = []; try { rows = JSON.parse(readFileSync(STATE_FILE, "utf8")); } catch { return 0; }
-    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle }); } catch {} }
+    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree }); } catch {} }
     return rows.length;
   }
   get(id: string) { return this.byId.get(id); }
   events(id: string) { return this.byId.get(id)?.events ?? []; }
 
-  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string }): string {
+  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"] }): string {
     const tempId = opts.resume ?? `pending-${randomUUID()}`;
     const inbox = new Inbox(); const abort = new AbortController();
     const prior = opts.resume ? eventsFromDisk(opts.cwd, opts.resume) : [];
     const firstUser = prior.find(e => e.kind === "user") as Extract<Ev, { kind: "user" }> | undefined;
     const lastUser = [...prior].reverse().find(e => e.kind === "user") as Extract<Ev, { kind: "user" }> | undefined;
     const lastText = [...prior].reverse().find(e => e.kind === "text") as Extract<Ev, { kind: "text" }> | undefined;
-    const meta: Meta = { sessionId: tempId, cwd: opts.cwd, title: opts.title ?? opts.prompt?.slice(0, 80) ?? firstUser?.text.slice(0, 80) ?? "(resumed)", startedAt: opts.startedAt ?? Date.now(), status: "starting", stateSince: Date.now(), pending: null, lastText: lastText?.text.replace(/\s+/g, " ").slice(0, 160) ?? "", mode: opts.mode ?? "bypassPermissions", cost: 0, note: opts.note, userTitle: opts.userTitle, lastReply: lastText?.text.slice(0, 6000), prompt: opts.prompt ?? lastUser?.text ?? firstUser?.text, first: opts.prompt ?? firstUser?.text };
+    const meta: Meta = { sessionId: tempId, cwd: opts.cwd, title: opts.title ?? opts.prompt?.slice(0, 80) ?? firstUser?.text.slice(0, 80) ?? "(resumed)", startedAt: opts.startedAt ?? Date.now(), status: "starting", stateSince: Date.now(), pending: null, lastText: lastText?.text.replace(/\s+/g, " ").slice(0, 160) ?? "", mode: opts.mode ?? "bypassPermissions", cost: 0, note: opts.note, userTitle: opts.userTitle, lastReply: lastText?.text.slice(0, 6000), prompt: opts.prompt ?? lastUser?.text ?? firstUser?.text, first: opts.prompt ?? firstUser?.text, worktree: opts.worktree };
     const m: Managed = { meta, events: prior, inbox, resolvers: new Map(), abort, q: null as any };
     m.resumedWithoutPrompt = !!opts.resume && !opts.prompt;
     if (m.resumedWithoutPrompt) { meta.status = "idle"; } // the CLI reports nothing until it gets a message; it is ready and waiting

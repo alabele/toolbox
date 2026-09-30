@@ -11,6 +11,7 @@ import { Ledger } from "./ledger";
 import { Prs, type Pr } from "./prs";
 import { Waits } from "./waits";
 import { Projects } from "./projects";
+import { ensureWorktree, removeWorktree, ticketIn } from "./worktrees";
 import { postToSlack, replyInThread, slackConnected, slackProbe } from "./slack";
 
 const PORT = Number(process.env.ND_PORT ?? 4747);
@@ -119,7 +120,7 @@ function deriveState(s: Session): State | null {
   return "idle";
 }
 
-interface View { live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
+interface View { worktree?: { path: string; branch: string; repo: string }; live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
 let view: View[] = [];
 
 const pendingProj = new Map<any, { project: string; key?: string }>(); // sessions started from a project, waiting for their real id
@@ -142,7 +143,7 @@ function recompute() {
     const i = next.findIndex(v => v.sessionId === mm.sessionId); if (i >= 0) next.splice(i, 1);
     const { repo, sub } = identity(mm.cwd);
     const ai = mm.sessionId.startsWith("pending-") ? "" : transcriptInfo({ cwd: mm.cwd, sessionId: mm.sessionId } as any).title;
-    next.push({ note: mm.note, managed: true, pending: mm.pending, lastReply: mm.lastReply, prompt: mm.prompt, sessionId: mm.sessionId, kind: "quiet", cwd: mm.cwd, repo, sub, state: st, stateSince: mm.stateSince, startedAt: mm.startedAt, title: mm.userTitle || titler.get(mm.sessionId, mm.first || mm.prompt || "", mm.lastReply || "", st !== "working", ai || mm.title) || ai || mm.title, last: mm.pending ? (mm.pending.kind === "question" ? "Asked you a question" : `Wants to run ${mm.pending.toolName}`) : mm.lastText, resume: `cd ${JSON.stringify(mm.cwd)} && claude --resume ${mm.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
+    next.push({ worktree: mm.worktree, note: mm.note, managed: true, pending: mm.pending, lastReply: mm.lastReply, prompt: mm.prompt, sessionId: mm.sessionId, kind: "quiet", cwd: mm.cwd, repo, sub, state: st, stateSince: mm.stateSince, startedAt: mm.startedAt, title: mm.userTitle || titler.get(mm.sessionId, mm.first || mm.prompt || "", mm.lastReply || "", st !== "working", ai || mm.title) || ai || mm.title, last: mm.pending ? (mm.pending.kind === "question" ? "Asked you a question" : `Wants to run ${mm.pending.toolName}`) : mm.lastText, resume: `cd ${JSON.stringify(mm.cwd)} && claude --resume ${mm.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
   }
   const order: Record<State, number> = { "needs-permission": 0, "needs-answer": 1, failed: 2, finished: 3, working: 4, idle: 5 };
   next.sort((a, b) => order[a.state] - order[b.state] || a.repo.localeCompare(b.repo) || a.startedAt - b.startedAt);
@@ -231,7 +232,8 @@ Bun.serve({
         switch (msg.type) {
           case "start": { const cwd = String(msg.cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(cwd).isDirectory(); } catch {}
             if (!ok) { ws.send(JSON.stringify({ type: "start-failed", payload: `That folder does not exist: ${cwd || "(empty)"}` })); break; } // a missing folder makes the binary fail to launch with a misleading message
-            const id = mgr.start({ cwd, prompt: msg.prompt, mode: msg.mode }); if (msg.project) { const m = mgr.get(id); if (m) pendingProj.set(m.meta, { project: String(msg.project), key: msg.key ? String(msg.key) : undefined }); }
+            const wt = ensureWorktree(cwd, msg.key ? String(msg.key).toUpperCase() : ticketIn(String(msg.prompt || "").slice(0, 60)));
+            const id = mgr.start({ cwd: wt ? wt.path : cwd, prompt: msg.prompt, mode: msg.mode, worktree: wt ? { path: wt.path, branch: wt.branch, repo: wt.repo } : undefined }); if (msg.project) { const m = mgr.get(id); if (m) pendingProj.set(m.meta, { project: String(msg.project), key: msg.key ? String(msg.key) : undefined }); }
             ws.send(JSON.stringify({ type: "started", payload: { tempId: id, quiet: !!msg.quiet } })); break; }
           case "resume": { const id = mgr.start({ cwd: msg.cwd, resume: msg.sessionId, prompt: msg.prompt, mode: msg.mode }); ws.send(JSON.stringify({ type: "started", payload: { tempId: id } })); break; }
           case "open": ws.send(JSON.stringify({ type: "transcript", sessionId: msg.sessionId, payload: { meta: mgr.get(msg.sessionId)?.meta ?? null, events: mgr.events(msg.sessionId) } })); break;
@@ -262,6 +264,7 @@ Bun.serve({
     if (url.pathname === "/api/pr/review" && req.method === "POST") { const b = await req.json(); return runPrLoop(String(b.key)) ? new Response("ok") : new Response("already running or unknown", { status: 409 }); }
     if (url.pathname === "/api/projects") return Response.json(projects.list());
     if (url.pathname === "/api/project" && req.method === "POST") { const b = await req.json(); if (b.remove) projects.remove(String(b.remove)); else if (b.assign) projects.assign(String(b.assign.item), b.assign.project ? String(b.assign.project) : null, b.assign.key); else projects.upsert(b); return new Response("ok"); }
+    if (url.pathname === "/api/worktree/remove" && req.method === "POST") { const b = await req.json(); const r = removeWorktree(String(b.path || "")); return r === "ok" ? new Response("ok") : new Response(r, { status: 400 }); }
     if (url.pathname === "/api/waits") return Response.json(waits.list());
     if (url.pathname === "/api/wait" && req.method === "POST") { const b = await req.json(); if (b.remove) { waits.remove(String(b.remove)); return new Response("ok"); } if (b.back) { waits.back(String(b.back), String(b.why || "It came back")); return new Response("ok"); } const w = await waits.add(String(b.text || ""), b.link, b.sessionId, b.until); return Response.json(w); }
     if (url.pathname === "/api/pr/keep-waiting" && req.method === "POST") { const b = await req.json(); return prs.keepWaiting(String(b.key)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
@@ -358,7 +361,7 @@ mgr.onProject = async (sid, name) => { const want = String(name || "").trim(); i
   const made = !p; if (!p) p = projects.upsert({ name: want, prio: 2 });
   const m = mgr.get(sid); const key = (m?.meta.userTitle || m?.meta.title || "").match(/\b(VDC|D|STORY|PROJ|OPS|DOCS)-\d{1,6}\b/i)?.[0]?.toUpperCase();
   projects.assign(`s:${sid}`, p.id, key); return `${made ? `Made the project "${p.name}" and put` : "Put"} this session in "${p.name}".`; };
-mgr.onSpawn = async (from, cwd, prompt) => { const dir = String(cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(dir).isDirectory(); } catch {} if (!ok) return `Could not start: the folder ${dir} does not exist.`; const id = mgr.start({ cwd: dir, prompt: `${prompt}\n\n(Started from session ${from}.)` }); return `Started a new Stillroom session in ${dir}. It shows in her sidebar when it first replies. Do not wait for it.`; };
+mgr.onSpawn = async (from, cwd, prompt) => { const dir = String(cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(dir).isDirectory(); } catch {} if (!ok) return `Could not start: the folder ${dir} does not exist.`; const wt = ensureWorktree(dir, ticketIn(prompt.slice(0, 60))); const id = mgr.start({ cwd: wt ? wt.path : dir, prompt: `${prompt}\n\n(Started from session ${from}.)`, worktree: wt ? { path: wt.path, branch: wt.branch, repo: wt.repo } : undefined }); return `Started a new Stillroom session in ${wt ? `${wt.repo} on branch ${wt.branch}, in its own worktree` : dir}. It shows in her sidebar when it first replies. Do not wait for it.`; };
 mgr.onWait = async (sid, text, link, until) => { const w = await waits.add(text, link, sid, until); return `On the Waiting list: "${w.text}"${w.kind === "ticket" ? ` (comes back when ${w.ticket} ${w.until ? `is ${w.until}` : "moves"})` : w.kind === "pr" ? " (comes back when it merges)" : " (she marks it when it comes back)"}.`; };
 prs.onGone = (pr, how, by) => { waits.prGone(pr.key, how === "merged" ? `merged${by ? ` by ${by}` : ""}` : "closed"); if (how !== "merged") return; ledger.add({ id: `pr:${pr.key}`, sessionId: pr.sessionId || pr.key, cwd: "", title: pr.tickets[0] ? `${pr.tickets[0]}: ${pr.title}` : pr.title, text: `Done.\n- ${pr.short} merged${by ? ` by ${by}` : ""}.` }); };
 mgr.onOutcome = (m, text, at) => { const row = view.find(x => x.sessionId === m.sessionId); ledger.add({ id: `${m.sessionId}:${at}`, sessionId: m.sessionId, cwd: m.cwd, title: row?.title || m.userTitle || m.title, text, at }); };
