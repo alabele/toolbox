@@ -891,3 +891,8 @@ main{padding-bottom:60px}
 #room-rest .proj-item .rc-acts{grid-column:2 / -1;margin-top:2px}
 #room-rest .proj-foot{margin-top:14px}
 .rc.plate[draggable]{cursor:default}
+.sg-title{font-family:var(--caps);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--text-tertiary);padding:4px 12px 6px}
+.proj-list-nav .sg{margin-top:0}
+.proj-list-nav .sg+.sg{margin-top:6px}
+.proj-list-nav .sg-h .where.needs{color:var(--text-primary)}
+.proj-list-nav .proj-nav{padding:5px 12px 5px 26px}
