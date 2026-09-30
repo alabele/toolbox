@@ -23,6 +23,7 @@ export interface Pr {
   tickets: string[]; sessionId?: string; sessionTitle?: string;
   slack?: { channel: string; askedAt: number; permalink?: string; nudgedAt?: number; note?: string };
   requested?: string[]; // reviewers GitHub is waiting on
+  done?: Record<string, boolean>; checklist?: { item: string; done: boolean; auto: boolean }[]; // the repo's ship checklist, with what the app can tick itself
   prio?: 1 | 2 | 3; // hers; missing means the project's, else Med
   step?: { n: number; of: number; name: string }; // where it is on the road to merge: Draft, Claude review, Review, QA, Merge
   alert?: string; seen?: string[]; // a new human review on a watched PR brings it back once ("Ilya approved"); Keep waiting clears it
@@ -36,7 +37,7 @@ const JIRA_MS = 15 * 60_000;
 export class Prs {
   private s: Store = { prs: {}, searchedAt: 0 };
   private busy = false; private timer: any;
-  repos: Record<string, { channel?: string; reviewers?: string[]; approvers?: string[]; qa?: boolean }> = {}; // per repo: the Slack channel, who to ask, who counts as the approval, whether QA signs off after
+  repos: Record<string, { channel?: string; reviewers?: string[]; approvers?: string[]; qa?: boolean; checklist?: string[] }> = {}; // per repo: the Slack channel, who to ask, who counts as the approval, whether QA signs off after
   onGone: (pr: Pr, how: "merged" | "closed", by?: string) => void = () => {}; // set by the server: a PR that left the list
   constructor(private onChange: () => void, private link: (pr: Pr) => { sessionId: string; title: string } | null) {
     try { this.s = JSON.parse(readFileSync(FILE, "utf8")); } catch {}
@@ -47,7 +48,8 @@ export class Prs {
   list(): Pr[] { return Object.values(this.s.prs).sort((a, b) => (b.needsYou ? 1 : 0) - (a.needsYou ? 1 : 0) || a.updatedAt - b.updatedAt); }
   get(key: string) { return this.s.prs[key]; }
   setChannel(repo: string, channel: string) { this.setRepo(repo, { channel }); }
-  setRepo(repo: string, cfg: Partial<{ channel: string; reviewers: string[]; approvers: string[]; qa: boolean }>) { this.repos[repo] = { ...(this.repos[repo] || {}), ...cfg }; try { mkdirSync(dirname(REPOS_FILE), { recursive: true }); writeFileSync(REPOS_FILE, JSON.stringify(this.repos, null, 1)); } catch {} for (const p of Object.values(this.s.prs)) if (p.repo === repo) this.derive(p); this.save(); this.onChange(); }
+  setCheck(key: string, item: string, on: boolean) { const p = this.s.prs[key]; if (!p) return false; p.done = { ...(p.done || {}), [item]: on }; this.save(); this.onChange(); return true; }
+  setRepo(repo: string, cfg: Partial<{ channel: string; reviewers: string[]; approvers: string[]; qa: boolean; checklist: string[] }>) { this.repos[repo] = { ...(this.repos[repo] || {}), ...cfg }; try { mkdirSync(dirname(REPOS_FILE), { recursive: true }); writeFileSync(REPOS_FILE, JSON.stringify(this.repos, null, 1)); } catch {} for (const p of Object.values(this.s.prs)) if (p.repo === repo) this.derive(p); this.save(); this.onChange(); }
   /** A repo is set up when it has a channel and reviewers to ask. */
   configured(repo: string) { const r = this.repos[repo]; return !!(r?.channel && r?.reviewers?.length); }
   start() { this.tick(); this.timer = setInterval(() => this.tick(), 60_000); }
@@ -149,6 +151,10 @@ export class Prs {
     const asked = !!(p.requested?.length || p.slack?.askedAt);
     let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : human.length ? 5 : asked ? 4 : 3; if (st === "approved-qa") n = names.indexOf("QA") + 1; if (st === "ready") n = of;
     p.step = { n, of, name: names[n - 1] };
+    // the repo's checklist; items the app can see for itself are ticked for her
+    p.checklist = (rule.checklist || []).map(item => { const t = item.toLowerCase(); let auto: boolean | null = null;
+      if (/pr-loop|claude review|claude-pr/.test(t)) auto = !!p.claudeVerdict; else if (/reviewer|ask.*review|request.*review|slack/.test(t)) auto = !!(p.slack?.askedAt || p.requested?.length); else if (/\bqa\b/.test(t) && rule.qa) auto = st === "approved-qa" || st === "ready"; else if (/draft/.test(t)) auto = !p.isDraft;
+      return { item, done: auto ?? !!p.done?.[item], auto: auto !== null }; });
     p.state = st; p.reason = p.alert ? `${p.alert}. ${why}` : why; p.needsYou = (NEEDS_YOU.includes(st) || !!p.alert) && !p.shelved && !p.sessionId;
     if (p.sessionId && NEEDS_YOU.includes(st)) p.reason += " A session is on it.";
   }

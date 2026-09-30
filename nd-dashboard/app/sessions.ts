@@ -54,7 +54,7 @@ export interface Pending {
   suggestions?: PermissionUpdate[]; blockedPath?: string; decisionReason?: string;
 }
 export type MStatus = "starting" | "working" | "waiting" | "idle" | "failed" | "ended";
-export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string } }
+export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string }; parent?: string; abstract?: string; abstractN?: number }
 
 class Inbox implements AsyncIterable<SDKUserMessage> {
   private q: SDKUserMessage[] = []; private waiters: ((v: IteratorResult<SDKUserMessage>) => void)[] = []; private closed = false;
@@ -101,6 +101,11 @@ export class SessionManager {
       { cwd: z.string().describe("Absolute folder for the new session, like /Users/lauren.abele/code/docs. Use this session's folder when she does not say."), prompt: z.string().describe("The first message for the new session: the ticket key, then what to do, with any context it needs since it starts fresh") },
       async (a) => { const line = await self.onSpawn(self.currentSessionId, a.cwd, a.prompt); return { content: [{ type: "text", text: line }] }; }) ] }); }
   private currentSessionId = "";
+  /** Set by the server: writes the "so far" abstract for a settled session. */
+  onAbstract: (m: Meta, events: Ev[], children: Meta[]) => Promise<string> = async () => "";
+  children(sid: string): Meta[] { return this.list().filter(m => m.parent === sid); }
+  private async abstractFor(m: Managed) { const n = m.events.length; if (m.meta.abstractN === n || n < 2) return; m.meta.abstractN = n;
+    const text = await this.onAbstract(m.meta, m.events, this.children(m.meta.sessionId)); if (!text) return; m.meta.abstract = text; this.emit("meta", m.meta.sessionId, m.meta); this.persist(); }
   /** Set by the server: called with the final text of each turn, after any reshaping. */
   onOutcome: (m: Meta, text: string, eventAt: number) => void = () => {};
 
@@ -108,26 +113,26 @@ export class SessionManager {
 
   private persist() {
     if (this.shuttingDown && this.persistedOnShutdown) return; this.persistedOnShutdown = this.shuttingDown;
-    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree }));
+    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree, parent: m.parent, abstract: m.abstract, abstractN: m.abstractN }));
     try { mkdirSync(dirname(STATE_FILE), { recursive: true }); writeFileSync(STATE_FILE + ".tmp", JSON.stringify(rows, null, 2)); renameSync(STATE_FILE + ".tmp", STATE_FILE); } catch {}
   }
   /** Reopen every session this server owned before it last stopped. Each waits for input; no turn is started. */
   restore(): number {
     let rows: any[] = []; try { rows = JSON.parse(readFileSync(STATE_FILE, "utf8")); } catch { return 0; }
-    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree }); } catch {} }
+    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree, parent: r.parent, abstract: r.abstract, abstractN: r.abstractN }); } catch {} }
     return rows.length;
   }
   get(id: string) { return this.byId.get(id); }
   events(id: string) { return this.byId.get(id)?.events ?? []; }
 
-  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"] }): string {
+  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"]; parent?: string; abstract?: string; abstractN?: number }): string {
     const tempId = opts.resume ?? `pending-${randomUUID()}`;
     const inbox = new Inbox(); const abort = new AbortController();
     const prior = opts.resume ? eventsFromDisk(opts.cwd, opts.resume) : [];
     const firstUser = prior.find(e => e.kind === "user") as Extract<Ev, { kind: "user" }> | undefined;
     const lastUser = [...prior].reverse().find(e => e.kind === "user") as Extract<Ev, { kind: "user" }> | undefined;
     const lastText = [...prior].reverse().find(e => e.kind === "text") as Extract<Ev, { kind: "text" }> | undefined;
-    const meta: Meta = { sessionId: tempId, cwd: opts.cwd, title: opts.title ?? opts.prompt?.slice(0, 80) ?? firstUser?.text.slice(0, 80) ?? "(resumed)", startedAt: opts.startedAt ?? Date.now(), status: "starting", stateSince: Date.now(), pending: null, lastText: lastText?.text.replace(/\s+/g, " ").slice(0, 160) ?? "", mode: opts.mode ?? "bypassPermissions", cost: 0, note: opts.note, userTitle: opts.userTitle, lastReply: lastText?.text.slice(0, 6000), prompt: opts.prompt ?? lastUser?.text ?? firstUser?.text, first: opts.prompt ?? firstUser?.text, worktree: opts.worktree };
+    const meta: Meta = { sessionId: tempId, cwd: opts.cwd, title: opts.title ?? opts.prompt?.slice(0, 80) ?? firstUser?.text.slice(0, 80) ?? "(resumed)", startedAt: opts.startedAt ?? Date.now(), status: "starting", stateSince: Date.now(), pending: null, lastText: lastText?.text.replace(/\s+/g, " ").slice(0, 160) ?? "", mode: opts.mode ?? "bypassPermissions", cost: 0, note: opts.note, userTitle: opts.userTitle, lastReply: lastText?.text.slice(0, 6000), prompt: opts.prompt ?? lastUser?.text ?? firstUser?.text, first: opts.prompt ?? firstUser?.text, worktree: opts.worktree, parent: opts.parent, abstract: opts.abstract, abstractN: opts.abstractN };
     const m: Managed = { meta, events: prior, inbox, resolvers: new Map(), abort, q: null as any };
     m.resumedWithoutPrompt = !!opts.resume && !opts.prompt;
     if (m.resumedWithoutPrompt) { meta.status = "idle"; } // the CLI reports nothing until it gets a message; it is ready and waiting
@@ -226,6 +231,7 @@ export class SessionManager {
         m.meta.cost = (msg as any).total_cost_usd ?? m.meta.cost;
         m.events.push({ kind: "result", subtype: msg.subtype, cost: (msg as any).total_cost_usd, turns: (msg as any).num_turns, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1));
         this.setStatus(m, msg.subtype === "success" ? "idle" : "failed");
+        this.abstractFor(m);
         this.shapeLast(m).then(() => { const ev = [...m.events].reverse().find(e => e.kind === "text") as Extract<Ev, { kind: "text" }> | undefined; if (ev) this.onOutcome(m.meta, ev.text, ev.at); });
       }
     }

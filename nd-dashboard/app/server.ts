@@ -6,7 +6,7 @@ import { readFileSync, existsSync, openSync, readSync, fstatSync, closeSync, rea
 import { homedir } from "node:os";
 import { join, basename } from "node:path";
 import { SessionManager, type Meta } from "./sessions";
-import { Titler, HELPER_DIR } from "./titles";
+import { Titler, HELPER_DIR, ask } from "./titles";
 import { Ledger } from "./ledger";
 import { Prs, type Pr } from "./prs";
 import { Waits } from "./waits";
@@ -120,7 +120,7 @@ function deriveState(s: Session): State | null {
   return "idle";
 }
 
-interface View { worktree?: { path: string; branch: string; repo: string }; live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
+interface View { parent?: string; abstract?: string; worktree?: { path: string; branch: string; repo: string }; live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
 let view: View[] = [];
 
 const pendingProj = new Map<any, { project: string; key?: string }>(); // sessions started from a project, waiting for their real id
@@ -143,7 +143,7 @@ function recompute() {
     const i = next.findIndex(v => v.sessionId === mm.sessionId); if (i >= 0) next.splice(i, 1);
     const { repo, sub } = identity(mm.cwd);
     const ai = mm.sessionId.startsWith("pending-") ? "" : transcriptInfo({ cwd: mm.cwd, sessionId: mm.sessionId } as any).title;
-    next.push({ worktree: mm.worktree, note: mm.note, managed: true, pending: mm.pending, lastReply: mm.lastReply, prompt: mm.prompt, sessionId: mm.sessionId, kind: "quiet", cwd: mm.cwd, repo, sub, state: st, stateSince: mm.stateSince, startedAt: mm.startedAt, title: mm.userTitle || titler.get(mm.sessionId, mm.first || mm.prompt || "", mm.lastReply || "", st !== "working", ai || mm.title) || ai || mm.title, last: mm.pending ? (mm.pending.kind === "question" ? "Asked you a question" : `Wants to run ${mm.pending.toolName}`) : mm.lastText, resume: `cd ${JSON.stringify(mm.cwd)} && claude --resume ${mm.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
+    next.push({ parent: mm.parent, abstract: mm.abstract, worktree: mm.worktree, note: mm.note, managed: true, pending: mm.pending, lastReply: mm.lastReply, prompt: mm.prompt, sessionId: mm.sessionId, kind: "quiet", cwd: mm.cwd, repo, sub, state: st, stateSince: mm.stateSince, startedAt: mm.startedAt, title: mm.userTitle || titler.get(mm.sessionId, mm.first || mm.prompt || "", mm.lastReply || "", st !== "working", ai || mm.title) || ai || mm.title, last: mm.pending ? (mm.pending.kind === "question" ? "Asked you a question" : `Wants to run ${mm.pending.toolName}`) : mm.lastText, resume: `cd ${JSON.stringify(mm.cwd)} && claude --resume ${mm.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
   }
   const order: Record<State, number> = { "needs-permission": 0, "needs-answer": 1, failed: 2, finished: 3, working: 4, idle: 5 };
   next.sort((a, b) => order[a.state] - order[b.state] || a.repo.localeCompare(b.repo) || a.startedAt - b.startedAt);
@@ -270,7 +270,8 @@ Bun.serve({
     if (url.pathname === "/api/pr/prio" && req.method === "POST") { const b = await req.json(); return prs.setPrio(String(b.key), +b.prio) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/keep-waiting" && req.method === "POST") { const b = await req.json(); return prs.keepWaiting(String(b.key)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/watch" && req.method === "POST") { const b = await req.json(); return prs.setWatch(String(b.key), !!b.on) ? new Response("ok") : new Response("unknown", { status: 404 }); }
-    if (url.pathname === "/api/repo" && req.method === "POST") { const b = await req.json(); const cfg: any = {}; if (b.channel !== undefined) cfg.channel = String(b.channel).trim(); if (b.reviewers !== undefined) cfg.reviewers = String(b.reviewers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.approvers !== undefined) cfg.approvers = String(b.approvers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.qa !== undefined) cfg.qa = !!b.qa; prs.setRepo(String(b.repo), cfg); return new Response("ok"); }
+    if (url.pathname === "/api/repo" && req.method === "POST") { const b = await req.json(); const cfg: any = {}; if (b.channel !== undefined) cfg.channel = String(b.channel).trim(); if (b.reviewers !== undefined) cfg.reviewers = String(b.reviewers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.approvers !== undefined) cfg.approvers = String(b.approvers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.qa !== undefined) cfg.qa = !!b.qa; if (b.checklist !== undefined) cfg.checklist = String(b.checklist).split("\n").map((s: string) => s.replace(/^\s*[-*\d.)]+\s*/, "").trim()).filter(Boolean); prs.setRepo(String(b.repo), cfg); return new Response("ok"); }
+    if (url.pathname === "/api/pr/check" && req.method === "POST") { const b = await req.json(); return prs.setCheck(String(b.key), String(b.item), !!b.on) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/ask" && req.method === "POST") { // ask for review: GitHub reviewers and the repo's Slack channel, both
       const b = await req.json(); const pr = prs.get(String(b.key)); if (!pr) return new Response("unknown", { status: 404 }); const r = prs.repos[pr.repo] || {}; if (!prs.configured(pr.repo)) return new Response("This repo is not set up: it needs a Slack channel and reviewers.", { status: 400 });
       const ghr = Bun.spawnSync(["gh", "pr", "edit", String(pr.number), "-R", pr.repo, "--add-reviewer", (r.reviewers || []).join(",")], { stdout: "pipe", stderr: "pipe" }); const ghErr = ghr.exitCode === 0 ? "" : ghr.stderr.toString().trim().split("\n")[0];
@@ -364,13 +365,18 @@ function runPrLoop(key: string) {
   reviewing.set(key, proc); prs.markReviewing(key, true);
   proc.exited.then(() => { reviewing.delete(key); prs.markReviewing(key, false); }); return true;
 }
+mgr.onAbstract = async (meta, events, children) => {
+  const turns = events.filter(e => e.kind === "user" || e.kind === "text").slice(-40).map(e => `${e.kind === "user" ? "She" : "Claude"}: ${String((e as any).text || "").replace(/\s+/g, " ").slice(0, e.kind === "user" ? 300 : 500)}`).join("\n");
+  const kids = children.length ? `\nSessions started from this one: ${children.map(c => c.userTitle || c.title).join("; ")}` : "";
+  const out = await ask(`Write a "so far" for this coding session, for someone coming back to it cold. Two to four short sentences, plain words, past tense. Say what started it, what was found or decided, what got done, and what is open now. Name tickets, PRs (repo #number), people and files as they appear. No bullets, no headings, no "the user", no "Claude" as a name (say "we").\n\nSession title: ${meta.userTitle || meta.title}${kids}\n\nTurns, oldest first:\n${turns}`, 60_000);
+  return out.replace(/^["“]+|["”]+$/g, "").slice(0, 900); };
 mgr.onProject = async (sid, name) => { const want = String(name || "").trim(); if (!want || sid.startsWith("pending-")) return "Could not set the project yet.";
   if (/^(none|no project|unassigned)$/i.test(want)) { projects.assign(`s:${sid}`, null); return "Taken out of every project."; }
   const all = projects.list().projects; let p = all.find(x => x.name.toLowerCase() === want.toLowerCase()) || all.find(x => x.name.toLowerCase().includes(want.toLowerCase()) || want.toLowerCase().includes(x.name.toLowerCase()));
   const made = !p; if (!p) p = projects.upsert({ name: want, prio: 2 });
   const m = mgr.get(sid); const key = (m?.meta.userTitle || m?.meta.title || "").match(/\b(VDC|D|STORY|PROJ|OPS|DOCS)-\d{1,6}\b/i)?.[0]?.toUpperCase();
   projects.assign(`s:${sid}`, p.id, key); return `${made ? `Made the project "${p.name}" and put` : "Put"} this session in "${p.name}".`; };
-mgr.onSpawn = async (from, cwd, prompt) => { const dir = String(cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(dir).isDirectory(); } catch {} if (!ok) return `Could not start: the folder ${dir} does not exist.`; const wt = ensureWorktree(dir, ticketIn(prompt.slice(0, 60))); const id = mgr.start({ cwd: wt ? wt.path : dir, prompt: `${prompt}\n\n(Started from session ${from}.)`, worktree: wt ? { path: wt.path, branch: wt.branch, repo: wt.repo } : undefined }); return `Started a new Stillroom session in ${wt ? `${wt.repo} on branch ${wt.branch}, in its own worktree` : dir}. It shows in her sidebar when it first replies. Do not wait for it.`; };
+mgr.onSpawn = async (from, cwd, prompt) => { const dir = String(cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(dir).isDirectory(); } catch {} if (!ok) return `Could not start: the folder ${dir} does not exist.`; const wt = ensureWorktree(dir, ticketIn(prompt.slice(0, 60))); const id = mgr.start({ cwd: wt ? wt.path : dir, prompt: `${prompt}\n\n(Started from session ${from}.)`, worktree: wt ? { path: wt.path, branch: wt.branch, repo: wt.repo } : undefined, parent: from }); return `Started a new Stillroom session in ${wt ? `${wt.repo} on branch ${wt.branch}, in its own worktree` : dir}. It shows in her sidebar when it first replies. Do not wait for it.`; };
 mgr.onWait = async (sid, text, link, until) => { const w = await waits.add(text, link, sid, until); return `On the Waiting list: "${w.text}"${w.kind === "ticket" ? ` (comes back when ${w.ticket} ${w.until ? `is ${w.until}` : "moves"})` : w.kind === "pr" ? " (comes back when it merges)" : " (she marks it when it comes back)"}.`; };
 prs.onGone = (pr, how, by) => { waits.prGone(pr.key, how === "merged" ? `merged${by ? ` by ${by}` : ""}` : "closed"); if (how !== "merged") return; ledger.add({ id: `pr:${pr.key}`, sessionId: pr.sessionId || pr.key, cwd: "", title: pr.tickets[0] ? `${pr.tickets[0]}: ${pr.title}` : pr.title, text: `Done.\n- ${pr.short} merged${by ? ` by ${by}` : ""}.` }); };
 mgr.onOutcome = (m, text, at) => { const row = view.find(x => x.sessionId === m.sessionId); ledger.add({ id: `${m.sessionId}:${at}`, sessionId: m.sessionId, cwd: m.cwd, title: row?.title || m.userTitle || m.title, text, at }); };
