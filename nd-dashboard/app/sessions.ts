@@ -83,12 +83,20 @@ export class SessionManager {
   constructor(private emit: (type: "meta" | "event" | "gone" | "transcript", sessionId: string, payload: any) => void) {}
   /** Set by the server: the session asked to wait on something. Returns one line to show her. */
   onWait: (sessionId: string, text: string, link?: string, until?: string) => Promise<string> = async () => "Not wired.";
+  /** Set by the server: a session asked to be put in a project (by name; the server matches or makes it). */
+  onProject: (sessionId: string, project: string) => Promise<string> = async () => "Not wired.";
   /** Set by the server: a session asked for another session. Returns one line to show her. */
   onSpawn: (fromSessionId: string, cwd: string, prompt: string) => Promise<string> = async () => "Not wired.";
   private stillroomTools() { const self = this; return createSdkMcpServer({ name: "stillroom", version: "1.0.0", tools: [
     tool("add_wait", "Put something on her Waiting on others list in Stillroom. Use when she asks to be told when something happens, to wait on a reply, a PR merge, or a ticket moving. It comes back to her on its own for tickets (status) and PRs (merge); other things return when she says so.",
       { text: z.string().describe("Plain words for what she is waiting on, like 'Alex to reply on the retry loop' or 'video-client #2244 to merge'"), link: z.string().optional().describe("A URL: the PR, the Slack message, the ticket"), until: z.string().optional().describe("For a ticket: the status to wait for, like 'Done' or 'Ready for QA'") },
       async (a, extra: any) => { const sid = (extra?.sessionId as string) || self.currentSessionId || ""; const line = await self.onWait(sid, a.text, a.link, a.until); return { content: [{ type: "text", text: line }] }; }),
+    tool("rename_session", "Rename this Stillroom session. Use when she asks to rename or retitle the session, or when the work turned out to be about something else. Keep the ticket key first: 'VDC-1234: matter'.",
+      { title: z.string().describe("The new title, 3 to 8 words, ticket key first when there is one") },
+      async (a) => { const sid = self.currentSessionId; const m = self.byId.get(sid); if (!m) return { content: [{ type: "text", text: "Could not find this session." }] }; self.setTitle(sid, a.title); return { content: [{ type: "text", text: `Renamed to "${a.title.trim()}".` }] }; }),
+    tool("set_project", "Put this Stillroom session in one of her projects. Use when she says which project this belongs to, or asks to move it. Name the project as she calls it; a project that does not exist yet is created.",
+      { project: z.string().describe("The project name, like 'Release 15.1.0' or 'LetsO bugs'. 'none' takes it out of every project.") },
+      async (a) => { const line = await self.onProject(self.currentSessionId, a.project); return { content: [{ type: "text", text: line }] }; }),
     tool("start_session", "Start another Stillroom session. Use when she asks to spin up, start, open or kick off a new session (in this folder or another) for a piece of work. One session is one ticket, so lead the prompt with the ticket key when there is one.",
       { cwd: z.string().describe("Absolute folder for the new session, like /Users/lauren.abele/code/docs. Use this session's folder when she does not say."), prompt: z.string().describe("The first message for the new session: the ticket key, then what to do, with any context it needs since it starts fresh") },
       async (a) => { const line = await self.onSpawn(self.currentSessionId, a.cwd, a.prompt); return { content: [{ type: "text", text: line }] }; }) ] }); }
@@ -128,7 +136,7 @@ export class SessionManager {
       options: {
         cwd: opts.cwd, resume: opts.resume, permissionMode: opts.mode ?? "bypassPermissions", abortController: abort, includePartialMessages: false, env: sessionEnv(),
         systemPrompt: { type: "preset", preset: "claude_code", append: STYLE, snapshot: false },
-        mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait", "mcp__stillroom__start_session"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
+        mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait", "mcp__stillroom__start_session", "mcp__stillroom__rename_session", "mcp__stillroom__set_project"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
         canUseTool: (toolName, input, o) => this.ask(m, toolName, input, o),
       },
     });

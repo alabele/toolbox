@@ -352,6 +352,12 @@ function runPrLoop(key: string) {
   reviewing.set(key, proc); prs.markReviewing(key, true);
   proc.exited.then(() => { reviewing.delete(key); prs.markReviewing(key, false); }); return true;
 }
+mgr.onProject = async (sid, name) => { const want = String(name || "").trim(); if (!want || sid.startsWith("pending-")) return "Could not set the project yet.";
+  if (/^(none|no project|unassigned)$/i.test(want)) { projects.assign(`s:${sid}`, null); return "Taken out of every project."; }
+  const all = projects.list().projects; let p = all.find(x => x.name.toLowerCase() === want.toLowerCase()) || all.find(x => x.name.toLowerCase().includes(want.toLowerCase()) || want.toLowerCase().includes(x.name.toLowerCase()));
+  const made = !p; if (!p) p = projects.upsert({ name: want, prio: 2 });
+  const m = mgr.get(sid); const key = (m?.meta.userTitle || m?.meta.title || "").match(/\b(VDC|D|STORY|PROJ|OPS|DOCS)-\d{1,6}\b/i)?.[0]?.toUpperCase();
+  projects.assign(`s:${sid}`, p.id, key); return `${made ? `Made the project "${p.name}" and put` : "Put"} this session in "${p.name}".`; };
 mgr.onSpawn = async (from, cwd, prompt) => { const dir = String(cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(dir).isDirectory(); } catch {} if (!ok) return `Could not start: the folder ${dir} does not exist.`; const id = mgr.start({ cwd: dir, prompt: `${prompt}\n\n(Started from session ${from}.)` }); return `Started a new Stillroom session in ${dir}. It shows in her sidebar when it first replies. Do not wait for it.`; };
 mgr.onWait = async (sid, text, link, until) => { const w = await waits.add(text, link, sid, until); return `On the Waiting list: "${w.text}"${w.kind === "ticket" ? ` (comes back when ${w.ticket} ${w.until ? `is ${w.until}` : "moves"})` : w.kind === "pr" ? " (comes back when it merges)" : " (she marks it when it comes back)"}.`; };
 prs.onGone = (pr, how, by) => { waits.prGone(pr.key, how === "merged" ? `merged${by ? ` by ${by}` : ""}` : "closed"); if (how !== "merged") return; ledger.add({ id: `pr:${pr.key}`, sessionId: pr.sessionId || pr.key, cwd: "", title: pr.tickets[0] ? `${pr.tickets[0]}: ${pr.title}` : pr.title, text: `Done.\n- ${pr.short} merged${by ? ` by ${by}` : ""}.` }); };
