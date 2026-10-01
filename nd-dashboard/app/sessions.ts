@@ -85,6 +85,8 @@ export class SessionManager {
   onWait: (sessionId: string, text: string, link?: string, until?: string) => Promise<string> = async () => "Not wired.";
   /** Set by the server: a session asked to be put in a project (by name; the server matches or makes it). */
   onProject: (sessionId: string, project: string) => Promise<string> = async () => "Not wired.";
+  /** Set by the server: a session marked a ship-checklist step. */
+  onShipStep: (sessionId: string, item: string, state: "done" | "skip" | "open", why?: string) => Promise<string> = async () => "Not wired.";
   /** Set by the server: a session asked for another session. Returns one line to show her. */
   onSpawn: (fromSessionId: string, cwd: string, prompt: string) => Promise<string> = async () => "Not wired.";
   private stillroomTools() { const self = this; return createSdkMcpServer({ name: "stillroom", version: "1.0.0", tools: [
@@ -97,6 +99,9 @@ export class SessionManager {
     tool("set_project", "Put this Stillroom session in one of her projects. Use when she says which project this belongs to, or asks to move it. Name the project as she calls it; a project that does not exist yet is created.",
       { project: z.string().describe("The project name, like 'Release 15.1.0' or 'LetsO bugs'. 'none' takes it out of every project.") },
       async (a) => { const line = await self.onProject(self.currentSessionId, a.project); return { content: [{ type: "text", text: line }] }; }),
+    tool("ship_step", "Mark a step on the ship checklist of this session's pull request: done, or skip with a reason when it does not apply (like 'autofix does not apply: no dump, not a bug'). Use when you finish a listed step or decide it is not needed.",
+      { item: z.string().describe("The step, as written on the checklist, or close to it"), state: z.enum(["done", "skip", "open"]).describe("done, skip (does not apply), or open (undo)"), why: z.string().optional().describe("For skip: one short line saying why") },
+      async (a) => { const line = await self.onShipStep(self.currentSessionId, a.item, a.state, a.why); return { content: [{ type: "text", text: line }] }; }),
     tool("start_session", "Start another Stillroom session. Use when she asks to spin up, start, open or kick off a new session (in this folder or another) for a piece of work. One session is one ticket, so lead the prompt with the ticket key when there is one.",
       { cwd: z.string().describe("Absolute folder for the new session, like /Users/lauren.abele/code/docs. Use this session's folder when she does not say."), prompt: z.string().describe("The first message for the new session: the ticket key, then what to do, with any context it needs since it starts fresh") },
       async (a) => { const line = await self.onSpawn(self.currentSessionId, a.cwd, a.prompt); return { content: [{ type: "text", text: line }] }; }) ] }); }
@@ -141,7 +146,7 @@ export class SessionManager {
       options: {
         cwd: opts.cwd, resume: opts.resume, permissionMode: opts.mode ?? "bypassPermissions", abortController: abort, includePartialMessages: false, env: sessionEnv(),
         systemPrompt: { type: "preset", preset: "claude_code", append: STYLE, snapshot: false },
-        mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait", "mcp__stillroom__start_session", "mcp__stillroom__rename_session", "mcp__stillroom__set_project"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
+        mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait", "mcp__stillroom__start_session", "mcp__stillroom__rename_session", "mcp__stillroom__set_project", "mcp__stillroom__ship_step"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
         canUseTool: (toolName, input, o) => this.ask(m, toolName, input, o),
       },
     });

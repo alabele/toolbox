@@ -32,3 +32,16 @@ async function oneByOne(keys: string[], a: string): Promise<{ tickets: Ticket[] 
   return { tickets: out };
 }
 const toTicket = (i: any): Ticket => ({ key: i.key, status: i.fields?.status?.name || "", summary: i.fields?.summary || "", assignee: i.fields?.assignee?.displayName, at: Date.now(), url: `${SITE}/browse/${i.key}` });
+
+/** Moves a ticket to a status by name. Returns "ok", "already", or an error line. */
+export async function transitionTicket(key: string, status: string): Promise<string> {
+  const a = auth(); if (!a) return "Jira not connected.";
+  try {
+    const cur = await fetch(`${SITE}/rest/api/3/issue/${key}?fields=status`, { headers: { authorization: a, accept: "application/json" } }); if (!cur.ok) return `Jira said ${cur.status} for ${key}.`;
+    const now = (await cur.json()).fields?.status?.name || ""; if (now.toLowerCase() === status.toLowerCase()) return "already";
+    const r = await fetch(`${SITE}/rest/api/3/issue/${key}/transitions`, { headers: { authorization: a, accept: "application/json" } }); if (!r.ok) return `Jira said ${r.status} listing transitions.`;
+    const t = ((await r.json()).transitions || []).find((x: any) => String(x.to?.name || x.name).toLowerCase() === status.toLowerCase()); if (!t) return `No move from ${now} to ${status} for ${key}.`;
+    const p = await fetch(`${SITE}/rest/api/3/issue/${key}/transitions`, { method: "POST", headers: { authorization: a, "content-type": "application/json" }, body: JSON.stringify({ transition: { id: t.id } }) });
+    return p.ok ? "ok" : `Jira said ${p.status} moving ${key}.`;
+  } catch (e: any) { return `Jira unreachable: ${e?.message ?? e}`; }
+}

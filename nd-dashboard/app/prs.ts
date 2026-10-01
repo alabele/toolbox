@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { fetchTickets, jiraReady, QA_STATUSES, type Ticket } from "./jira";
+import { fetchTickets, jiraReady, QA_STATUSES, transitionTicket, type Ticket } from "./jira";
 
 const FILE = process.env.ND_PRS ?? join(homedir(), ".config", "stillroom", "prs.json");
 const REPOS_FILE = join(homedir(), ".config", "stillroom", "repos.json");
@@ -24,7 +24,8 @@ export interface Pr {
   tickets: string[]; sessionId?: string; sessionTitle?: string;
   slack?: { channel: string; askedAt: number; permalink?: string; nudgedAt?: number; note?: string };
   requested?: string[]; // reviewers GitHub is waiting on
-  done?: Record<string, boolean>; checklist?: { item: string; done: boolean; auto: boolean }[]; // the repo's ship checklist, with what the app can tick itself
+  done?: Record<string, boolean>; skip?: Record<string, string>; checklist?: { item: string; done: boolean; auto: boolean; skip?: string; action?: "review" | "ask" | "send"; instruction?: string }[];
+  ticketMoves?: { step: string; to: string; at: number; result: string }[]; // what the app did to the ticket as the PR moved // the repo's ship checklist, with what the app can tick itself
   prio?: 1 | 2 | 3; // hers; missing means the project's, else Med
   step?: { n: number; of: number; name: string }; // where it is on the road to merge: Draft, Claude review, Review, QA, Merge
   alert?: string; seen?: string[]; // a new human review on a watched PR brings it back once ("Ilya approved"); Keep waiting clears it
@@ -38,7 +39,7 @@ const JIRA_MS = 15 * 60_000;
 export class Prs {
   private s: Store = { prs: {}, searchedAt: 0 };
   private busy = false; private timer: any;
-  repos: Record<string, { channel?: string; reviewers?: string[]; approvers?: string[]; qa?: boolean; checklist?: string[] }> = {}; // per repo: the Slack channel, who to ask, who counts as the approval, whether QA signs off after
+  repos: Record<string, { channel?: string; reviewers?: string[]; approvers?: string[]; qa?: boolean; checklist?: string[]; ticketSteps?: Record<string, string> }> = {}; // ticketSteps: step name -> Jira status to move the ticket to when the PR reaches it // per repo: the Slack channel, who to ask, who counts as the approval, whether QA signs off after
   onGone: (pr: Pr, how: "merged" | "closed", by?: string) => void = () => {};
   transcript: ((pr: Pr) => string) | null = null; // set by the server: text of the session that made the PR // set by the server: a PR that left the list
   constructor(private onChange: () => void, private link: (pr: Pr) => { sessionId: string; title: string } | null) {
@@ -50,7 +51,11 @@ export class Prs {
   list(): Pr[] { return Object.values(this.s.prs).sort((a, b) => (b.needsYou ? 1 : 0) - (a.needsYou ? 1 : 0) || a.updatedAt - b.updatedAt); }
   get(key: string) { return this.s.prs[key]; }
   setChannel(repo: string, channel: string) { this.setRepo(repo, { channel }); }
-  setCheck(key: string, item: string, on: boolean) { const p = this.s.prs[key]; if (!p) return false; p.done = { ...(p.done || {}), [item]: on }; this.save(); this.onChange(); return true; }
+  setCheck(key: string, item: string, on: boolean) { const p = this.s.prs[key]; if (!p) return false; p.done = { ...(p.done || {}), [item]: on }; if (p.skip) delete p.skip[item]; this.derive(p); this.save(); this.onChange(); return true; }
+  /** A step that does not apply to this PR, with why. Empty why clears it. */
+  setSkip(key: string, item: string, why: string) { const p = this.s.prs[key]; if (!p) return false; p.skip = { ...(p.skip || {}) }; if (why) p.skip[item] = why; else delete p.skip[item]; this.derive(p); this.save(); this.onChange(); return true; }
+  /** The PR a session is on, by its id. */
+  forSession(sid: string) { return Object.values(this.s.prs).find(p => p.sessionId === sid); }
   setRepo(repo: string, cfg: Partial<{ channel: string; reviewers: string[]; approvers: string[]; qa: boolean; checklist: string[] }>) { this.repos[repo] = { ...(this.repos[repo] || {}), ...cfg }; try { mkdirSync(dirname(REPOS_FILE), { recursive: true }); writeFileSync(REPOS_FILE, JSON.stringify(this.repos, null, 1)); } catch {} for (const p of Object.values(this.s.prs)) if (p.repo === repo) this.derive(p); this.save(); this.onChange(); }
   /** A repo is set up when it has a channel and reviewers to ask. */
   configured(repo: string) { const r = this.repos[repo]; return !!(r?.channel && r?.reviewers?.length); }
@@ -154,13 +159,22 @@ export class Prs {
     let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : human.length ? 5 : asked ? 4 : 3; if (st === "approved-qa") n = names.indexOf("QA") + 1; if (st === "ready") n = of;
     p.step = { n, of, name: names[n - 1] };
     // the repo's checklist; items the app can see for itself are ticked for her
-    // what the app knows wins unless she set the box herself; the session's transcript counts as evidence too
+    // the checklist: "item | instruction" lines; the app ticks what it can see, the session can mark a step as not applying, her ticks win
     const seen = (this.transcript ? this.transcript(p) : "").toLowerCase();
-    p.checklist = (rule.checklist || []).map(item => { const t = item.toLowerCase(); let auto: boolean | null = null;
-      if (/pr-loop|claude review|claude-pr/.test(t)) auto = !!p.claudeVerdict; else if (/reviewer|ask.*review|request.*review|slack/.test(t)) auto = !!(p.slack?.askedAt || p.requested?.length); else if (/\bqa\b/.test(t) && rule.qa && !/step|add|writ/.test(t)) auto = st === "approved-qa" || st === "ready"; else if (/draft/.test(t)) auto = !p.isDraft;
-      if (auto !== true && seen) { const words = t.replace(/[^a-z0-9 -]/g, " ").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w)); const hits = words.filter(w => seen.includes(w) || seen.includes(w.replace(/-/g, ""))).length; if (words.length && hits / words.length >= 0.6) auto = true; }
-      const hers = p.done && Object.prototype.hasOwnProperty.call(p.done, item) ? p.done[item] : undefined;
-      return { item, done: hers !== undefined ? hers : !!auto, auto: auto !== null && hers === undefined }; });
+    p.checklist = (rule.checklist || []).map(raw => { const [itemRaw, instr] = raw.split("|").map(s => s.trim()); const item = itemRaw; const t = item.toLowerCase(); let auto: boolean | null = null; let action: any = instr ? "send" : undefined;
+      const wantsGh = /github/.test(t), wantsSlack = /slack/.test(t);
+      if (/pr-loop|claude review|claude-pr/.test(t)) { auto = !!p.claudeVerdict; action = "review"; }
+      else if (/reviewer|ask.*review|request.*review|slack/.test(t)) { auto = (wantsGh || !wantsSlack ? !!p.requested?.length : true) && (wantsSlack || !wantsGh ? !!p.slack?.askedAt : true) && !!(p.requested?.length || p.slack?.askedAt); action = "ask"; }
+      else if (/\bqa\b/.test(t) && rule.qa && !/step|add|writ/.test(t)) auto = st === "approved-qa" || st === "ready";
+      else if (/draft/.test(t)) auto = !p.isDraft;
+      else if (seen) { const words = t.replace(/[^a-z0-9 -]/g, " ").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w)); const hits = words.filter(w => seen.includes(w) || seen.includes(w.replace(/-/g, ""))).length; if (words.length && hits / words.length >= 0.6) auto = true; }
+      const hers = p.done && Object.prototype.hasOwnProperty.call(p.done, item) ? p.done[item] : undefined; const skip = p.skip?.[item];
+      return { item, done: hers !== undefined ? hers : !!auto, auto: auto !== null && hers === undefined, skip, action, instruction: instr }; });
+    // the ticket follows the PR: when the step reaches one she mapped, the ticket moves
+    const steps = rule.ticketSteps || (rule.qa ? { "Review asked": "Code Review", "QA": "Ready for QA" } : {}); const want = steps[p.step.name];
+    if (want && p.ticket && !["Done", "Closed"].includes(p.ticket.status) && p.ticket.status.toLowerCase() !== want.toLowerCase() && !(p.ticketMoves || []).some(m => m.step === p.step.name && m.to === want && Date.now() - m.at < 6 * 3600e3)) {
+      const key = p.ticket.key, stepName = p.step.name; p.ticketMoves = [...(p.ticketMoves || []), { step: stepName, to: want, at: Date.now(), result: "moving" }];
+      transitionTicket(key, want).then(r => { const mv = (p.ticketMoves || []).find(m => m.step === stepName && m.to === want); if (mv) mv.result = r === "ok" ? "moved" : r; if (r === "ok" && p.ticket) p.ticket.status = want; this.save(); this.onChange(); }); }
     p.state = st; p.reason = p.alert ? `${p.alert}. ${why}` : why; p.needsYou = (NEEDS_YOU.includes(st) || !!p.alert) && !p.shelved && !p.sessionId;
     if (p.sessionId && NEEDS_YOU.includes(st)) p.reason += " A session is on it.";
   }
