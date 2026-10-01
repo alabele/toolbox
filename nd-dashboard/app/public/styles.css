@@ -984,3 +984,5 @@ main{padding-bottom:60px}
 .pause-waits .ic{width:12px;height:12px}
 .paused-line{font-size:13px;color:var(--text-secondary);border:1px solid var(--line-quiet);border-radius:var(--r);padding:8px 12px;margin:0 0 10px}
 .proj-item.paused .proj-kind{color:var(--text-tertiary)}
+.room-prs{margin:0 0 4px}
+.room-prs .pr-row{padding:5px 0}
