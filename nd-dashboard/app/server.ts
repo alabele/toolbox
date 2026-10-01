@@ -138,7 +138,8 @@ function recompute() {
       resume: `cd ${JSON.stringify(s.cwd)} && claude --resume ${s.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
   }
   for (const mm of mgr.list()) {
-    const st: State | null = mm.paused && mm.status !== "working" && mm.status !== "starting" && !mm.pending ? "paused" : mm.status === "waiting" ? (mm.pending?.kind === "question" ? "needs-answer" : "needs-permission") : mm.status === "working" || mm.status === "starting" ? "working" : mm.status === "idle" ? "finished" : mm.status === "failed" ? "failed" : null;
+    const stillRunning = mm.status === "idle" && /^\s*\**Working\b/i.test(mm.lastReply || ""); // the turn ended but Claude says something runs in the background and will come back
+    const st: State | null = stillRunning ? "working" : mm.paused && mm.status !== "working" && mm.status !== "starting" && !mm.pending ? "paused" : mm.status === "waiting" ? (mm.pending?.kind === "question" ? "needs-answer" : "needs-permission") : mm.status === "working" || mm.status === "starting" ? "working" : mm.status === "idle" ? "finished" : mm.status === "failed" ? "failed" : null;
     if (!st) continue;
     const i = next.findIndex(v => v.sessionId === mm.sessionId); if (i >= 0) next.splice(i, 1);
     const { repo, sub } = identity(mm.cwd);
