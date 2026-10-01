@@ -16,3 +16,4 @@ One file per decision that changed a commitment: a mode, a state, a name, a pale
 | 010 | 2026-09-29 | Projects | Her own buckets with a priority and an on/off switch. Sessions, PRs and waits sort in by ticket key or matching words, or by hand. Off projects leave the sidebar and Rounds. |
 | 012 | 2026-09-30 | Work from a project | Rows open in place with the reply box, a Next here line, New session inside the plate, quiet lines for WIP and for what needs her elsewhere. |
 | 013 | 2026-09-30 | Rooms | Rounds merged into Projects. The sidebar is the project list by priority; each room holds its own accordion, in flight, waiting, and New session; a good-place plate points to the next room. |
+| 014 | 2026-10-01 | The PR row in three groups | Mark and title, then VDC-2318 #2259, then one word: the step, or what needs her. Steps renamed so none sounds like Jira. Gold once, rust on failing checks only. |

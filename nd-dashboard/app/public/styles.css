@@ -991,3 +991,19 @@ main{padding-bottom:60px}
 .side-prs{margin:10px 0 0;padding:6px 10px;border:0;background:transparent;color:var(--text-tertiary);font-family:var(--caps);font-size:12px;letter-spacing:.16em;text-transform:uppercase;display:inline-flex;gap:6px;align-items:center;text-decoration:none}
 .side-prs:hover,.side-prs[aria-current="true"]{color:var(--text-primary)}
 .side-prs span{font-family:var(--sans);letter-spacing:0;text-transform:none;font-size:11px;color:var(--text-primary);margin-left:4px}
+
+/* ===== session 014: the PR row in three groups ===== */
+.pr-row{grid-template-columns:18px minmax(0,1fr) auto minmax(120px,auto) 16px 22px;column-gap:12px}
+.pr-row .pr-title{font-size:14px}
+.pr-row .pr-mark{color:var(--text-tertiary)}
+.pr-row.st-ready .pr-mark,.pr-row.st-claude-approved .pr-mark,.pr-row.st-changes .pr-mark,.pr-row.st-checks-failing .pr-mark,.pr-row.st-conflict .pr-mark,.pr-row.st-claude-reviewing .pr-mark,.pr-row.st-checks-running .pr-mark,.pr-row.st-approved-qa .pr-mark{color:var(--text-tertiary)}
+.pr-name{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);white-space:nowrap;text-align:right}
+.pr-slot{font-family:var(--caps);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary);white-space:nowrap;text-align:right;overflow:hidden;text-overflow:ellipsis}
+.pr-slot.needs{color:var(--text-primary)}
+.pr-slot.needs.first{color:var(--action-primary)}
+.pr-slot.fail{color:var(--st-failed)}
+.pr-eye{display:inline-flex;color:var(--text-tertiary);width:16px;justify-content:center}
+.pr-eye .ic{width:13px;height:13px}
+.pr-row .lg-plus{border-color:transparent;opacity:.6}
+.pr-row:hover .lg-plus,.pr-row.open .lg-plus{border-color:var(--border-medium);opacity:1}
+.pr-row .pr-more{grid-column:2 / -1}

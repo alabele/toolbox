@@ -154,9 +154,9 @@ export class Prs {
     if (p.watched) { const now = reviewMarks(p); const fresh = now.filter(m => !(p.seen || []).includes(m)); if (fresh.length) { p.alert = fresh.map(m => { const [l, s] = m.split(":"); return `${l} ${s === "APPROVED" ? "approved" : "asked for changes"}`; }).join(", "); } }
     // the road to merge, as steps: Draft, Claude review, Review, (QA), Merge
     // Draft, In progress (open, Claude not yet happy), Claude approved (no person yet), Review (a person has), QA (where the repo has it), Merge
-    const names = ["Draft", "In progress", "Claude approved", "Review asked", "Review", ...(rule.qa ? ["QA"] : []), "Merge"]; const of = names.length;
+    const names = ["Draft", "Before review", "Claude approved", "Review asked", "Reviewed", ...(rule.qa ? ["In QA"] : []), "Ready to merge"]; const of = names.length;
     const asked = !!(p.requested?.length || p.slack?.askedAt);
-    let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : human.length ? 5 : asked ? 4 : 3; if (st === "approved-qa") n = names.indexOf("QA") + 1; if (st === "ready") n = of;
+    let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : human.length ? 5 : asked ? 4 : 3; if (st === "approved-qa") n = names.indexOf("In QA") + 1; if (st === "ready") n = of;
     p.step = { n, of, name: names[n - 1] };
     // the repo's checklist; items the app can see for itself are ticked for her
     // the checklist: "item | instruction" lines; the app ticks what it can see, the session can mark a step as not applying, her ticks win
@@ -171,7 +171,7 @@ export class Prs {
       const hers = p.done && Object.prototype.hasOwnProperty.call(p.done, item) ? p.done[item] : undefined; const skip = p.skip?.[item];
       return { item, done: hers !== undefined ? hers : !!auto, auto: auto !== null && hers === undefined, skip, action, instruction: instr }; });
     // the ticket follows the PR: when the step reaches one she mapped, the ticket moves
-    const steps = rule.ticketSteps || (rule.qa ? { "Review asked": "Code Review", "QA": "Ready for QA" } : {}); const want = steps[p.step.name];
+    const steps = rule.ticketSteps || (rule.qa ? { "Review asked": "Code Review", "In QA": "Ready for QA" } : {}); const want = steps[p.step.name] || (p.step.name === "In QA" ? steps["QA"] : p.step.name === "Before review" ? steps["In progress"] : p.step.name === "Reviewed" ? steps["Review"] : p.step.name === "Ready to merge" ? steps["Merge"] : undefined);
     if (want && p.ticket && !["Done", "Closed"].includes(p.ticket.status) && p.ticket.status.toLowerCase() !== want.toLowerCase() && !(p.ticketMoves || []).some(m => m.step === p.step.name && m.to === want && Date.now() - m.at < 6 * 3600e3)) {
       const key = p.ticket.key, stepName = p.step.name; p.ticketMoves = [...(p.ticketMoves || []), { step: stepName, to: want, at: Date.now(), result: "moving" }];
       transitionTicket(key, want).then(r => { const mv = (p.ticketMoves || []).find(m => m.step === stepName && m.to === want); if (mv) mv.result = r === "ok" ? "moved" : r; if (r === "ok" && p.ticket) p.ticket.status = want; this.save(); this.onChange(); }); }
