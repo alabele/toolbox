@@ -10,6 +10,7 @@ const FILE = process.env.ND_PRS ?? join(homedir(), ".config", "stillroom", "prs.
 const REPOS_FILE = join(homedir(), ".config", "stillroom", "repos.json");
 const SEARCH_MS = 5 * 60_000, VIEW_STALE_MS = 2 * 60_000, SHELF_IDLE_DAYS = 21, SHELF_DRAFT_DAYS = 14;
 const TICKET_RE = /\b(STORY|D|VDC|PROJ)-(\d{1,6})\b/gi;
+const STOP = new Set(["with", "the", "and", "for", "from", "that", "this", "into", "onto", "plugin", "added", "written", "run", "ran", "used", "using", "ticket", "steps", "step"]);
 
 export type PrState = "changes" | "checks-failing" | "conflict" | "ready" | "approved-qa" | "claude-approved" | "claude-reviewing" | "checks-running" | "review" | "draft" | "shelf";
 export const PR_WORDS: Record<PrState, string> = { changes: "Changes asked for", "checks-failing": "Checks failing", conflict: "Merge conflict", ready: "Ready to merge", "approved-qa": "Approved, in QA", "claude-approved": "Approved by Claude", "claude-reviewing": "Claude is reviewing", "checks-running": "Checks running", review: "Waiting on review", draft: "Draft", shelf: "Shelved" };
@@ -38,7 +39,8 @@ export class Prs {
   private s: Store = { prs: {}, searchedAt: 0 };
   private busy = false; private timer: any;
   repos: Record<string, { channel?: string; reviewers?: string[]; approvers?: string[]; qa?: boolean; checklist?: string[] }> = {}; // per repo: the Slack channel, who to ask, who counts as the approval, whether QA signs off after
-  onGone: (pr: Pr, how: "merged" | "closed", by?: string) => void = () => {}; // set by the server: a PR that left the list
+  onGone: (pr: Pr, how: "merged" | "closed", by?: string) => void = () => {};
+  transcript: ((pr: Pr) => string) | null = null; // set by the server: text of the session that made the PR // set by the server: a PR that left the list
   constructor(private onChange: () => void, private link: (pr: Pr) => { sessionId: string; title: string } | null) {
     try { this.s = JSON.parse(readFileSync(FILE, "utf8")); } catch {}
     try { this.repos = JSON.parse(readFileSync(REPOS_FILE, "utf8")); } catch {}
@@ -152,9 +154,13 @@ export class Prs {
     let n = p.isDraft ? 1 : p.claudeVerdict !== "approve" ? 2 : human.length ? 5 : asked ? 4 : 3; if (st === "approved-qa") n = names.indexOf("QA") + 1; if (st === "ready") n = of;
     p.step = { n, of, name: names[n - 1] };
     // the repo's checklist; items the app can see for itself are ticked for her
+    // what the app knows wins unless she set the box herself; the session's transcript counts as evidence too
+    const seen = (this.transcript ? this.transcript(p) : "").toLowerCase();
     p.checklist = (rule.checklist || []).map(item => { const t = item.toLowerCase(); let auto: boolean | null = null;
-      if (/pr-loop|claude review|claude-pr/.test(t)) auto = !!p.claudeVerdict; else if (/reviewer|ask.*review|request.*review|slack/.test(t)) auto = !!(p.slack?.askedAt || p.requested?.length); else if (/\bqa\b/.test(t) && rule.qa) auto = st === "approved-qa" || st === "ready"; else if (/draft/.test(t)) auto = !p.isDraft;
-      return { item, done: auto ?? !!p.done?.[item], auto: auto !== null }; });
+      if (/pr-loop|claude review|claude-pr/.test(t)) auto = !!p.claudeVerdict; else if (/reviewer|ask.*review|request.*review|slack/.test(t)) auto = !!(p.slack?.askedAt || p.requested?.length); else if (/\bqa\b/.test(t) && rule.qa && !/step|add|writ/.test(t)) auto = st === "approved-qa" || st === "ready"; else if (/draft/.test(t)) auto = !p.isDraft;
+      if (auto !== true && seen) { const words = t.replace(/[^a-z0-9 -]/g, " ").split(/\s+/).filter(w => w.length > 3 && !STOP.has(w)); const hits = words.filter(w => seen.includes(w) || seen.includes(w.replace(/-/g, ""))).length; if (words.length && hits / words.length >= 0.6) auto = true; }
+      const hers = p.done && Object.prototype.hasOwnProperty.call(p.done, item) ? p.done[item] : undefined;
+      return { item, done: hers !== undefined ? hers : !!auto, auto: auto !== null && hers === undefined }; });
     p.state = st; p.reason = p.alert ? `${p.alert}. ${why}` : why; p.needsYou = (NEEDS_YOU.includes(st) || !!p.alert) && !p.shelved && !p.sessionId;
     if (p.sessionId && NEEDS_YOU.includes(st)) p.reason += " A session is on it.";
   }

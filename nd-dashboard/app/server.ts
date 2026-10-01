@@ -358,6 +358,7 @@ function linkPr(pr: Pr): { sessionId: string; title: string } | null {
 const projects = new Projects(() => broadcast({ type: "projects", payload: projects.list() }));
 const waits = new Waits(() => broadcast({ type: "waits", payload: waits.list() })); setInterval(() => waits.check(), 15 * 60_000); setTimeout(() => waits.check(), 20_000);
 const prs = new Prs(() => broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }), linkPr);
+prs.transcript = (pr) => { const sid = pr.sessionId; if (!sid) return ""; const evs = mgr.events(sid) || []; return evs.map((e: any) => e.kind === "tool" ? `${e.name} ${JSON.stringify(e.input || "").slice(0, 300)}` : String(e.text || "")).join("\n").slice(-60000); };
 const reviewing = new Map<string, any>();
 function runPrLoop(key: string) {
   const pr = prs.get(key); if (!pr || reviewing.has(key)) return false;
