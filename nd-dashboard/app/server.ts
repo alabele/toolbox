@@ -368,8 +368,20 @@ function runPrLoop(key: string) {
 mgr.onAbstract = async (meta, events, children) => {
   const turns = events.filter(e => e.kind === "user" || e.kind === "text").slice(-40).map(e => `${e.kind === "user" ? "She" : "Claude"}: ${String((e as any).text || "").replace(/\s+/g, " ").slice(0, e.kind === "user" ? 300 : 500)}`).join("\n");
   const kids = children.length ? `\nSessions started from this one: ${children.map(c => c.userTitle || c.title).join("; ")}` : "";
-  const out = await ask(`Write a "so far" for this coding session, for someone coming back to it cold. Two to four short sentences, plain words, past tense. Say what started it, what was found or decided, what got done, and what is open now. Name tickets, PRs (repo #number), people and files as they appear. No bullets, no headings, no "the user", no "Claude" as a name (say "we").\n\nSession title: ${meta.userTitle || meta.title}${kids}\n\nTurns, oldest first:\n${turns}`, 60_000);
-  return out.replace(/^["“]+|["”]+$/g, "").slice(0, 900); };
+  const out = await ask(`Sum up this coding session for someone coming back to it cold, as JSON only:
+{"started": "one short line: what kicked this off and who, if anyone",
+ "found": [{"line": "one short fact", "more": "optional detail, one or two sentences"}],
+ "done": [{"line": "one short thing that got done", "more": "optional"}],
+ "open": [{"line": "one short thing still open or blocked", "more": "optional"}],
+ "next": "one short line: the next step, or empty"}
+Rules: at most three items per list, each line under twelve words, plain words, past tense for done and found. Name tickets, PRs as repo #number, people and files as they appear. Say "we", never "the user" or "Claude". Leave "more" out when the line says it all. Leave a list empty rather than pad it.
+
+Session title: ${meta.userTitle || meta.title}${kids}
+
+Turns, oldest first:
+${turns}`, 60_000);
+  const m = out.match(/\{[\s\S]*\}/); if (!m) return ""; try { const j = JSON.parse(m[0]); return JSON.stringify({ started: String(j.started || "").slice(0, 160), found: norm(j.found), done: norm(j.done), open: norm(j.open), next: String(j.next || "").slice(0, 160) }); } catch { return ""; } };
+const norm = (arr: any) => (Array.isArray(arr) ? arr : []).slice(0, 3).map((x: any) => typeof x === "string" ? { line: x.slice(0, 140) } : { line: String(x?.line || "").slice(0, 140), more: x?.more ? String(x.more).slice(0, 400) : undefined }).filter((x: any) => x.line);
 mgr.onProject = async (sid, name) => { const want = String(name || "").trim(); if (!want || sid.startsWith("pending-")) return "Could not set the project yet.";
   if (/^(none|no project|unassigned)$/i.test(want)) { projects.assign(`s:${sid}`, null); return "Taken out of every project."; }
   const all = projects.list().projects; let p = all.find(x => x.name.toLowerCase() === want.toLowerCase()) || all.find(x => x.name.toLowerCase().includes(want.toLowerCase()) || want.toLowerCase().includes(x.name.toLowerCase()));

@@ -946,3 +946,12 @@ main{padding-bottom:60px}
 .repo-setup label.repo-list{align-items:flex-start}
 .repo-setup textarea{flex:1;font:inherit;font-size:13px;letter-spacing:0;text-transform:none;color:var(--text-primary);background:transparent;border:1px solid var(--line-quiet);border-radius:4px;padding:5px 8px}
 .sess-sofar .sofar{margin-top:0}
+.sf-list{list-style:none;padding:0;margin:8px 0 0;display:flex;flex-direction:column;gap:5px}
+.sf{display:flex;gap:9px;align-items:flex-start;font-size:14px;line-height:1.5;color:var(--text-secondary)}
+.sf .ic{width:15px;height:15px;flex:none;margin-top:4px;color:var(--text-tertiary)}
+.sf.done .ic{color:var(--ok)}.sf.open .ic{color:var(--st-working)}.sf.next .ic{color:var(--text-primary)}.sf.found .ic{color:var(--text-secondary)}.sf.start .ic{color:var(--text-tertiary)}
+.sf.next .sf-line{color:var(--text-primary)}
+.sf-line{min-width:0}
+.sf-more{all:unset;cursor:pointer;margin-left:8px;color:var(--text-tertiary);font-size:13px;padding:0 5px;border:1px solid var(--line-quiet);border-radius:4px;line-height:1.2}
+.sf-more:hover{color:var(--text-primary)}
+.sf-detail{display:block;color:var(--text-tertiary);font-size:13px;margin-top:2px}
