@@ -986,3 +986,8 @@ main{padding-bottom:60px}
 .proj-item.paused .proj-kind{color:var(--text-tertiary)}
 .room-prs{margin:0 0 4px}
 .room-prs .pr-row{padding:5px 0}
+.sg-title{display:flex;align-items:center;gap:8px}
+.sg-title .ic{width:14px;height:14px}
+.side-prs{margin:10px 0 0;padding:6px 10px;border:0;background:transparent;color:var(--text-tertiary);font-family:var(--caps);font-size:12px;letter-spacing:.16em;text-transform:uppercase;display:inline-flex;gap:6px;align-items:center;text-decoration:none}
+.side-prs:hover,.side-prs[aria-current="true"]{color:var(--text-primary)}
+.side-prs span{font-family:var(--sans);letter-spacing:0;text-transform:none;font-size:11px;color:var(--text-primary);margin-left:4px}
