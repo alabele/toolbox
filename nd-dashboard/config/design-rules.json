@@ -38,6 +38,7 @@
       "failed",
       "finished",
       "working",
+      "paused",
       "idle"
     ]
   },

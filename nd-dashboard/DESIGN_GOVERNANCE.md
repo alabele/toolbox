@@ -42,7 +42,7 @@ The app pulls on open, on return, and on R. It never polls into view.
 ## States and marks (M1 to M4)
 
 ### M1 — Six states, fixed vocabulary **[CI]**
-`needs-permission`, `needs-answer`, `failed`, `finished` (shown as "Your turn"), `working`, `idle` (shown as "Resting"). Adding one is a design session.
+`needs-permission`, `needs-answer`, `failed`, `finished` (shown as "Your turn"), `working`, `paused` (waiting on something outside, with a note; never needs her), `idle` (shown as "Resting"). Adding one is a design session.
 
 ### M2 — Mark plus word, never color alone **[CI]**
 Every state carries an icon and a word. Color reinforces; it never distinguishes on its own. Repo identity is a shape, not a hue.
