@@ -108,6 +108,7 @@
       <a class="btn tiny" id="sess-back" href="#" hidden><i data-lucide="arrow-left" class="ic ic-sm"></i><span>Back</span></a>
       <span class="grow"></span>
       <span id="sess-wt" class="sess-wt" hidden></span>
+      <button class="btn tiny" id="sess-pause" title="Pause while this waits on something outside. It leaves Needs you until something comes back"><i data-lucide="pause" class="ic ic-sm"></i><span>Pause</span></button>
       <button class="btn tiny" id="sess-stop" title="Interrupt what Claude is doing right now. The session stays open"><i data-lucide="square" class="ic ic-sm"></i>Stop this turn</button>
       <button class="btn tiny" id="sess-end" title="Close this session and stop its process. The conversation stays on disk and can be reopened"><i data-lucide="x" class="ic ic-sm"></i>Close session</button>
       <button class="rc-more" id="sess-more" type="button">More</button>
@@ -130,6 +131,7 @@
       <div class="park-row"><input id="park-note" placeholder="e.g. waiting on a review; pick up the test file next"><button class="btn primary" id="park-save">Save</button><button class="btn ghost" id="park-clear">Clear</button></div>
     </div>
     <svg class="vine" height="12" aria-hidden="true"><use href="#vine"/></svg>
+    <p class="paused-line" id="sess-paused" hidden></p>
     <div id="sess-sofar" class="sess-sofar"></div>
     <ol class="transcript" id="transcript"></ol>
     <p class="status" id="status" hidden></p>

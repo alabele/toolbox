@@ -54,7 +54,7 @@ export interface Pending {
   suggestions?: PermissionUpdate[]; blockedPath?: string; decisionReason?: string;
 }
 export type MStatus = "starting" | "working" | "waiting" | "idle" | "failed" | "ended";
-export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string }; parent?: string; abstract?: string; abstractN?: number }
+export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string }; parent?: string; abstract?: string; abstractN?: number; paused?: { note: string; at: number } }
 
 class Inbox implements AsyncIterable<SDKUserMessage> {
   private q: SDKUserMessage[] = []; private waiters: ((v: IteratorResult<SDKUserMessage>) => void)[] = []; private closed = false;
@@ -102,6 +102,9 @@ export class SessionManager {
     tool("ship_step", "Mark a step on the ship checklist of this session's pull request: done, or skip with a reason when it does not apply (like 'autofix does not apply: no dump, not a bug'). Use when you finish a listed step or decide it is not needed.",
       { item: z.string().describe("The step, as written on the checklist, or close to it"), state: z.enum(["done", "skip", "open"]).describe("done, skip (does not apply), or open (undo)"), why: z.string().optional().describe("For skip: one short line saying why") },
       async (a) => { const line = await self.onShipStep(self.currentSessionId, a.item, a.state, a.why); return { content: [{ type: "text", text: line }] }; }),
+    tool("pause_session", "Pause this Stillroom session while it waits on something outside: a reply, a review, a ticket moving. It leaves her Needs you list until something comes back or she resumes it. Use when she asks to pause, park, or set this aside, or when the work cannot continue without someone else. Add the waits with add_wait first.",
+      { note: z.string().describe("One plain line saying what this is waiting on, like 'Ilya to reply on namespace and retention; DLX review of letso #1762'") },
+      async (a) => { const sid = self.currentSessionId; self.setPaused(sid, a.note); return { content: [{ type: "text", text: `Paused: ${a.note.trim()}. It comes back when a linked wait returns, or when she writes here.` }] }; }),
     tool("start_session", "Start another Stillroom session. Use when she asks to spin up, start, open or kick off a new session (in this folder or another) for a piece of work. One session is one ticket, so lead the prompt with the ticket key when there is one.",
       { cwd: z.string().describe("Absolute folder for the new session, like /Users/lauren.abele/code/docs. Use this session's folder when she does not say."), prompt: z.string().describe("The first message for the new session: the ticket key, then what to do, with any context it needs since it starts fresh") },
       async (a) => { const line = await self.onSpawn(self.currentSessionId, a.cwd, a.prompt); return { content: [{ type: "text", text: line }] }; }) ] }); }
@@ -118,26 +121,26 @@ export class SessionManager {
 
   private persist() {
     if (this.shuttingDown && this.persistedOnShutdown) return; this.persistedOnShutdown = this.shuttingDown;
-    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree, parent: m.parent, abstract: m.abstract, abstractN: m.abstractN }));
+    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree, parent: m.parent, abstract: m.abstract, abstractN: m.abstractN, paused: m.paused }));
     try { mkdirSync(dirname(STATE_FILE), { recursive: true }); writeFileSync(STATE_FILE + ".tmp", JSON.stringify(rows, null, 2)); renameSync(STATE_FILE + ".tmp", STATE_FILE); } catch {}
   }
   /** Reopen every session this server owned before it last stopped. Each waits for input; no turn is started. */
   restore(): number {
     let rows: any[] = []; try { rows = JSON.parse(readFileSync(STATE_FILE, "utf8")); } catch { return 0; }
-    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree, parent: r.parent, abstract: r.abstract, abstractN: r.abstractN }); } catch {} }
+    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree, parent: r.parent, abstract: r.abstract, abstractN: r.abstractN, paused: r.paused }); } catch {} }
     return rows.length;
   }
   get(id: string) { return this.byId.get(id); }
   events(id: string) { return this.byId.get(id)?.events ?? []; }
 
-  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"]; parent?: string; abstract?: string; abstractN?: number }): string {
+  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"]; parent?: string; abstract?: string; abstractN?: number; paused?: Meta["paused"] }): string {
     const tempId = opts.resume ?? `pending-${randomUUID()}`;
     const inbox = new Inbox(); const abort = new AbortController();
     const prior = opts.resume ? eventsFromDisk(opts.cwd, opts.resume) : [];
     const firstUser = prior.find(e => e.kind === "user") as Extract<Ev, { kind: "user" }> | undefined;
     const lastUser = [...prior].reverse().find(e => e.kind === "user") as Extract<Ev, { kind: "user" }> | undefined;
     const lastText = [...prior].reverse().find(e => e.kind === "text") as Extract<Ev, { kind: "text" }> | undefined;
-    const meta: Meta = { sessionId: tempId, cwd: opts.cwd, title: opts.title ?? opts.prompt?.slice(0, 80) ?? firstUser?.text.slice(0, 80) ?? "(resumed)", startedAt: opts.startedAt ?? Date.now(), status: "starting", stateSince: Date.now(), pending: null, lastText: lastText?.text.replace(/\s+/g, " ").slice(0, 160) ?? "", mode: opts.mode ?? "bypassPermissions", cost: 0, note: opts.note, userTitle: opts.userTitle, lastReply: lastText?.text.slice(0, 6000), prompt: opts.prompt ?? lastUser?.text ?? firstUser?.text, first: opts.prompt ?? firstUser?.text, worktree: opts.worktree, parent: opts.parent, abstract: opts.abstract, abstractN: opts.abstractN };
+    const meta: Meta = { sessionId: tempId, cwd: opts.cwd, title: opts.title ?? opts.prompt?.slice(0, 80) ?? firstUser?.text.slice(0, 80) ?? "(resumed)", startedAt: opts.startedAt ?? Date.now(), status: "starting", stateSince: Date.now(), pending: null, lastText: lastText?.text.replace(/\s+/g, " ").slice(0, 160) ?? "", mode: opts.mode ?? "bypassPermissions", cost: 0, note: opts.note, userTitle: opts.userTitle, lastReply: lastText?.text.slice(0, 6000), prompt: opts.prompt ?? lastUser?.text ?? firstUser?.text, first: opts.prompt ?? firstUser?.text, worktree: opts.worktree, parent: opts.parent, abstract: opts.abstract, abstractN: opts.abstractN, paused: opts.paused };
     const m: Managed = { meta, events: prior, inbox, resolvers: new Map(), abort, q: null as any };
     m.resumedWithoutPrompt = !!opts.resume && !opts.prompt;
     if (m.resumedWithoutPrompt) { meta.status = "idle"; } // the CLI reports nothing until it gets a message; it is ready and waiting
@@ -146,7 +149,7 @@ export class SessionManager {
       options: {
         cwd: opts.cwd, resume: opts.resume, permissionMode: opts.mode ?? "bypassPermissions", abortController: abort, includePartialMessages: false, env: sessionEnv(),
         systemPrompt: { type: "preset", preset: "claude_code", append: STYLE, snapshot: false },
-        mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait", "mcp__stillroom__start_session", "mcp__stillroom__rename_session", "mcp__stillroom__set_project", "mcp__stillroom__ship_step"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
+        mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait", "mcp__stillroom__start_session", "mcp__stillroom__rename_session", "mcp__stillroom__set_project", "mcp__stillroom__ship_step", "mcp__stillroom__pause_session"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
         canUseTool: (toolName, input, o) => this.ask(m, toolName, input, o),
       },
     });
@@ -161,7 +164,7 @@ export class SessionManager {
     const m = this.byId.get(id); if (!m) throw new Error("unknown session");
     if (m.meta.pending?.kind === "question") { this.answer(id, m.meta.pending.id, { freeText: text }); return; }
     m.events.push({ kind: "user", text, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1));
-    m.meta.prompt = text; // the reply is always read against what you last asked
+    m.meta.prompt = text; if (m.meta.paused) m.meta.paused = undefined; // the reply is always read against what you last asked; a message resumes a paused session
     m.inbox.push({ type: "user", parent_tool_use_id: null, message: { role: "user", content: text } });
     this.setStatus(m, "working");
   }
@@ -190,6 +193,8 @@ export class SessionManager {
   /** Rename: the user's own title wins over Claude's. Empty restores Claude's. */
   setTitle(id: string, title: string) { const m = this.byId.get(id); if (!m) return; m.meta.userTitle = title.trim() || undefined; this.emit("meta", m.meta.sessionId, m.meta); this.persist(); }
   /** Park: a note to self that shows on the outside, so the session can be put down safely. Empty clears it. */
+  /** Paused: waiting on something outside. It leaves Needs you and Working until something comes back or she resumes it. */
+  setPaused(id: string, note: string | null) { const m = this.byId.get(id); if (!m) return; m.meta.paused = note === null ? undefined : { note: note.trim() || "Waiting on something", at: Date.now() }; if (note === null) m.meta.stateSince = Date.now(); this.emit("meta", m.meta.sessionId, m.meta); this.persist(); }
   setNote(id: string, note: string) { const m = this.byId.get(id); if (!m) return; m.meta.note = note.trim() || undefined; this.emit("meta", m.meta.sessionId, m.meta); this.persist(); }
   async interrupt(id: string) { const m = this.byId.get(id); if (m) { await m.q.interrupt(); } }
   async setMode(id: string, mode: PermissionMode) { const m = this.byId.get(id); if (m) { await m.q.setPermissionMode(mode); m.meta.mode = mode; this.emit("meta", m.meta.sessionId, m.meta); } }

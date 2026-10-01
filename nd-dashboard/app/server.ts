@@ -21,7 +21,7 @@ const PUBLIC = join(import.meta.dir, "public");
 const PROJECTS = join(homedir(), ".claude", "projects");
 const JOBS = join(homedir(), ".claude", "jobs");
 
-type State = "working" | "needs-permission" | "needs-answer" | "finished" | "failed" | "idle";
+type State = "working" | "needs-permission" | "needs-answer" | "finished" | "failed" | "idle" | "paused";
 const NEEDS_YOU: State[] = ["needs-permission", "needs-answer", "finished", "failed"];
 
 interface HookEvent { name: string; at: number; notificationType?: string; message?: string; lastAssistant?: string; prompt?: string }
@@ -120,7 +120,7 @@ function deriveState(s: Session): State | null {
   return "idle";
 }
 
-interface View { parent?: string; abstract?: string; worktree?: { path: string; branch: string; repo: string }; live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
+interface View { paused?: { note: string; at: number }; parent?: string; abstract?: string; worktree?: { path: string; branch: string; repo: string }; live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
 let view: View[] = [];
 
 const pendingProj = new Map<any, { project: string; key?: string }>(); // sessions started from a project, waiting for their real id
@@ -138,14 +138,14 @@ function recompute() {
       resume: `cd ${JSON.stringify(s.cwd)} && claude --resume ${s.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
   }
   for (const mm of mgr.list()) {
-    const st: State | null = mm.status === "waiting" ? (mm.pending?.kind === "question" ? "needs-answer" : "needs-permission") : mm.status === "working" || mm.status === "starting" ? "working" : mm.status === "idle" ? "finished" : mm.status === "failed" ? "failed" : null;
+    const st: State | null = mm.paused && mm.status !== "working" && mm.status !== "starting" && !mm.pending ? "paused" : mm.status === "waiting" ? (mm.pending?.kind === "question" ? "needs-answer" : "needs-permission") : mm.status === "working" || mm.status === "starting" ? "working" : mm.status === "idle" ? "finished" : mm.status === "failed" ? "failed" : null;
     if (!st) continue;
     const i = next.findIndex(v => v.sessionId === mm.sessionId); if (i >= 0) next.splice(i, 1);
     const { repo, sub } = identity(mm.cwd);
     const ai = mm.sessionId.startsWith("pending-") ? "" : transcriptInfo({ cwd: mm.cwd, sessionId: mm.sessionId } as any).title;
-    next.push({ parent: mm.parent, abstract: mm.abstract, worktree: mm.worktree, note: mm.note, managed: true, pending: mm.pending, lastReply: mm.lastReply, prompt: mm.prompt, sessionId: mm.sessionId, kind: "quiet", cwd: mm.cwd, repo, sub, state: st, stateSince: mm.stateSince, startedAt: mm.startedAt, title: mm.userTitle || titler.get(mm.sessionId, mm.first || mm.prompt || "", mm.lastReply || "", st !== "working", ai || mm.title) || ai || mm.title, last: mm.pending ? (mm.pending.kind === "question" ? "Asked you a question" : `Wants to run ${mm.pending.toolName}`) : mm.lastText, resume: `cd ${JSON.stringify(mm.cwd)} && claude --resume ${mm.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
+    next.push({ paused: mm.paused, parent: mm.parent, abstract: mm.abstract, worktree: mm.worktree, note: mm.note, managed: true, pending: mm.pending, lastReply: mm.lastReply, prompt: mm.prompt, sessionId: mm.sessionId, kind: "quiet", cwd: mm.cwd, repo, sub, state: st, stateSince: mm.stateSince, startedAt: mm.startedAt, title: mm.userTitle || titler.get(mm.sessionId, mm.first || mm.prompt || "", mm.lastReply || "", st !== "working", ai || mm.title) || ai || mm.title, last: mm.pending ? (mm.pending.kind === "question" ? "Asked you a question" : `Wants to run ${mm.pending.toolName}`) : mm.lastText, resume: `cd ${JSON.stringify(mm.cwd)} && claude --resume ${mm.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
   }
-  const order: Record<State, number> = { "needs-permission": 0, "needs-answer": 1, failed: 2, finished: 3, working: 4, idle: 5 };
+  const order: Record<State, number> = { "needs-permission": 0, "needs-answer": 1, failed: 2, finished: 3, working: 4, paused: 5, idle: 6 };
   next.sort((a, b) => order[a.state] - order[b.state] || a.repo.localeCompare(b.repo) || a.startedAt - b.startedAt);
   const sig = JSON.stringify(next.map(v => [v.sessionId, v.state, v.title]));
   if (sig !== JSON.stringify(view.map(v => [v.sessionId, v.state, v.title]))) version++;
@@ -243,6 +243,7 @@ Bun.serve({
           case "mode": await mgr.setMode(msg.sessionId, msg.mode); break;
           case "end": { const pr = prs.bySession(msg.sessionId); if (pr) prs.setWatch(pr.key, true); mgr.end(msg.sessionId); break; } // closing a session hands its PR off: it waits, and comes back
           case "note": mgr.setNote(msg.sessionId, String(msg.note ?? "")); break;
+          case "pause": mgr.setPaused(msg.sessionId, msg.note === null ? null : String(msg.note || "")); break;
           case "title": mgr.setTitle(msg.sessionId, String(msg.title ?? "")); if (String(msg.title ?? "").trim()) ledger.retitle(msg.sessionId, String(msg.title).trim()); break;
         }
       } catch (e: any) { ws.send(JSON.stringify({ type: "error", payload: String(e?.message ?? e) })); }
@@ -365,7 +366,7 @@ function linkPr(pr: Pr): { sessionId: string; title: string } | null {
   return null;
 }
 const projects = new Projects(() => broadcast({ type: "projects", payload: projects.list() }));
-const waits = new Waits(() => broadcast({ type: "waits", payload: waits.list() })); setInterval(() => waits.check(), 15 * 60_000); setTimeout(() => waits.check(), 20_000);
+const waits = new Waits(() => { broadcast({ type: "waits", payload: waits.list() }); for (const w of waits.list()) if (w.back && w.sessionId) { const m = mgr.get(w.sessionId); if (m?.meta.paused) mgr.setPaused(w.sessionId, null); } }); setInterval(() => waits.check(), 15 * 60_000); setTimeout(() => waits.check(), 20_000);
 const prs = new Prs(() => broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }), linkPr);
 prs.transcript = (pr) => { const sid = pr.sessionId; if (!sid) return ""; const evs = mgr.events(sid) || []; return evs.map((e: any) => e.kind === "tool" ? `${e.name} ${JSON.stringify(e.input || "").slice(0, 300)}` : String(e.text || "")).join("\n").slice(-60000); };
 const reviewing = new Map<string, any>();
