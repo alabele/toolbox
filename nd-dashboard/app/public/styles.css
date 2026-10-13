@@ -1007,3 +1007,9 @@ main{padding-bottom:60px}
 .pr-row .lg-plus{border-color:transparent;opacity:.6}
 .pr-row:hover .lg-plus,.pr-row.open .lg-plus{border-color:var(--border-medium);opacity:1}
 .pr-row .pr-more{grid-column:2 / -1}
+/* text inside plates and rows selects and copies; only the grip drags */
+.rc.plate{user-select:text}
+.rc.plate .grip{position:absolute;left:-18px;top:14px;color:var(--text-tertiary);opacity:0;cursor:grab;display:inline-flex}
+.rc.plate:hover .grip{opacity:.6}
+.rc.plate .grip .ic{width:14px;height:14px}
+.proj-kind.grip{cursor:grab}
