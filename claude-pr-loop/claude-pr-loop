@@ -15,15 +15,19 @@ set -euo pipefail
 # than the shell, which keeps interactive Claude Code on the claude.ai login
 # (connectors, plan billing). Set ANTHROPIC_API_KEY yourself to override.
 # ---------------------------------------------------------------------------
+API_KEY_FROM_FILE=false
 if [[ -z "${ANTHROPIC_API_KEY:-}" && -r "${HOME}/.config/claude-pr-loop/api-key" ]]; then
   export ANTHROPIC_API_KEY="$(<"${HOME}/.config/claude-pr-loop/api-key")"
+  API_KEY_FROM_FILE=true
 fi
 
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
-MAX_ITERATIONS=5
-MAX_BUDGET="2.00"
+BUILTIN_MAX_ITERATIONS=5
+BUILTIN_MAX_BUDGET="2.00"
+MAX_ITERATIONS="$BUILTIN_MAX_ITERATIONS"
+MAX_BUDGET="$BUILTIN_MAX_BUDGET"
 # The fix step gets its own, larger cap. It edits code, runs checks, commits,
 # and pushes — inherently more expensive than the read-only review. Keeping it
 # separate means a heavyweight repo's fix pass doesn't force the cheap review
@@ -73,7 +77,12 @@ EXTRA_SKIP_PATTERN=""
 #             checks, then one agent per roster reviewer whose file class
 #             changed. Needs the pack committed in the repo. See
 #             run_review_deliver.
-REVIEWER="builtin"
+# Deliver is the default. With no --reviewer, choose_reviewer picks per repo:
+# deliver when the pack is there and passes its audit, otherwise it asks (or,
+# with no terminal to ask on, falls back to builtin). An explicit --reviewer
+# skips all of that.
+REVIEWER=""
+REVIEWER_EXPLICIT=false
 # The deliver reviewer is a swarm, not a call, so it costs far more per review
 # and there is less point running it five times. It raises its own defaults --
 # but never over an explicit --max-budget-usd / --max-iterations, so these
@@ -82,6 +91,13 @@ MAX_BUDGET_SET=false
 MAX_ITERATIONS_SET=false
 DELIVER_MAX_BUDGET="12.00"
 DELIVER_MAX_ITERATIONS=2
+
+# Deliver robustness audit — per repo, at most once every AUDIT_MAX_AGE_DAYS.
+# Results (pass or fail, with the gaps) are cached here so a failing pack
+# prompts on every run without paying for a new audit each time.
+AUDIT_CACHE="${HOME}/.config/claude-pr-loop/deliver-audit.json"
+AUDIT_MAX_AGE_DAYS=30
+AUDIT_BUDGET="1.50"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -302,12 +318,18 @@ Options:
   --effort LEVEL         low | medium | high | max (default: high)
   --log-dir PATH         Log directory (default: ~/.claude-pr-loop/logs)
   --no-fix               Review-only mode — post review but do not fix
-  --reviewer WHICH       builtin | deliver (default: builtin)
-                         "deliver" runs the repo's own reviewer roster via the
-                         deliver plugin's /deliver:review skill instead of the
-                         single-call review — the repo must carry
-                         .claude/deliver/review.json on the PR's branch. It
-                         raises the defaults to --max-budget-usd 12.00 and
+  --reviewer WHICH       builtin | deliver (default: deliver, with a prompt)
+                         With no --reviewer, the repo's own roster runs via the
+                         deliver plugin's /deliver:review skill when the repo
+                         has .claude/deliver/review.json and the pack passes its
+                         30-day robustness audit. Otherwise you're asked: add
+                         or robustify the pack, bypass to builtin, or quit. No
+                         terminal to ask on means builtin when the pack is
+                         missing, deliver when it's there. Passing --reviewer
+                         skips the audit and the prompt.
+                         "builtin" is one claude -p call over the inlined diff,
+                         checked against the repo's CLAUDE.md / AGENTS.md.
+                         "deliver" raises the defaults to --max-budget-usd 12.00 and
                          --max-iterations 2 (a swarm per iteration is not cheap),
                          runs batch PRs serially rather than in parallel, and
                          ignores --skip-pattern (the reviewers read the worktree,
@@ -334,7 +356,7 @@ parse_args() {
       --effort)          EFFORT="$2"; shift 2 ;;
       --log-dir)         LOG_DIR="$2"; shift 2 ;;
       --no-fix)          NO_FIX=true; shift ;;
-      --reviewer)        REVIEWER="$2"; shift 2 ;;
+      --reviewer)        REVIEWER="$2"; REVIEWER_EXPLICIT=true; shift 2 ;;
       --dry-run)         DRY_RUN=true; shift ;;
       --label)           BATCH_LABEL="$2"; shift 2 ;;
       --repo)            BATCH_REPO="$2"; shift 2 ;;
@@ -353,16 +375,29 @@ parse_args() {
     echo "Error: --label requires --repo" >&2
     exit 1
   fi
-  if [[ "$REVIEWER" != "builtin" && "$REVIEWER" != "deliver" ]]; then
-    echo "Error: --reviewer must be 'builtin' or 'deliver' (got '${REVIEWER}')" >&2
-    exit 1
+  if [[ "$REVIEWER_EXPLICIT" == "true" ]]; then
+    if [[ "$REVIEWER" != "builtin" && "$REVIEWER" != "deliver" ]]; then
+      echo "Error: --reviewer must be 'builtin' or 'deliver' (got '${REVIEWER}')" >&2
+      exit 1
+    fi
+    set_reviewer "$REVIEWER"
   fi
+}
+
+# Set REVIEWER and the budget/iteration defaults that go with it. Never
+# overrides an explicit --max-budget-usd / --max-iterations. Safe to call
+# again: a PR whose branch lacks the pack drops back to builtin mid-batch.
+set_reviewer() {
+  REVIEWER="$1"
   if [[ "$REVIEWER" == "deliver" ]]; then
     [[ "$MAX_BUDGET_SET" == "true" ]] || MAX_BUDGET="$DELIVER_MAX_BUDGET"
     [[ "$MAX_ITERATIONS_SET" == "true" ]] || MAX_ITERATIONS="$DELIVER_MAX_ITERATIONS"
     if [[ -n "$EXTRA_SKIP_PATTERN" ]]; then
       echo "Note: --skip-pattern has no effect with --reviewer deliver — the roster reviewers read the worktree, not an inlined diff." >&2
     fi
+  else
+    [[ "$MAX_BUDGET_SET" == "true" ]] || MAX_BUDGET="$BUILTIN_MAX_BUDGET"
+    [[ "$MAX_ITERATIONS_SET" == "true" ]] || MAX_ITERATIONS="$BUILTIN_MAX_ITERATIONS"
   fi
 }
 
@@ -394,11 +429,12 @@ parse_pr_url() {
 # ---------------------------------------------------------------------------
 # Worktree management
 # ---------------------------------------------------------------------------
-setup_worktree() {
-  local owner_repo="$1" pr_number="$2"
+# Clone (once) and refresh the per-repo bare repo; prints its path. All git
+# output goes to stderr to keep stdout clean for the caller.
+ensure_bare_repo() {
+  local owner_repo="$1"
   local repo_dir="${WORKTREE_BASE}/${owner_repo//\//_}"
   local bare_repo="${repo_dir}/bare.git"
-  local worktree_dir="${repo_dir}/pr-${pr_number}"
 
   mkdir -p "$repo_dir"
 
@@ -415,6 +451,15 @@ setup_worktree() {
   # sibling PR worktree, failing the whole fetch.
   git -C "$bare_repo" config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' >&2 2>&1 || true
   git -C "$bare_repo" fetch origin --prune >&2 2>&1 || true
+
+  echo "$bare_repo"
+}
+
+setup_worktree() {
+  local owner_repo="$1" pr_number="$2"
+  local bare_repo worktree_dir
+  bare_repo=$(ensure_bare_repo "$owner_repo")
+  worktree_dir="$(dirname "$bare_repo")/pr-${pr_number}"
 
   # Fetch the PR head ref
   git -C "$bare_repo" fetch origin "pull/${pr_number}/head:pr-${pr_number}" --force >&2 2>&1
@@ -541,6 +586,14 @@ run_review() {
 
 Analyze the PR diff, description, and any existing review comments carefully.
 This is review iteration ${iteration}. If prior fixes were attempted, focus on remaining issues.
+
+Review against this repository's own rules, not just general good practice. The
+PR branch is checked out in your working directory. Before judging the diff, read
+CLAUDE.md and AGENTS.md at the repo root, plus any CLAUDE.md or AGENTS.md in the
+directories the diff touches, and anything under .claude/rules/ if present. A
+diff that breaks one of those rules is a warning at least. When a finding comes
+from a repo rule, start its message with the file it comes from, e.g.
+\"Per CLAUDE.md: ...\". If none of those files exist, review on general grounds.
 
 PR metadata (JSON):
 ${pr_metadata}
@@ -1084,6 +1137,401 @@ Address ALL findings. Do not skip any."
 }
 
 # ---------------------------------------------------------------------------
+# Reviewer preflight — deliver by default, audited, with a way out
+#
+# With no --reviewer, choose_reviewer runs once per repo before any PR work:
+#   1. Is .claude/deliver/review.json on the default branch? No -> ask:
+#      bypass to builtin, add the pack, or quit.
+#   2. Has the pack been audited in the last AUDIT_MAX_AGE_DAYS? No -> audit.
+#   3. Did the (fresh or cached) audit pass? No -> ask: deliver anyway,
+#      robustify the pack, bypass to builtin, or quit.
+# "Add" and "robustify" open an interactive Claude session in a worktree cut
+# from the default branch, on its own branch, to do the work and open a PR.
+# The PR under review never gets the pack commits. With no terminal to ask on
+# (cron, launchd) nothing prompts: deliver if the pack exists, else builtin.
+# ---------------------------------------------------------------------------
+
+# True when a person can answer a prompt. Checks /dev/tty rather than stdin,
+# so piping the script's output (e.g. through tee) still prompts.
+can_prompt() {
+  { : </dev/tty; } 2>/dev/null
+}
+
+# Ask on the terminal. Prints the chosen key; Enter picks the default.
+# Unknown keys re-ask.
+ask() {
+  local question="$1" keys="$2" default="$3" answer
+  while true; do
+    printf '%s\n> ' "$question" >/dev/tty
+    IFS= read -r answer </dev/tty || answer=""
+    answer="${answer:-$default}"
+    answer="$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')"
+    if [[ ${#answer} -eq 1 && "$keys" == *"$answer"* ]]; then
+      printf '%s' "$answer"
+      return
+    fi
+  done
+}
+
+# Root of the installed deliver plugin (the one with the review templates and
+# scripts), or empty. Skips plugin trash.
+deliver_plugin_root() {
+  local hit
+  hit=$(find "${HOME}/.claude/plugins/synced" "${HOME}/.claude/plugins/marketplaces" \
+          -path '*/.trash/*' -prune -o \
+          -path '*/deliver/templates/review.example.json' -print 2>/dev/null | head -1)
+  [[ -n "$hit" ]] && dirname "$(dirname "$hit")"
+}
+
+audit_cache_get() {
+  local owner_repo="$1"
+  [[ -r "$AUDIT_CACHE" ]] || return 0
+  jq -c --arg r "$owner_repo" '.[$r] // empty' "$AUDIT_CACHE" 2>/dev/null || true
+}
+
+audit_cache_put() {
+  local owner_repo="$1" entry="$2" tmp
+  mkdir -p "$(dirname "$AUDIT_CACHE")"
+  tmp=$(mktemp "${TMPDIR:-/tmp}/claude-pr-loop-audit-cache.XXXXXX")
+  { jq . "$AUDIT_CACHE" 2>/dev/null || echo '{}'; } \
+    | jq --arg r "$owner_repo" --argjson e "$entry" '.[$r] = $e' >"$tmp" \
+    && mv "$tmp" "$AUDIT_CACHE"
+}
+
+audit_cache_drop() {
+  local owner_repo="$1" tmp
+  [[ -r "$AUDIT_CACHE" ]] || return 0
+  tmp=$(mktemp "${TMPDIR:-/tmp}/claude-pr-loop-audit-cache.XXXXXX")
+  jq --arg r "$owner_repo" 'del(.[$r])' "$AUDIT_CACHE" >"$tmp" && mv "$tmp" "$AUDIT_CACHE"
+}
+
+# The deterministic half of the audit. Reads a sparse checkout of the repo
+# (only .claude/ and root files have contents; the full file list comes from
+# git ls-tree) and prints {gaps: [...], stats: {...}}. Everything here is a
+# fact a script can check, so the model never has to guess at it.
+audit_pack_static() {
+  local repo_dir="$1"
+  python3 -I - "$repo_dir" <<'PY'
+import collections, json, os, re, subprocess, sys
+
+repo = sys.argv[1]
+pack = os.path.join(repo, ".claude", "deliver")
+gaps = []
+
+def done(stats=None):
+    print(json.dumps({"gaps": gaps, "stats": stats or {}}))
+    sys.exit(0)
+
+try:
+    with open(os.path.join(pack, "review.json")) as f:
+        roster = json.load(f)
+except Exception as e:
+    gaps.append(f"review.json does not parse: {e}")
+    done()
+
+tracked = set(subprocess.run(["git", "-C", repo, "ls-tree", "-r", "--name-only", "HEAD"],
+                             capture_output=True, text=True).stdout.splitlines())
+
+classes = roster.get("file_classes") or {}
+known = set(classes) | {"always"}
+reviewers = roster.get("reviewers") or []
+hard = roster.get("hard_checks") or []
+
+if not reviewers:
+    gaps.append("the roster has no reviewers")
+if not hard:
+    gaps.append("no hard_checks, so nothing deterministic runs")
+
+def need(rel, who):
+    if f".claude/deliver/{rel}" not in tracked:
+        gaps.append(f"{who} names {rel}, which does not exist")
+
+for s in roster.get("snippets_always") or []:
+    need(s, "snippets_always")
+for r in reviewers:
+    rid = r.get("id", "?")
+    if r.get("file"):
+        need(r["file"], f"reviewer {rid}")
+    else:
+        gaps.append(f"reviewer {rid} has no prompt file")
+    for w in r.get("with") or []:
+        need(w, f"reviewer {rid}")
+    if r.get("when") not in known:
+        gaps.append(f"reviewer {rid} runs when '{r.get('when')}', which is not a file class")
+
+scripts = {}
+try:
+    with open(os.path.join(repo, "package.json")) as f:
+        scripts = json.load(f).get("scripts") or {}
+except Exception:
+    pass
+for h in hard:
+    hid = h.get("id", "?")
+    run = (h.get("run") or "").split()
+    if h.get("when") not in known:
+        gaps.append(f"hard check {hid} runs when '{h.get('when')}', which is not a file class")
+    if not run:
+        gaps.append(f"hard check {hid} has no command")
+        continue
+    if "/" in run[0] and re.sub(r"^\./", "", run[0]) not in tracked:
+        gaps.append(f"hard check {hid} runs {run[0]}, which does not exist")
+    if run[:2] == ["npm", "run"]:
+        name = next((a for a in run[2:] if not a.startswith("-")), None)
+        if name and name not in scripts:
+            gaps.append(f"hard check {hid} runs npm script '{name}', which package.json does not define")
+
+covered = {r.get("when") for r in reviewers} | {h.get("when") for h in hard}
+for c in classes:
+    if c not in covered:
+        gaps.append(f"file class '{c}' has no reviewer or hard check")
+
+excl = [re.compile(p) for p in roster.get("exclude") or []]
+pats = [re.compile(p) for ps in classes.values() for p in ps]
+files = [f for f in tracked if not any(e.search(f) for e in excl)]
+unmatched = [f for f in files if not any(p.search(f) for p in pats)]
+ext = lambda f: os.path.splitext(f)[1].lower() or os.path.basename(f)
+by_ext = collections.Counter(ext(f) for f in unmatched)
+source = {".py", ".go", ".rs", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".java", ".kt",
+          ".swift", ".rb", ".php", ".cs", ".c", ".cc", ".cpp", ".h", ".hpp", ".sh", ".sql",
+          ".vue", ".svelte", ".scala", ".m", ".mm", ".dart", ".ex", ".exs", ".lua"}
+for e, n in by_ext.most_common():
+    if e in source and n >= 5:
+        gaps.append(f"{n} {e} files match no file class, so no reviewer sees them")
+
+done({
+    "tracked_files": len(files),
+    "unclassified_files": len(unmatched),
+    "unclassified_by_extension": by_ext.most_common(12),
+    "all_by_extension": collections.Counter(ext(f) for f in files).most_common(15),
+    "reviewers": len(reviewers),
+    "hard_checks": len(hard),
+})
+PY
+}
+
+# Audit the deliver pack on the default branch. Prints the cache entry
+# {audited_at, audited_on, branch, robust, gaps} and stores it. Returns 2 when
+# the pack is not there, 1 when the audit could not finish (nothing cached).
+audit_deliver_pack() {
+  local owner_repo="$1" branch="$2"
+  local tmp repo_dir
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/claude-pr-loop-audit.XXXXXX")
+  repo_dir="${tmp}/repo"
+
+  echo "Auditing the deliver pack in ${owner_repo} (every ${AUDIT_MAX_AGE_DAYS} days)..." >&2
+  # Blobless, sparse, shallow: the tree listing for coverage, plus contents of
+  # .claude/ and root files only. Seconds even on a large repo.
+  if ! git clone --quiet --depth 1 --filter=blob:none --sparse --branch "$branch" \
+         "https://github.com/${owner_repo}.git" "$repo_dir" >&2 2>&1 \
+     || ! git -C "$repo_dir" sparse-checkout set .claude >&2 2>&1; then
+    echo "Audit: could not clone ${owner_repo}@${branch}." >&2
+    rm -rf "$tmp"; return 1
+  fi
+  if [[ ! -f "${repo_dir}/.claude/deliver/review.json" ]]; then
+    rm -rf "$tmp"; return 2
+  fi
+
+  local static static_gaps
+  static=$(audit_pack_static "$repo_dir") || static='{"gaps":["the static audit crashed"],"stats":{}}'
+  static_gaps=$(echo "$static" | jq -c '.gaps')
+
+  local prompt="You are auditing this repository's deliver review pack (.claude/deliver/) for robustness: would /deliver:review catch the problems that matter in THIS repo? Review the pack, not the code.
+
+Deterministic checks already ran. Do not repeat these gaps; build on them:
+${static}
+
+Only .claude/ and root-level files are checked out. Use the extension counts above for the rest of the tree. Read .claude/deliver/review.json, every reviewer and prompt file it names, and CLAUDE.md / AGENTS.md if present.
+
+Judge:
+- Does every important kind of file here fall in a class that some reviewer covers?
+- Do the reviewer prompts carry this repo's real rules, or are they generic or copied from another repo?
+- Is an obvious area missing for this repo (security, tests, error handling, migrations, public API, docs)?
+- Do the hard checks run the linters and tests this repo already has?
+
+Output ONLY a JSON object, no fences, no preamble:
+{\"robust\": true or false, \"gaps\": [\"one plain line each, under 120 characters, most important first, at most 6\"]}
+Set robust to false only for gaps that would let a real problem through review, not for polish."
+
+  local output model_json=""
+  output=$(cd "$repo_dir" && printf '%s' "$prompt" | claude -p \
+    --output-format json \
+    --permission-mode default \
+    --allowedTools "Read Glob Grep" \
+    --model "$MODEL" \
+    --max-budget-usd "$AUDIT_BUDGET" 2>/dev/null) || output=""
+  if [[ -n "$output" ]]; then
+    model_json=$(echo "$output" | jq -r '.result // empty' | python3 -I -c '
+import json, sys
+text, dec, last = sys.stdin.read(), json.JSONDecoder(), None
+for i, ch in enumerate(text):
+    if ch == "{":
+        try:
+            obj, _ = dec.raw_decode(text[i:])
+            if isinstance(obj, dict) and "robust" in obj:
+                last = obj
+        except ValueError:
+            pass
+if last is not None:
+    print(json.dumps(last))
+')
+    local cost
+    cost=$(echo "$output" | jq -r '.total_cost_usd // 0')
+    printf 'Audit cost: $%.2f\n' "$cost" >&2
+  fi
+  rm -rf "$tmp"
+  if [[ -z "$model_json" ]]; then
+    echo "Audit: the model pass returned nothing usable — not recording a result." >&2
+    return 1
+  fi
+
+  # Robust only when both halves agree. Static gaps are facts, so they lead.
+  local entry
+  entry=$(jq -cn \
+    --argjson s "$static_gaps" \
+    --argjson m "$model_json" \
+    --arg branch "$branch" \
+    --argjson now "$(date +%s)" \
+    --arg on "$(date +%Y-%m-%d)" \
+    '{audited_at: $now, audited_on: $on, branch: $branch,
+      robust: (($s | length) == 0 and ($m.robust == true)),
+      gaps: ($s + ($m.gaps // []))}')
+  audit_cache_put "$owner_repo" "$entry"
+  echo "$entry"
+}
+
+# Open an interactive Claude session that adds (mode=add) or hardens
+# (mode=robustify) the deliver pack, in a worktree on its own branch cut from
+# the default branch. Blocks until the session exits.
+open_deliver_session() {
+  local mode="$1" owner_repo="$2" branch="$3" gaps="${4:-}"
+  local bare_repo dir pack_branch="chore/deliver-review-pack"
+  bare_repo=$(ensure_bare_repo "$owner_repo")
+  dir="$(dirname "$bare_repo")/deliver-pack"
+
+  git -C "$bare_repo" worktree prune >&2 2>&1 || true
+  if [[ -d "$dir" ]]; then
+    echo "Reusing the pack worktree at ${dir}." >&2
+  elif ! git -C "$bare_repo" worktree add -B "$pack_branch" "$dir" "origin/${branch}" >&2 2>&1; then
+    echo "Could not create a worktree for the pack — skipping the session." >&2
+    return 1
+  fi
+
+  local plugin tpl_line
+  plugin=$(deliver_plugin_root) || plugin=""
+  if [[ -n "$plugin" ]]; then
+    tpl_line="The deliver plugin is at ${plugin}. Its templates/ folder shows the pack's shape. review.example.json is another repo's roster: use it for the schema, not its reviewers. Check the result parses with: python3 ${plugin}/scripts/detect-changes.py .claude/deliver/review.json origin/${branch}"
+  else
+    tpl_line="Use the deliver plugin's templates/review.example.json for the schema, not its reviewers."
+  fi
+
+  local task
+  if [[ "$mode" == "add" ]]; then
+    task="Set up a deliver review pack for ${owner_repo} so /deliver:review can run this repo's own reviewer roster on its PRs.
+
+Read the repo first: CLAUDE.md / AGENTS.md, languages, test and lint commands, CI workflows. Then write .claude/deliver/review.json with:
+- file_classes for this repo's real file types
+- hard_checks that run commands this repo already has (lint, typecheck, tests)
+- a roster of reviewers whose prompts carry this repo's actual rules
+Write every reviewers/ and prompts/ file the roster names."
+  else
+    task="This repo's deliver review pack (.claude/deliver/) failed its robustness audit. Fix these gaps:
+${gaps}
+
+Read the pack and the repo (CLAUDE.md / AGENTS.md, languages, test and lint commands) before changing anything."
+  fi
+
+  local prompt="${task}
+
+${tpl_line}
+
+You're in a worktree on branch ${pack_branch}, cut from ${branch}. Show me the roster before you commit. Then commit, push, and open a PR with gh."
+
+  echo "" >&2
+  echo "Opening Claude in ${dir}. Exit the session to carry on with the review." >&2
+  # Interactive work goes on the claude.ai login, not the review API key.
+  if [[ "$API_KEY_FROM_FILE" == "true" ]]; then
+    (cd "$dir" && env -u ANTHROPIC_API_KEY claude "$prompt" </dev/tty >/dev/tty 2>&1) || true
+  else
+    (cd "$dir" && claude "$prompt" </dev/tty >/dev/tty 2>&1) || true
+  fi
+  # The new pack is a PR until it merges; audit it fresh after that.
+  audit_cache_drop "$owner_repo"
+  echo "Pack work lives in ${dir} (branch ${pack_branch})." >&2
+}
+
+# Pick the reviewer for a repo when --reviewer was not given. Exits on quit.
+choose_reviewer() {
+  local owner_repo="$1"
+  local branch
+  branch=$(gh repo view "$owner_repo" --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null) || branch=""
+  branch="${branch:-main}"
+
+  local has_pack=false
+  if gh api "repos/${owner_repo}/contents/.claude/deliver/review.json?ref=${branch}" --silent >/dev/null 2>&1; then
+    has_pack=true
+  fi
+
+  if [[ "$has_pack" == "false" ]]; then
+    if ! can_prompt; then
+      echo "deliver isn't set up in ${owner_repo} — using the builtin reviewer." >&2
+      set_reviewer builtin; return
+    fi
+    local pick
+    pick=$(ask "deliver isn't set up in ${owner_repo}.
+  [b] bypass: use the builtin reviewer this run (default)
+  [a] add deliver: open Claude to build the pack, then review with builtin
+  [q] quit" "baq" "b")
+    case "$pick" in
+      q) exit 0 ;;
+      a) open_deliver_session add "$owner_repo" "$branch" || true ;;
+    esac
+    set_reviewer builtin
+    return
+  fi
+
+  # Pack is there. Use the cached audit if it's young enough, else re-audit.
+  local entry age_limit now
+  entry=$(audit_cache_get "$owner_repo")
+  now=$(date +%s)
+  age_limit=$((AUDIT_MAX_AGE_DAYS * 86400))
+  if [[ -z "$entry" ]] || (( now - $(echo "$entry" | jq -r '.audited_at // 0') > age_limit )); then
+    local rc=0
+    entry=$(audit_deliver_pack "$owner_repo" "$branch") || rc=$?
+    if [[ $rc -ne 0 ]]; then
+      # No verdict: don't block on our own audit failing. Next run retries.
+      echo "Audit didn't finish — using deliver; it will retry next run." >&2
+      set_reviewer deliver; return
+    fi
+  fi
+
+  if [[ "$(echo "$entry" | jq -r '.robust')" == "true" ]]; then
+    set_reviewer deliver; return
+  fi
+
+  local gaps on
+  gaps=$(echo "$entry" | jq -r '.gaps[] | "  - " + .')
+  on=$(echo "$entry" | jq -r '.audited_on')
+  if ! can_prompt; then
+    printf 'deliver in %s failed its audit (%s); using it anyway:\n%s\n' "$owner_repo" "$on" "$gaps" >&2
+    set_reviewer deliver; return
+  fi
+  local pick
+  pick=$(ask "deliver in ${owner_repo} failed its robustness audit (${on}):
+${gaps}
+  [d] deliver anyway (default)
+  [r] robustify: open Claude to fix these gaps, then review with deliver
+  [b] bypass: use the builtin reviewer this run
+  [q] quit" "drbq" "d")
+  case "$pick" in
+    q) exit 0 ;;
+    b) set_reviewer builtin ;;
+    r) open_deliver_session robustify "$owner_repo" "$branch" "$gaps" || true
+       set_reviewer deliver ;;
+    *) set_reviewer deliver ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # Core loop for a single PR
 # ---------------------------------------------------------------------------
 single_pr_loop() {
@@ -1106,12 +1554,14 @@ single_pr_loop() {
   DIFF_FILTERED_BYTES=0
 
   log "$log_file" "Starting review loop for ${OWNER_REPO}#${PR_NUMBER}"
-  log "$log_file" "Config: reviewer=${REVIEWER} max_iterations=${MAX_ITERATIONS} model=${MODEL} effort=${EFFORT} review_budget=${MAX_BUDGET} fix_budget=${MAX_FIX_BUDGET} no_fix=${NO_FIX}"
+  log "$log_file" "Config: reviewer=${REVIEWER:-auto} max_iterations=${MAX_ITERATIONS} model=${MODEL} effort=${EFFORT} review_budget=${MAX_BUDGET} fix_budget=${MAX_FIX_BUDGET} no_fix=${NO_FIX}"
 
   if [[ "$DRY_RUN" == "true" ]]; then
     log "$log_file" "[DRY RUN] Would clone ${OWNER_REPO}, checkout PR #${PR_NUMBER}"
     log "$log_file" "[DRY RUN] Would run up to ${MAX_ITERATIONS} review-fix iterations"
-    if [[ "$REVIEWER" == "deliver" ]]; then
+    if [[ -z "$REVIEWER" ]]; then
+      log "$log_file" "[DRY RUN] Reviewer: auto — deliver if ${OWNER_REPO} has a pack that passes its audit, otherwise a prompt"
+    elif [[ "$REVIEWER" == "deliver" ]]; then
       log "$log_file" "[DRY RUN] Review: claude -p '/deliver:review ${PR_NUMBER} --dry-run' in the worktree --model ${MODEL}"
     else
       log "$log_file" "[DRY RUN] Review: claude -p --from-pr https://github.com/${OWNER_REPO}/pull/${PR_NUMBER} --model ${MODEL}"
@@ -1124,6 +1574,15 @@ single_pr_loop() {
   local worktree_dir
   worktree_dir=$(setup_worktree "$OWNER_REPO" "$PR_NUMBER")
   trap 'cleanup_worktree "'"$worktree_dir"'"' EXIT
+
+  # The pack is on the default branch, but this PR may be cut from before it
+  # landed. When deliver was picked for us rather than asked for, review that
+  # PR with builtin instead of failing it.
+  if [[ "$REVIEWER" == "deliver" && "$REVIEWER_EXPLICIT" == "false" \
+        && ! -f "${worktree_dir}/.claude/deliver/review.json" ]]; then
+    set_reviewer builtin
+    log "$log_file" "This PR's branch predates the deliver pack — reviewing with builtin (review_budget=${MAX_BUDGET} max_iterations=${MAX_ITERATIONS})."
+  fi
 
   local iteration=0
   local verdict="changes_requested"
@@ -1393,6 +1852,17 @@ main() {
   done
 
   mkdir -p "$LOG_DIR" "$WORKTREE_BASE"
+
+  # Deliver is the default, but only once the repo's pack is checked. Done
+  # here, once per run, so batch PRs never each stop to ask.
+  if [[ "$REVIEWER_EXPLICIT" == "false" && "$DRY_RUN" == "false" ]]; then
+    if [[ -n "$BATCH_LABEL" ]]; then
+      choose_reviewer "$BATCH_REPO"
+    else
+      parse_pr_url "$PR_INPUT"
+      choose_reviewer "$OWNER_REPO"
+    fi
+  fi
 
   if [[ -n "$BATCH_LABEL" ]]; then
     batch_run "$BATCH_LABEL" "$BATCH_REPO"

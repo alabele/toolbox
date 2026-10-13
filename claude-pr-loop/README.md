@@ -86,7 +86,8 @@ Each Claude call uses `claude -p` (print mode), which starts a **fresh context**
 ## Options
 
 ```
---reviewer WHICH       Which reviewer runs the review step: builtin | deliver (default: builtin)
+--reviewer WHICH       Which reviewer runs the review step: builtin | deliver
+                       (default: deliver when the repo's pack passes its audit, else a prompt)
 --skip-pattern ERE     Extra path regex to withhold from the reviewed diff, on top of the
                        built-in lockfile/snapshot/minified list (builtin reviewer only)
 --max-iterations N     Max review-fix cycles before giving up (default: 5)
@@ -105,13 +106,14 @@ Each Claude call uses `claude -p` (print mode), which starts a **fresh context**
 ## Choosing a reviewer
 
 `--reviewer` picks what runs in step 2. Everything else in the loop — worktrees, posting, the fix
-pass, iteration, budgets, logs — is the same either way.
+pass, iteration, budgets, logs — is the same either way. Leave it off and the script picks for
+you (see [Default: deliver, with a prompt](#default-deliver-with-a-prompt)).
 
-| | `builtin` (default) | `deliver` |
+| | `builtin` | `deliver` (default) |
 | --- | --- | --- |
 | What runs | one `claude -p` call | the deliver plugin's `/deliver:review` skill |
 | Sees | the PR diff, inlined into the prompt | the checked-out worktree |
-| Reviewers | one generalist | one agent per roster reviewer whose file class changed |
+| Reviewers | one generalist, checking the repo's `CLAUDE.md` / `AGENTS.md` | one agent per roster reviewer whose file class changed |
 | Also runs | nothing | the repo's deterministic hard checks |
 | Needs | nothing in the repo | `.claude/deliver/review.json` on the PR's branch |
 | Typical cost | cents | dollars |
@@ -138,6 +140,32 @@ suggestions, which the loop reports but does not try to fix.
 One failure is specific to this mode: if a roster reviewer dies, the swarm reports not-approved with
 nothing to fix. The loop stops with `reviewer_failed` rather than posting a request-changes for its
 own harness falling over.
+
+### Default: deliver, with a prompt
+
+With no `--reviewer`, the script checks the repo once per run, before any PR work:
+
+1. **No `.claude/deliver/review.json` on the default branch?** It asks:
+   `[b]` bypass to builtin (default), `[a]` add deliver, or `[q]` quit.
+2. **Pack there?** It's audited at most every 30 days per repo. The audit is a script check
+   (named files exist, hard-check commands exist, every file class is covered, source files
+   aren't left unclassified) plus a read-only Claude pass at a $1.50 cap (about $0.15 in practice).
+3. **Audit failed?** It lists the gaps and asks: `[d]` deliver anyway (default), `[r]` robustify,
+   `[b]` bypass to builtin, or `[q]` quit.
+
+**Add** and **robustify** open an interactive Claude session in
+`~/.claude-pr-loop/worktrees/<repo>/deliver-pack`, on branch `chore/deliver-review-pack` cut from
+the default branch. The session builds or fixes the pack and opens its own PR. That session uses
+your claude.ai login, not the API key. When you exit it, the review carries on. The PR under review
+never gets the pack commits.
+
+Audit results live in `~/.config/claude-pr-loop/deliver-audit.json`. A failing result is reused,
+so you're asked on every run without paying for a new audit. Robustifying clears it. Delete a
+repo's entry to force a re-audit.
+
+Without a terminal (cron, launchd), nothing prompts: deliver if the pack is there, builtin if not.
+A PR whose branch predates the pack falls back to builtin on its own. Passing `--reviewer` skips
+all of this.
 
 ## Batch mode
 
