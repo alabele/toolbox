@@ -169,9 +169,12 @@ function renderRoom() {
   const prs = its.filter(it => it.t === "pr").map(it => it.o).sort((x, y) => (y.needsYou - x.needsYou) || prPrio(x) - prPrio(y) || x.updatedAt - y.updatedAt);
   const notPr = (it) => it.t !== "pr";
   const prSection = prs.length ? `<h3 class="lg-h">Pull requests</h3><ul class="pr-list room-prs">${prs.map(p => prRow(p)).join("")}</ul>` : "";
+  // the new-session form must survive the re-renders that every update brings: keep what she typed and where the cursor was
+  const prev = $("#room-rest .proj-new"); const keep = prev ? { cwd: prev.cwd.value, ticket: prev.ticket.value, msg: prev.msg.value, focus: document.activeElement?.name, sel: document.activeElement?.selectionStart } : null;
   $("#room-rest").innerHTML = `${group("In flight", its.filter(it => notPr(it) && !needsIt(it) && !waitingIt(it)))}${prSection}${group("On watch", its.filter(it => notPr(it) && waitingIt(it)))}${newForm}<div class="rc-tail proj-foot">${p ? `<button class="btn tiny" type="button" data-newsess="${id}">New session in ${esc(p.name)}</button>` : ""}${p ? `<button class="rc-more" type="button" data-editp="1">${projEditOpen === id ? "Done" : "Edit this project"}</button>` : ""}</div>${editP}${elsewhere.length ? `<p class="hint">Elsewhere: ${esc(elsewhere[0].it.o.title)} is ${STATE[elsewhere[0].it.o.state].word.toLowerCase()}. <a href="#p/${elsewhere[0].rid}">Open it</a>${elsewhere.length > 1 ? `, and ${elsewhere.length - 1} more.` : "."}</p>` : ""}`;
   const post = (b) => fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(b) });
-  const rest = $("#room-rest"); wirePrRows(rest); rest.querySelector(".pr-row.needs .pr-slot.needs")?.classList.add("first");
+  const rest = $("#room-rest"); wirePrRows(rest);
+  if (keep) { const f = rest.querySelector(".proj-new"); if (f) { f.cwd.value = keep.cwd; f.ticket.value = keep.ticket; f.msg.value = keep.msg; const el = keep.focus && f[keep.focus]; if (el) { el.focus({ preventScroll: true }); if (keep.sel != null && el.setSelectionRange) try { el.setSelectionRange(keep.sel, keep.sel); } catch {} } } } rest.querySelector(".pr-row.needs .pr-slot.needs")?.classList.add("first");
   rest.querySelectorAll(".proj-item .grip").forEach(g => g.addEventListener("dragstart", (e) => { const r = g.closest(".proj-item"); dragItem = { item: r.dataset.item, key: r.dataset.key }; e.dataTransfer.effectAllowed = "move"; }));
   const wpost = (body) => fetch("/api/wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   rest.querySelectorAll("[data-resume]").forEach(b => b.onclick = (e) => { e.preventDefault(); send({ type: "pause", sessionId: b.dataset.resume, note: null }); });
@@ -447,7 +450,7 @@ function connect() {
     if (m.type === "hello") { cwds = m.payload.cwds || []; if (!$("#ns-cwd").value && prefs.lastCwd) $("#ns-cwd").value = prefs.lastCwd; applyList(m.payload.sessions, m.payload.version); }
     if (m.type === "list") applyList(m.payload.sessions, m.payload.version);
     if (m.type === "projects") { projects = (m.payload?.projects || []).slice().sort((a, b) => a.prio - b.prio || a.order - b.order); assign = m.payload?.assign || {}; renderSide(); if (roundsOn) renderRoom(); if (openId) renderSessHead(); if (!$("#prs").hidden) renderPrs();
-      if (!landed) { landed = true; if (!location.hash || location.hash === "#projects" || location.hash === "#rounds") { const top = topRoom(); if (top) location.hash = `#p/${top}`; } } }
+      if (!landed) { landed = true; const typing = document.activeElement && ["TEXTAREA", "INPUT"].includes(document.activeElement.tagName); if (!typing && (!location.hash || location.hash === "#projects" || location.hash === "#rounds")) { const top = topRoom(); if (top) location.hash = `#p/${top}`; } } }
     if (m.type === "waits") { waitList = m.payload || []; renderSide(); if (roundsOn) renderRoom(); }
     if (m.type === "prs") { prList = m.payload?.prs || []; prRepos = m.payload?.repos || {}; prJira = m.payload?.jira || {}; { const k = prList.filter(p => p.needsYou && p.watched).length; $("#prs-n").textContent = k ? `${k} need${k === 1 ? "s" : ""} you` : ""; } if (!$("#prs").hidden) renderPrs(); renderSide(); if (roundsOn) renderRoom(); }
     if (m.type === "ledger") { ledgerRows = m.payload?.entries || []; ledgerSums = m.payload?.summaries || {}; if (!$("#ledger").hidden) renderLedger(); }
