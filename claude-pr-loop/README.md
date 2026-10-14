@@ -155,7 +155,10 @@ With no `--reviewer`, the script checks the repo once per run, before any PR wor
 
 **Add** and **robustify** open an interactive Claude session in
 `~/.claude-pr-loop/worktrees/<repo>/deliver-pack`, on branch `chore/deliver-review-pack` cut from
-the default branch. The session builds or fixes the pack and opens its own PR. That session uses
+the default branch. The session builds or fixes the pack and opens its own PR. With deliver 0.5.0
+or later installed, the session runs the plugin's `/deliver:setup` (`--harden` with the gaps, for
+robustify), and the script check is the plugin's `scripts/audit-pack.py`. So a pack `/deliver:setup`
+passes is a pack the loop trusts. Older plugins fall back to a built-in prompt and check. That session uses
 your claude.ai login, not the API key. When you exit it, the review carries on. The PR under review
 never gets the pack commits.
 

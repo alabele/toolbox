@@ -1174,13 +1174,25 @@ ask() {
 }
 
 # Root of the installed deliver plugin (the one with the review templates and
-# scripts), or empty. Skips plugin trash.
+# scripts), or empty. Skips plugin trash. Prefers a copy new enough to carry
+# /deliver:setup (0.5.0+), since that one also ships the audit script.
 deliver_plugin_root() {
-  local hit
-  hit=$(find "${HOME}/.claude/plugins/synced" "${HOME}/.claude/plugins/marketplaces" \
+  local hits hit
+  hits=$(find "${HOME}/.claude/plugins/synced" "${HOME}/.claude/plugins/marketplaces" \
           -path '*/.trash/*' -prune -o \
-          -path '*/deliver/templates/review.example.json' -print 2>/dev/null | head -1)
-  [[ -n "$hit" ]] && dirname "$(dirname "$hit")"
+          -path '*/deliver/templates/review.example.json' -print 2>/dev/null)
+  [[ -n "$hits" ]] || return 1
+  while IFS= read -r hit; do
+    if [[ -f "$(dirname "$(dirname "$hit")")/skills/setup/SKILL.md" ]]; then
+      dirname "$(dirname "$hit")"; return 0
+    fi
+  done <<< "$hits"
+  dirname "$(dirname "$(head -1 <<< "$hits")")"
+}
+
+# True when the deliver plugin at $1 has /deliver:setup and its audit script.
+deliver_has_setup() {
+  [[ -n "${1:-}" && -f "$1/skills/setup/SKILL.md" && -f "$1/scripts/audit-pack.py" ]]
 }
 
 audit_cache_get() {
@@ -1207,10 +1219,18 @@ audit_cache_drop() {
 
 # The deterministic half of the audit. Reads a sparse checkout of the repo
 # (only .claude/ and root files have contents; the full file list comes from
-# git ls-tree) and prints {gaps: [...], stats: {...}}. Everything here is a
-# fact a script can check, so the model never has to guess at it.
+# git) and prints {gaps: [...], stats: {...}}. Everything here is a fact a
+# script can check, so the model never has to guess at it.
+# The deliver plugin owns this check (scripts/audit-pack.py, the same one
+# /deliver:setup verifies against). The inline copy is the fallback for a
+# plugin older than 0.5.0; delete it once every machine has upgraded.
 audit_pack_static() {
-  local repo_dir="$1"
+  local repo_dir="$1" plugin
+  plugin=$(deliver_plugin_root) || plugin=""
+  if deliver_has_setup "$plugin"; then
+    python3 -I "${plugin}/scripts/audit-pack.py" "$repo_dir"
+    return
+  fi
   python3 -I - "$repo_dir" <<'PY'
 import collections, json, os, re, subprocess, sys
 
@@ -1424,27 +1444,45 @@ open_deliver_session() {
     tpl_line="Use the deliver plugin's templates/review.example.json for the schema, not its reviewers."
   fi
 
-  local task
-  if [[ "$mode" == "add" ]]; then
-    task="Set up a deliver review pack for ${owner_repo} so /deliver:review can run this repo's own reviewer roster on its PRs.
+  local here="You're in a worktree on branch ${pack_branch}, cut from ${branch}."
+  local prompt
+  if deliver_has_setup "$plugin"; then
+    # The plugin's /deliver:setup carries the procedure. It only needs the
+    # gaps, and to know the worktree already exists.
+    if [[ "$mode" == "add" ]]; then
+      prompt="/deliver:setup
+
+${here} Skip the worktree step and work here."
+    else
+      prompt="/deliver:setup --harden
+
+The robustness audit found these gaps:
+${gaps}
+
+${here} Skip the worktree step and work here."
+    fi
+  else
+    local task
+    if [[ "$mode" == "add" ]]; then
+      task="Set up a deliver review pack for ${owner_repo} so /deliver:review can run this repo's own reviewer roster on its PRs.
 
 Read the repo first: CLAUDE.md / AGENTS.md, languages, test and lint commands, CI workflows. Then write .claude/deliver/review.json with:
 - file_classes for this repo's real file types
 - hard_checks that run commands this repo already has (lint, typecheck, tests)
 - a roster of reviewers whose prompts carry this repo's actual rules
 Write every reviewers/ and prompts/ file the roster names."
-  else
-    task="This repo's deliver review pack (.claude/deliver/) failed its robustness audit. Fix these gaps:
+    else
+      task="This repo's deliver review pack (.claude/deliver/) failed its robustness audit. Fix these gaps:
 ${gaps}
 
 Read the pack and the repo (CLAUDE.md / AGENTS.md, languages, test and lint commands) before changing anything."
-  fi
-
-  local prompt="${task}
+    fi
+    prompt="${task}
 
 ${tpl_line}
 
-You're in a worktree on branch ${pack_branch}, cut from ${branch}. Show me the roster before you commit. Then commit, push, and open a PR with gh."
+${here} Show me the roster before you commit. Then commit, push, and open a PR with gh."
+  fi
 
   echo "" >&2
   echo "Opening Claude in ${dir}. Exit the session to carry on with the review." >&2
