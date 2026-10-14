@@ -166,6 +166,12 @@ Audit results live in `~/.config/claude-pr-loop/deliver-audit.json`. A failing r
 so you're asked on every run without paying for a new audit. Robustifying clears it. Delete a
 repo's entry to force a re-audit.
 
+**Local packs.** To use a pack before it is committed, put it (or a symlink to it) at
+`~/.config/claude-pr-loop/packs/<owner>/<repo>/deliver` (`DELIVER_PACKS_DIR` moves the root). It
+counts as "set up", is audited like a committed pack, and is copied into each PR worktree whose
+branch has no pack of its own, hidden from git via `info/exclude`. An optional `prep.sh` beside it
+runs in the worktree first, e.g. `yarn install --immutable`, so hard checks have their deps.
+
 Without a terminal (cron, launchd), nothing prompts: deliver if the pack is there, builtin if not.
 A PR whose branch predates the pack falls back to builtin on its own. Passing `--reviewer` skips
 all of this.

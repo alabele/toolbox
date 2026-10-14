@@ -99,6 +99,14 @@ AUDIT_CACHE="${HOME}/.config/claude-pr-loop/deliver-audit.json"
 AUDIT_MAX_AGE_DAYS=30
 AUDIT_BUDGET="1.50"
 
+# Local deliver packs — use a pack before it is committed to the repo.
+# ${DELIVER_PACKS_DIR}/<owner>/<repo>/deliver is a .claude/deliver folder (a
+# symlink to a checkout's pack is fine). It is used only when the PR branch
+# does not carry its own pack, is copied into the PR worktree, and is hidden
+# from git there so no step can commit it. An optional prep.sh beside it runs
+# in the worktree first (e.g. `yarn install --immutable`) so hard checks work.
+DELIVER_PACKS_DIR="${DELIVER_PACKS_DIR:-${HOME}/.config/claude-pr-loop/packs}"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -697,11 +705,22 @@ Rules:
 run_review_deliver() {
   local owner_repo="$1" pr_number="$2" iteration="$3" log_file="$4" worktree_dir="$5" out_file="$6"
 
+  # A local pack stands in when the branch has none (see DELIVER_PACKS_DIR).
+  if [[ "$(install_local_pack "$owner_repo" "$worktree_dir")" == "local" ]]; then
+    log "$log_file" "Using the local deliver pack from $(local_pack_dir "$owner_repo")."
+    local prep="${DELIVER_PACKS_DIR}/${owner_repo}/prep.sh"
+    if [[ -f "$prep" ]]; then
+      log "$log_file" "Running ${prep} in the worktree..."
+      (cd "$worktree_dir" && bash "$prep") >>"$log_file" 2>&1 \
+        || log "$log_file" "WARNING: ${prep} failed; hard checks may fail for setup reasons, not the PR."
+    fi
+  fi
+
   # The roster is committed in the repo, so it is only present on branches cut
   # after the pack landed. Without it the skill stops at its own precondition —
   # name the missing file here rather than paying for a session to discover it.
   if [[ ! -f "${worktree_dir}/.claude/deliver/review.json" ]]; then
-    log "$log_file" "ERROR: --reviewer deliver needs .claude/deliver/review.json, and this PR's branch does not carry it. Rebase onto a base that has the pack, or use --reviewer builtin."
+    log "$log_file" "ERROR: --reviewer deliver needs .claude/deliver/review.json, and this PR's branch does not carry it. Rebase onto a base that has the pack, add a local pack under ${DELIVER_PACKS_DIR}/${owner_repo}/deliver, or use --reviewer builtin."
     return 1
   fi
 
@@ -1190,6 +1209,31 @@ deliver_plugin_root() {
   dirname "$(dirname "$(head -1 <<< "$hits")")"
 }
 
+# The local pack folder for owner/repo, or empty.
+local_pack_dir() {
+  local d="${DELIVER_PACKS_DIR}/$1/deliver"
+  [[ -f "${d}/review.json" ]] && printf '%s' "$d"
+}
+
+# Put owner/repo's local pack into a checkout at $2 unless that checkout's own
+# branch tracks one. Hides it from git (info/exclude is shared by every
+# worktree of the repo). Prints "local" when it installed one.
+install_local_pack() {
+  local owner_repo="$1" dir="$2" pack exclude
+  pack=$(local_pack_dir "$owner_repo") || return 0
+  [[ -n "$pack" ]] || return 0
+  if git -C "$dir" ls-files --error-unmatch .claude/deliver/review.json >/dev/null 2>&1; then
+    return 0   # the branch has its own pack; it wins
+  fi
+  exclude="$(git -C "$dir" rev-parse --git-common-dir)/info/exclude"
+  mkdir -p "$(dirname "$exclude")"
+  grep -qxF '/.claude/deliver/' "$exclude" 2>/dev/null || echo '/.claude/deliver/' >> "$exclude"
+  rm -rf "${dir}/.claude/deliver"
+  mkdir -p "${dir}/.claude"
+  cp -RL "$pack" "${dir}/.claude/deliver"
+  printf 'local'
+}
+
 # True when the deliver plugin at $1 has /deliver:setup and its audit script.
 deliver_has_setup() {
   [[ -n "${1:-}" && -f "$1/skills/setup/SKILL.md" && -f "$1/scripts/audit-pack.py" ]]
@@ -1249,7 +1293,7 @@ except Exception as e:
     gaps.append(f"review.json does not parse: {e}")
     done()
 
-tracked = set(subprocess.run(["git", "-C", repo, "ls-tree", "-r", "--name-only", "HEAD"],
+tracked = set(subprocess.run(["git", "-C", repo, "ls-files", "--cached", "--others", "--exclude-standard"],
                              capture_output=True, text=True).stdout.splitlines())
 
 classes = roster.get("file_classes") or {}
@@ -1348,7 +1392,11 @@ audit_deliver_pack() {
     rm -rf "$tmp"; return 1
   fi
   if [[ ! -f "${repo_dir}/.claude/deliver/review.json" ]]; then
-    rm -rf "$tmp"; return 2
+    if [[ -n "$(install_local_pack "$owner_repo" "$repo_dir")" ]]; then
+      echo "Audit: using the local pack from $(local_pack_dir "$owner_repo")." >&2
+    else
+      rm -rf "$tmp"; return 2
+    fi
   fi
 
   local static static_gaps
@@ -1506,6 +1554,9 @@ choose_reviewer() {
 
   local has_pack=false
   if gh api "repos/${owner_repo}/contents/.claude/deliver/review.json?ref=${branch}" --silent >/dev/null 2>&1; then
+    has_pack=true
+  elif [[ -n "$(local_pack_dir "$owner_repo")" ]]; then
+    echo "deliver: using the local pack for ${owner_repo} ($(local_pack_dir "$owner_repo"))." >&2
     has_pack=true
   fi
 
