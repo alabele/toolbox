@@ -735,6 +735,7 @@ This is review iteration ${iteration}. The PR branch is already checked out in t
 
 Two deviations from the skill's normal procedure:
 - Keep --dry-run. Do NOT post a comment on the PR. A later step posts the review; a second comment would duplicate it.
+- Do NOT schedule or wait on anything after the swarm returns: no ScheduleWakeup, no Monitor, no run_in_background, no background subagents, no sleep-and-poll. This is a one-shot run; a pending wakeup keeps the process alive for up to an hour after the work is done.
 - When the swarm returns, write its aggregate JSON — the object the workflow returned, verbatim, no re-formatting and no added keys — to this absolute path:
   ${out_file}
   Write that file before you reply. The file, not your reply, is this run's output.
