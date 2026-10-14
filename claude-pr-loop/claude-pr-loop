@@ -707,12 +707,13 @@ run_review_deliver() {
 
   # A local pack stands in when the branch has none (see DELIVER_PACKS_DIR).
   if [[ "$(install_local_pack "$owner_repo" "$worktree_dir")" == "local" ]]; then
-    log "$log_file" "Using the local deliver pack from $(local_pack_dir "$owner_repo")."
+    # log tees to stdout, and this function's stdout is its result: keep these on stderr.
+    log "$log_file" "Using the local deliver pack from $(local_pack_dir "$owner_repo")." >&2
     local prep="${DELIVER_PACKS_DIR}/${owner_repo}/prep.sh"
     if [[ -f "$prep" ]]; then
-      log "$log_file" "Running ${prep} in the worktree..."
+      log "$log_file" "Running ${prep} in the worktree..." >&2
       (cd "$worktree_dir" && bash "$prep") >>"$log_file" 2>&1 \
-        || log "$log_file" "WARNING: ${prep} failed; hard checks may fail for setup reasons, not the PR."
+        || log "$log_file" "WARNING: ${prep} failed; hard checks may fail for setup reasons, not the PR." >&2
     fi
   fi
 
