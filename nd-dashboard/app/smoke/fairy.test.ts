@@ -21,4 +21,7 @@ test("tidy closes the four-day session, lets the asked-and-left wait go, files b
   expect(log.every(a => !/stale|dead|neglect|you haven/i.test(a.text))).toBe(true);
   expect(f.undoAll()).toBe(n); expect(reopened[0].sessionId).toBe("a"); expect(restored[0].id).toBe("w1"); expect(assigned.at(-1)).toEqual(["s:e", null]);
 });
-test("tick waits for an hour away", async () => { const { c, ended } = ctx(); const f = new Fairy(c as any, () => {}); (f as any).s.lastRun = 0; f.seen(); await f.tick(); expect(ended).toEqual([]); f.lastSeen = Date.now() - 2 * 3600e3; await f.tick(); expect(ended).toEqual(["a"]); });
+test("tidies at midnight on weekdays, once a night", async () => { const { c, ended } = ctx(); const f = new Fairy(c as any, () => {}); (f as any).s.lastRun = 0;
+  const wedNoon = new Date(2026, 9, 14, 12, 0), wedMidnight = new Date(2026, 9, 14, 0, 10), satMidnight = new Date(2026, 9, 17, 0, 10);
+  await f.tick(wedNoon); expect(ended).toEqual([]); await f.tick(satMidnight); expect(ended).toEqual([]);
+  await f.tick(wedMidnight); expect(ended).toEqual(["a"]); expect(Fairy.isTidyTime(new Date(2026, 9, 14, 0, 40), (f as any).s.lastRun)).toBe(false); });

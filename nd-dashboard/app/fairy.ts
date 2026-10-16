@@ -1,5 +1,5 @@
 // The fairy (her word, her ask, 2026-10-16): tidies while she is away, and sets the table when she asks.
-// Tidying runs only after an hour with no one at the window, at most once an hour, and every action can be undone from
+// Tidying runs at midnight on weekdays (her call, 2026-10-16), once a night, and every action can be undone from
 // the panel behind the wand in the top bar. Setting the table never runs unless she pressed the button or opted in.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -8,7 +8,7 @@ import { ask } from "./titles";
 import { findHandoff, readHandoff } from "./handoff";
 
 const FILE = process.env.ND_FAIRY ?? join(homedir(), ".config", "stillroom", "fairy.json");
-const AWAY_MS = 60 * 60e3, SESSION_DAYS = 4, WAIT_DAYS = 5;
+const SESSION_DAYS = 4, WAIT_DAYS = 5;
 export interface Action { id: string; at: number; kind: "closed-session" | "let-go-wait" | "filed"; text: string; undo: any; undone?: boolean; runAt: number }
 export interface TableItem { ref: string; title: string; step: string; why: string; done?: boolean }
 interface Store { log: Action[]; table?: { at: number; items: TableItem[] }; seenAt: number; lastRun: number; autoTable?: boolean }
@@ -31,8 +31,9 @@ export class Fairy {
   get autoTable() { return !!this.s.autoTable; }
   get tableAge() { return this.s.table ? Date.now() - this.s.table.at : Infinity; }
 
-  /** Called every few minutes. Tidies only when she has been away an hour, and at most once an hour. */
-  async tick() { if (this.busy) return; if (Date.now() - this.lastSeen < AWAY_MS || Date.now() - this.s.lastRun < AWAY_MS) return; this.busy = true; try { await this.tidy(); } finally { this.busy = false; } }
+  /** Called every few minutes. Tidies at midnight on a weekday (local time), once a night. */
+  async tick(now = new Date()) { if (this.busy) return; if (!Fairy.isTidyTime(now, this.s.lastRun)) return; this.busy = true; try { await this.tidy(); } finally { this.busy = false; } }
+  static isTidyTime(now: Date, lastRun: number) { const day = now.getDay(); if (day === 0 || day === 6 || now.getHours() !== 0) return false; const last = new Date(lastRun); return !(lastRun && last.getFullYear() === now.getFullYear() && last.getMonth() === now.getMonth() && last.getDate() === now.getDate()); }
   async tidy() {
     const runAt = Date.now(); const acts: Action[] = []; const add = (kind: Action["kind"], text: string, undo: any) => acts.push({ id: Math.random().toString(36).slice(2, 10), at: Date.now(), kind, text, undo, runAt });
     // sessions that have sat on "your turn" for days: closed, with a hand-off written by the close
