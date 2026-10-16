@@ -7,7 +7,8 @@ import { ask } from "./titles";
 
 const FILE = process.env.ND_LEDGER ?? join(homedir(), ".config", "stillroom", "ledger.json");
 export interface Summary { key: string; headline: string; points: string[]; at: number }
-export interface Entry { id: string; at: number; sessionId: string; cwd: string; title: string; status: "done" | "partly"; lines: string[]; next?: string }
+export interface Facts { turns?: number; cost?: number; plates?: number; questions?: number; denials?: number }
+export interface Entry { id: string; at: number; sessionId: string; cwd: string; title: string; status: "done" | "partly"; lines: string[]; next?: string; facts?: Facts }
 
 /** Reads the shape off a reply: status word, the bullets (or the one line) above ---, and the Next line. Null when it is not an outcome. */
 export function parseOutcome(text: string): { status: "done" | "partly"; lines: string[]; next?: string } | null {
@@ -43,10 +44,10 @@ export class Ledger {
     finally { this.busy = false; }
   }
   /** Records a reply if it is an outcome. The same reply never lands twice. */
-  add(e: { id: string; sessionId: string; cwd: string; title: string; text: string; at?: number }): Entry | null {
+  add(e: { id: string; sessionId: string; cwd: string; title: string; text: string; at?: number; facts?: Facts }): Entry | null {
     if (this.rows.some(r => r.id === e.id)) return null;
     const p = parseOutcome(e.text); if (!p) return null;
-    const row: Entry = { id: e.id, at: e.at ?? Date.now(), sessionId: e.sessionId, cwd: e.cwd, title: e.title, status: p.status, lines: p.lines, next: p.next };
+    const row: Entry = { id: e.id, at: e.at ?? Date.now(), sessionId: e.sessionId, cwd: e.cwd, title: e.title, status: p.status, lines: p.lines, next: p.next, ...(e.facts ? { facts: e.facts } : {}) };
     this.rows.push(row); this.rows = this.rows.slice(-2000); this.save(); this.onChange(); this.queueStale(); return row;
   }
   retitle(sessionId: string, title: string) { let n = 0; for (const r of this.rows) if (r.sessionId === sessionId && r.title !== title) { r.title = title; n++; } if (n) { this.save(); this.onChange(); } }

@@ -10,6 +10,8 @@ import { Titler, HELPER_DIR, ask } from "./titles";
 import { Ledger } from "./ledger";
 import { Prs, type Pr } from "./prs";
 import { Waits } from "./waits";
+import { SlackIn } from "./slackIn";
+import { Triage } from "./slackTriage";
 import { Projects } from "./projects";
 import { ensureWorktree, removeWorktree, ticketIn } from "./worktrees";
 import { postToSlack, replyInThread, slackConnected, slackProbe } from "./slack";
@@ -225,7 +227,7 @@ const types: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 Bun.serve({
   port: PORT,
   websocket: {
-    open(ws) { sockets.add(ws); try { ws.send(JSON.stringify({ type: "ledger", payload: ledger.list() })); ws.send(JSON.stringify({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } })); ws.send(JSON.stringify({ type: "waits", payload: waits.list() })); ws.send(JSON.stringify({ type: "projects", payload: projects.list() })); } catch {} ws.send(JSON.stringify({ type: "hello", payload: { sessions: view, managed: mgr.list(), cwds: knownCwds(), version } })); },
+    open(ws) { sockets.add(ws); try { ws.send(JSON.stringify({ type: "ledger", payload: ledger.list() })); ws.send(JSON.stringify({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } })); ws.send(JSON.stringify({ type: "waits", payload: waits.list() })); ws.send(JSON.stringify(slackPayload())); ws.send(JSON.stringify({ type: "projects", payload: projects.list() })); } catch {} ws.send(JSON.stringify({ type: "hello", payload: { sessions: view, managed: mgr.list(), cwds: knownCwds(), version } })); },
     close(ws) { sockets.delete(ws); },
     async message(ws, raw) {
       let msg: any; try { msg = JSON.parse(String(raw)); } catch { return; }
@@ -260,7 +262,9 @@ Bun.serve({
       for (const [k, f] of form.entries()) { if (k !== "file" || !(f instanceof File)) continue; const name = (f.name || "file").replace(/[^\w.@-]+/g, "_").slice(0, 80); const p = join(dir, `${Date.now().toString(36)}-${name}`); await Bun.write(p, f); out.push(p); }
       return Response.json({ paths: out }); }
     if (url.pathname === "/api/prs") return Response.json({ prs: prs.list(), repos: prs.repos, jira: prs.jira() });
-    if (url.pathname === "/api/slack/status") return Response.json({ connected: await slackConnected() });
+    if (url.pathname === "/api/slack/status") return Response.json({ connected: await slackConnected(), in: slackIn.status() });
+    if (url.pathname === "/api/slack/in") return Response.json(slackPayload().payload);
+    if (url.pathname === "/api/slack/seen" && req.method === "POST") { const b = await req.json() as any; if (b.all) { slackIn.markAllSeen(); return new Response("ok"); } return slackIn.markSeen(String(b.id)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/slack/probe") return new Response(await slackProbe(url.searchParams.get("q") || "general"));
     if (url.pathname === "/api/jira/refresh" && req.method === "POST") { await prs.refreshTickets(); return Response.json(prs.jira()); }
     if (url.pathname === "/api/pr/review" && req.method === "POST") { const b = await req.json(); return runPrLoop(String(b.key)) ? new Response("ok") : new Response("already running or unknown", { status: 409 }); }
@@ -272,7 +276,7 @@ Bun.serve({
     if (url.pathname === "/api/pr/prio" && req.method === "POST") { const b = await req.json(); return prs.setPrio(String(b.key), +b.prio) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/keep-waiting" && req.method === "POST") { const b = await req.json(); return prs.keepWaiting(String(b.key)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/watch" && req.method === "POST") { const b = await req.json(); return prs.setWatch(String(b.key), !!b.on) ? new Response("ok") : new Response("unknown", { status: 404 }); }
-    if (url.pathname === "/api/repo" && req.method === "POST") { const b = await req.json(); const cfg: any = {}; if (b.channel !== undefined) cfg.channel = String(b.channel).trim(); if (b.reviewers !== undefined) cfg.reviewers = String(b.reviewers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.approvers !== undefined) cfg.approvers = String(b.approvers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.qa !== undefined) cfg.qa = !!b.qa; if (b.checklist !== undefined) cfg.checklist = String(b.checklist).split("\n").map((s: string) => s.replace(/^\s*[-*\d.)]+\s*/, "").trim()).filter(Boolean); if (b.ticketSteps !== undefined) { const m: Record<string, string> = {}; for (const ln of String(b.ticketSteps).split("\n")) { const [a, c] = ln.split(/\s*(?:=|->|:)\s*/); if (a?.trim() && c?.trim()) m[a.trim()] = c.trim(); } cfg.ticketSteps = m; } prs.setRepo(String(b.repo), cfg); return new Response("ok"); }
+    if (url.pathname === "/api/repo" && req.method === "POST") { const b = await req.json(); const cfg: any = {}; if (b.channel !== undefined) cfg.channel = String(b.channel).trim(); if (b.reviewers !== undefined) cfg.reviewers = String(b.reviewers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.approvers !== undefined) cfg.approvers = String(b.approvers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.qa !== undefined) cfg.qa = !!b.qa; if (b.base !== undefined) cfg.base = String(b.base).trim().replace(/^origin\//, ""); if (b.checklist !== undefined) cfg.checklist = String(b.checklist).split("\n").map((s: string) => s.replace(/^\s*[-*\d.)]+\s*/, "").trim()).filter(Boolean); if (b.ticketSteps !== undefined) { const m: Record<string, string> = {}; for (const ln of String(b.ticketSteps).split("\n")) { const [a, c] = ln.split(/\s*(?:=|->|:)\s*/); if (a?.trim() && c?.trim()) m[a.trim()] = c.trim(); } cfg.ticketSteps = m; } prs.setRepo(String(b.repo), cfg); return new Response("ok"); }
     if (url.pathname === "/api/open" && req.method === "POST") { const b = await req.json(); const u = String(b.url || ""); if (!/^https?:\/\//.test(u)) return new Response("bad url", { status: 400 }); Bun.spawn(["open", "-a", "Google Chrome", u], { stdout: "ignore", stderr: "ignore" }); return new Response("ok"); } // outside links open in Chrome proper, not inside the app window
     if (url.pathname === "/api/pr/skip" && req.method === "POST") { const b = await req.json(); return prs.setSkip(String(b.key), String(b.item), String(b.why || "")) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/do" && req.method === "POST") { // a checklist step's own button: Claude review, Ask for review, or an instruction to the session that made the PR
@@ -369,6 +373,11 @@ function linkPr(pr: Pr): { sessionId: string; title: string } | null {
 const projects = new Projects(() => broadcast({ type: "projects", payload: projects.list() }));
 const waits = new Waits(() => { broadcast({ type: "waits", payload: waits.list() }); for (const w of waits.list()) if (w.back && w.sessionId) { const m = mgr.get(w.sessionId); if (m?.meta.paused) mgr.setPaused(w.sessionId, null); } }); setInterval(() => waits.check(), 15 * 60_000); setTimeout(() => waits.check(), 20_000);
 const prs = new Prs(() => broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }), linkPr);
+// The register and its triage: new rows go to the model in one batch per tick, and a verdict lands back on the row.
+const slackIn = new SlackIn(() => { triage.decorate(slackIn.list()); broadcast(slackPayload()); });
+const triage = new Triage(() => broadcast(slackPayload()), Object.keys(slackIn.smeChannels()));
+function slackPayload() { return { type: "slack" as const, payload: { items: triage.decorate(slackIn.list()), status: slackIn.status() } }; }
+setInterval(() => { slackIn.names(); slackIn.prune(); triage.prune(new Set(slackIn.list().map(i => i.id))); }, 10 * 60_000);
 prs.transcript = (pr) => { const sid = pr.sessionId; if (!sid) return ""; const evs = mgr.events(sid) || []; return evs.map((e: any) => e.kind === "tool" ? `${e.name} ${JSON.stringify(e.input || "").slice(0, 300)}` : String(e.text || "")).join("\n").slice(-60000); };
 const reviewing = new Map<string, any>();
 function runPrLoop(key: string) {
@@ -408,5 +417,5 @@ mgr.onProject = async (sid, name) => { const want = String(name || "").trim(); i
 mgr.onSpawn = async (from, cwd, prompt) => { const dir = String(cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(dir).isDirectory(); } catch {} if (!ok) return `Could not start: the folder ${dir} does not exist.`; const wt = ensureWorktree(dir, ticketIn(prompt.slice(0, 60))); const id = mgr.start({ cwd: wt ? wt.path : dir, prompt: `${prompt}\n\n(Started from session ${from}.)`, worktree: wt ? { path: wt.path, branch: wt.branch, repo: wt.repo } : undefined, parent: from }); return `Started a new Stillroom session in ${wt ? `${wt.repo} on branch ${wt.branch}, in its own worktree` : dir}. It shows in her sidebar when it first replies. Do not wait for it.`; };
 mgr.onWait = async (sid, text, link, until) => { const w = await waits.add(text, link, sid, until); return `On the Waiting list: "${w.text}"${w.kind === "ticket" ? ` (comes back when ${w.ticket} ${w.until ? `is ${w.until}` : "moves"})` : w.kind === "pr" ? " (comes back when it merges)" : " (she marks it when it comes back)"}.`; };
 prs.onGone = (pr, how, by) => { waits.prGone(pr.key, how === "merged" ? `merged${by ? ` by ${by}` : ""}` : "closed"); if (how !== "merged") return; ledger.add({ id: `pr:${pr.key}`, sessionId: pr.sessionId || pr.key, cwd: "", title: pr.tickets[0] ? `${pr.tickets[0]}: ${pr.title}` : pr.title, text: `Done.\n- ${pr.short} merged${by ? ` by ${by}` : ""}.` }); };
-mgr.onOutcome = (m, text, at) => { const row = view.find(x => x.sessionId === m.sessionId); ledger.add({ id: `${m.sessionId}:${at}`, sessionId: m.sessionId, cwd: m.cwd, title: row?.title || m.userTitle || m.title, text, at }); };
-const restored = mgr.restore(); prs.start(); if (restored) console.log(`reopened ${restored} Stillroom session${restored === 1 ? "" : "s"} from ${process.env.ND_STATE ?? "~/.config/stillroom/sessions.json"}`);
+mgr.onOutcome = (m, text, at) => { const row = view.find(x => x.sessionId === m.sessionId); ledger.add({ id: `${m.sessionId}:${at}`, sessionId: m.sessionId, cwd: m.cwd, title: row?.title || m.userTitle || m.title, text, at, facts: { turns: m.turns, cost: m.cost, plates: m.plates, questions: m.questions, denials: m.denials } }); };
+const restored = mgr.restore(); prs.start(); slackIn.start(); if (restored) console.log(`reopened ${restored} Stillroom session${restored === 1 ? "" : "s"} from ${process.env.ND_STATE ?? "~/.config/stillroom/sessions.json"}`);

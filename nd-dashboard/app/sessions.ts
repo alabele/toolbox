@@ -2,6 +2,7 @@
 // Permission prompts and Claude's questions pause the session until the browser answers.
 import { readFileSync as readSync_ } from "node:fs";
 import { reshape } from "./titles";
+import { guardConfig, guardHook, DENY_RULES } from "./guard";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { query, type Query, type SDKUserMessage, type PermissionResult, type PermissionUpdate, type PermissionMode } from "@anthropic-ai/claude-agent-sdk";
@@ -54,7 +55,7 @@ export interface Pending {
   suggestions?: PermissionUpdate[]; blockedPath?: string; decisionReason?: string;
 }
 export type MStatus = "starting" | "working" | "waiting" | "idle" | "failed" | "ended";
-export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string }; parent?: string; abstract?: string; abstractN?: number; paused?: { note: string; at: number } }
+export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string }; parent?: string; abstract?: string; abstractN?: number; paused?: { note: string; at: number }; turns?: number; plates?: number; questions?: number; denials?: number }
 
 class Inbox implements AsyncIterable<SDKUserMessage> {
   private q: SDKUserMessage[] = []; private waiters: ((v: IteratorResult<SDKUserMessage>) => void)[] = []; private closed = false;
@@ -76,7 +77,7 @@ export function sessionEnv(): Record<string, string | undefined> {
   return env;
 }
 
-interface Managed { meta: Meta; events: Ev[]; inbox: Inbox; q: Query; resolvers: Map<string, (r: PermissionResult) => void>; abort: AbortController; resumedWithoutPrompt?: boolean }
+interface Managed { meta: Meta; events: Ev[]; inbox: Inbox; q: Query; resolvers: Map<string, (r: PermissionResult) => void>; abort: AbortController; resumedWithoutPrompt?: boolean; denyStreak?: number }
 
 export class SessionManager {
   private byId = new Map<string, Managed>();
@@ -121,29 +122,30 @@ export class SessionManager {
 
   private persist() {
     if (this.shuttingDown && this.persistedOnShutdown) return; this.persistedOnShutdown = this.shuttingDown;
-    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree, parent: m.parent, abstract: m.abstract, abstractN: m.abstractN, paused: m.paused }));
+    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree, parent: m.parent, abstract: m.abstract, abstractN: m.abstractN, paused: m.paused, turns: m.turns, plates: m.plates, questions: m.questions, denials: m.denials }));
     try { mkdirSync(dirname(STATE_FILE), { recursive: true }); writeFileSync(STATE_FILE + ".tmp", JSON.stringify(rows, null, 2)); renameSync(STATE_FILE + ".tmp", STATE_FILE); } catch {}
   }
   /** Reopen every session this server owned before it last stopped. Each waits for input; no turn is started. */
   restore(): number {
     let rows: any[] = []; try { rows = JSON.parse(readFileSync(STATE_FILE, "utf8")); } catch { return 0; }
-    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree, parent: r.parent, abstract: r.abstract, abstractN: r.abstractN, paused: r.paused }); } catch {} }
+    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree, parent: r.parent, abstract: r.abstract, abstractN: r.abstractN, paused: r.paused, counts: { turns: r.turns, plates: r.plates, questions: r.questions, denials: r.denials } }); } catch {} }
     return rows.length;
   }
   get(id: string) { return this.byId.get(id); }
   events(id: string) { return this.byId.get(id)?.events ?? []; }
 
-  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"]; parent?: string; abstract?: string; abstractN?: number; paused?: Meta["paused"] }): string {
+  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"]; parent?: string; abstract?: string; abstractN?: number; paused?: Meta["paused"]; counts?: Pick<Meta, "turns" | "plates" | "questions" | "denials"> }): string {
     const tempId = opts.resume ?? `pending-${randomUUID()}`;
     const inbox = new Inbox(); const abort = new AbortController();
     const prior = opts.resume ? eventsFromDisk(opts.cwd, opts.resume) : [];
     const firstUser = prior.find(e => e.kind === "user") as Extract<Ev, { kind: "user" }> | undefined;
     const lastUser = [...prior].reverse().find(e => e.kind === "user") as Extract<Ev, { kind: "user" }> | undefined;
     const lastText = [...prior].reverse().find(e => e.kind === "text") as Extract<Ev, { kind: "text" }> | undefined;
-    const meta: Meta = { sessionId: tempId, cwd: opts.cwd, title: opts.title ?? opts.prompt?.slice(0, 80) ?? firstUser?.text.slice(0, 80) ?? "(resumed)", startedAt: opts.startedAt ?? Date.now(), status: "starting", stateSince: Date.now(), pending: null, lastText: lastText?.text.replace(/\s+/g, " ").slice(0, 160) ?? "", mode: opts.mode ?? "bypassPermissions", cost: 0, note: opts.note, userTitle: opts.userTitle, lastReply: lastText?.text.slice(0, 6000), prompt: opts.prompt ?? lastUser?.text ?? firstUser?.text, first: opts.prompt ?? firstUser?.text, worktree: opts.worktree, parent: opts.parent, abstract: opts.abstract, abstractN: opts.abstractN, paused: opts.paused };
+    const meta: Meta = { sessionId: tempId, cwd: opts.cwd, title: opts.title ?? opts.prompt?.slice(0, 80) ?? firstUser?.text.slice(0, 80) ?? "(resumed)", startedAt: opts.startedAt ?? Date.now(), status: "starting", stateSince: Date.now(), pending: null, lastText: lastText?.text.replace(/\s+/g, " ").slice(0, 160) ?? "", mode: opts.mode ?? "bypassPermissions", cost: 0, note: opts.note, userTitle: opts.userTitle, lastReply: lastText?.text.slice(0, 6000), prompt: opts.prompt ?? lastUser?.text ?? firstUser?.text, first: opts.prompt ?? firstUser?.text, worktree: opts.worktree, parent: opts.parent, abstract: opts.abstract, abstractN: opts.abstractN, paused: opts.paused, ...(opts.counts || {}) };
     const m: Managed = { meta, events: prior, inbox, resolvers: new Map(), abort, q: null as any };
     m.resumedWithoutPrompt = !!opts.resume && !opts.prompt;
     if (m.resumedWithoutPrompt) { meta.status = "idle"; } // the CLI reports nothing until it gets a message; it is ready and waiting
+    const guard = guardConfig();
     m.q = query({
       prompt: inbox,
       options: {
@@ -151,6 +153,9 @@ export class SessionManager {
         systemPrompt: { type: "preset", preset: "claude_code", append: STYLE, snapshot: false },
         mcpServers: { stillroom: this.stillroomTools() }, allowedTools: ["mcp__stillroom__add_wait", "mcp__stillroom__start_session", "mcp__stillroom__rename_session", "mcp__stillroom__set_project", "mcp__stillroom__ship_step", "mcp__stillroom__pause_session"], // how replies are shaped for the app (stillroom-style.md); no snapshot, so resumed sessions follow the current text
         canUseTool: (toolName, input, o) => this.ask(m, toolName, input, o),
+        // the hard rules (guard.ts): deny rules the SDK checks first, a hook on every tool call, caps on the session. They hold in every mode.
+        settings: { permissions: { deny: DENY_RULES } }, maxTurns: guard.maxTurns, maxBudgetUsd: guard.maxBudgetUsd, ...(guard.sandbox ? { sandbox: { enabled: true, failIfUnavailable: false, autoAllowBashIfSandboxed: true } } : {}),
+        hooks: { PreToolUse: [{ hooks: [guardHook({ cwd: () => m.meta.cwd, onDeny: (r) => this.denied(m, r) })] }], PostToolUse: [{ hooks: [async () => { m.denyStreak = 0; return {}; }] }] },
       },
     });
     this.byId.set(tempId, m);
@@ -203,10 +208,30 @@ export class SessionManager {
   private ask(m: Managed, toolName: string, input: any, o: { suggestions?: PermissionUpdate[]; blockedPath?: string; decisionReason?: string }): Promise<PermissionResult> {
     return new Promise(resolve => {
       const p: Pending = { id: randomUUID(), kind: toolName === "AskUserQuestion" ? "question" : "permission", toolName, input, at: Date.now(), suggestions: o.suggestions, blockedPath: o.blockedPath, decisionReason: o.decisionReason };
+      if (p.kind === "question") m.meta.questions = (m.meta.questions || 0) + 1; else m.meta.plates = (m.meta.plates || 0) + 1;
       m.resolvers.set(p.id, resolve); m.meta.pending = p; this.setStatus(m, "waiting");
     });
   }
 
+  /** A hard rule blocked a tool call. Counted; at the limit the session pauses and the plate says why, instead of the model retrying. */
+  private denied(m: Managed, reason: string) {
+    m.meta.denials = (m.meta.denials || 0) + 1; m.denyStreak = (m.denyStreak || 0) + 1;
+    m.events.push({ kind: "note", text: `Blocked: ${reason}`, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1));
+    const limit = guardConfig().denialsBeforePause;
+    if (m.denyStreak >= limit && !m.meta.paused) { m.denyStreak = 0; this.setPaused(m.meta.sessionId, `Stopped after ${limit} blocked actions in a row. Last one: ${reason} Reply to tell it what to do instead.`); m.q.interrupt().catch(() => {}); }
+  }
+  /** Tools from a connector that failed at start never come back on their own (the top failure cause in the 2026-10 scorecard). Three tries, then a note. */
+  private async checkMcp(m: Managed) {
+    const waits = [3000, 5000, 10000]; let names: string[] = [];
+    for (let i = 0; i < waits.length; i++) {
+      await new Promise(r => setTimeout(r, waits[i])); if (!this.byId.has(m.meta.sessionId)) return;
+      let st: { name: string; status: string }[] = []; try { st = await m.q.mcpServerStatus(); } catch { return; }
+      const bad = st.filter(x => x.status === "failed"); names = bad.map(x => x.name); // needs-auth is a connector she never linked, not a failure
+      if (!bad.length) { if (i) { m.events.push({ kind: "note", text: "Tools reconnected.", at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1)); } return; }
+      for (const b of bad) { try { await m.q.reconnectMcpServer(b.name); } catch {} }
+    }
+    m.events.push({ kind: "note", text: `Tools unavailable after 3 tries: ${names.join(", ")}. The session runs without them; if it needs them, it should say so and pause.`, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1));
+  }
   /** The last reply missed the shape (no status word up front): rewrite it in place. The raw text stays in the event. */
   private async shapeLast(m: Managed) {
     const ev = [...m.events].reverse().find(e => e.kind === "text") as Extract<Ev, { kind: "text" }> | undefined;
@@ -223,7 +248,7 @@ export class SessionManager {
     for await (const msg of m.q) { this.currentSessionId = m.meta.sessionId;
       if (msg.type === "system" && msg.subtype === "init") {
         if (m.meta.sessionId !== msg.session_id) { this.byId.delete(m.meta.sessionId); const old = m.meta.sessionId; m.meta.sessionId = msg.session_id; this.byId.set(msg.session_id, m); this.emit("gone", old, null); }
-        m.meta.model = msg.model; if (m.resumedWithoutPrompt) { m.resumedWithoutPrompt = false; } this.emit("meta", m.meta.sessionId, m.meta);
+        m.meta.model = msg.model; if (m.resumedWithoutPrompt) { m.resumedWithoutPrompt = false; } this.emit("meta", m.meta.sessionId, m.meta); this.checkMcp(m).catch(() => {});
         this.persist();
       } else if (msg.type === "assistant") {
         for (const b of msg.message.content as any[]) {
@@ -238,8 +263,9 @@ export class SessionManager {
           if (ev) { ev.result = typeof b.content === "string" ? b.content : Array.isArray(b.content) ? b.content.filter((x: any) => x.type === "text").map((x: any) => x.text).join("\n") : ""; ev.result = ev.result.slice(0, 4000); ev.isError = !!b.is_error; ev.doneAt = Date.now(); this.emit("event", m.meta.sessionId, ev); }
         }
       } else if (msg.type === "result") {
-        m.meta.cost = (msg as any).total_cost_usd ?? m.meta.cost;
+        m.meta.cost = (msg as any).total_cost_usd ?? m.meta.cost; m.meta.turns = (m.meta.turns || 0) + ((msg as any).num_turns || 0);
         m.events.push({ kind: "result", subtype: msg.subtype, cost: (msg as any).total_cost_usd, turns: (msg as any).num_turns, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1));
+        if (msg.subtype === "error_max_turns" || msg.subtype === "error_max_budget_usd") { m.events.push({ kind: "note", text: msg.subtype === "error_max_turns" ? "Stopped: this session hit its turn cap. Reply to continue, or start a fresh one from a hand-off." : "Stopped: this session hit its spending cap.", at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1)); }
         this.setStatus(m, msg.subtype === "success" ? "idle" : "failed");
         this.abstractFor(m);
         this.shapeLast(m).then(() => { const ev = [...m.events].reverse().find(e => e.kind === "text") as Extract<Ev, { kind: "text" }> | undefined; if (ev) this.onOutcome(m.meta, ev.text, ev.at); });

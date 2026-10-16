@@ -18,15 +18,9 @@ Nothing here runs on its own. No server restarts while sessions are in flight.
    - The server keeps the session's current step from the stream (tool name and target: "running tests", "reading prs.ts", "editing app.js") and puts it on the view as `doing`.
    - On the working plate it sits behind a small toggle next to "Working on it" ("What is it doing"), off by default, and the choice is remembered in prefs. Never on hover. She said showing it by default is too much noise.
 
-4. **Hard rules out of prose and into the SDK.** (from research/harnesses.md, 2026-10-16)
-   - Deny rules and PreToolUse hooks for: push to main, any write outside the session's worktree, deleting remote branches, reading credential files. Deny rules hold even in bypass mode.
-   - Turn on the SDK sandbox. Auto-approve reads and edits inside the worktree; a plate only for push, network, deletes outside the worktree, credentials.
-   - `maxTurns` and `maxBudgetUsd` on every session. After 3 denials in a row, pause the session and show her a plate instead of retrying.
-   - Owner: hx-oversight-designer sets the rules; hx-harness-architect wires them.
-
-5. **Hand-off file per ticket, and evidence on the Ledger.** (from research/harnesses.md, 2026-10-16)
+5. **Hand-off file per ticket.** (from research/harnesses.md, 2026-10-16; the Ledger half shipped 2026-10-16: rows now carry turns, cost, plates, questions, denials)
    - At pause and at ship, the session writes `HANDOFF.md` in its worktree: goal, done, next step, open questions, and a file list built from `git diff --stat`, not from memory. Resume starts a fresh session from that file plus the git log, never from the old transcript.
-   - The Ledger records per session: turns, cost, plates shown, denials, commits, and whether the PR merged. The harness scorer needs these; today it can only see done/partly.
+   - Still to record: commits per session and whether the PR merged (prs.json forgets merged PRs).
    - Owner: hx-context-engineer writes the file's shape; hx-harness-architect wires when it is read and written.
 
 6. **Ship step: a fresh-context reviewer and a tests-untouched check.** (from research/harnesses.md, 2026-10-16)
@@ -41,3 +35,8 @@ Nothing here runs on its own. No server restarts while sessions are in flight.
 ## Suggested by the harness scorer
 
 - Connector down or restricted was the top failure cause this period (7 of 23; scorecard research/harness-scorecards/2026-10-16-baseline.md): a session whose MCP client fails at startup never retries and cannot see a reconnect, and Slack Connect channels refuse sends. Owner: hx-harness-architect (retry or a "reconnect tools" step); hx-context-engineer (draft to external channels, never send first).
+
+## Built
+
+- **2026-10-16, item 4: hard rules into the SDK.** `app/guard.ts`. Deny rules the SDK checks first (credential files, sudo, force push, gh pr merge) and a PreToolUse hook on every call: writes stay inside the session's folder, no pushes to main/master/development/release or a repo's configured base, no deleting remote branches, no rm outside the folder. Three blocks in a row pause the session with the reason on its plate. Every session has maxTurns 400 and maxBudgetUsd 30 (`~/.config/stillroom/guard.json` to change). Tools from a connector that failed at start are retried three times. Proved end to end on a probe server: push to main blocked, credentials blocked, session paused honestly.
+  - Sandbox stays off: probed, the sandbox proxy breaks `gh` (TLS verify fails) while git and curl work. On again only when gh trusts the proxy.
