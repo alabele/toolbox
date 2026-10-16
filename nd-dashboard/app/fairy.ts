@@ -32,10 +32,10 @@ export class Fairy {
   get tableAge() { return this.s.table ? Date.now() - this.s.table.at : Infinity; }
 
   /** Called every few minutes. Tidies at midnight on a weekday (local time), once a night. */
-  async tick(now = new Date()) { if (this.busy) return; if (!Fairy.isTidyTime(now, this.s.lastRun)) return; this.busy = true; try { await this.tidy(); } finally { this.busy = false; } }
+  async tick(now = new Date()) { if (this.busy) return; if (!Fairy.isTidyTime(now, this.s.lastRun)) return; this.busy = true; try { await this.tidy(now.getTime()); } finally { this.busy = false; } }
   static isTidyTime(now: Date, lastRun: number) { const day = now.getDay(); if (day === 0 || day === 6 || now.getHours() !== 0) return false; const last = new Date(lastRun); return !(lastRun && last.getFullYear() === now.getFullYear() && last.getMonth() === now.getMonth() && last.getDate() === now.getDate()); }
-  async tidy() {
-    const runAt = Date.now(); const acts: Action[] = []; const add = (kind: Action["kind"], text: string, undo: any) => acts.push({ id: Math.random().toString(36).slice(2, 10), at: Date.now(), kind, text, undo, runAt });
+  async tidy(at = Date.now()) {
+    const runAt = at; const acts: Action[] = []; const add = (kind: Action["kind"], text: string, undo: any) => acts.push({ id: Math.random().toString(36).slice(2, 10), at: Date.now(), kind, text, undo, runAt });
     // sessions that have sat on "your turn" for days: closed, with a hand-off written by the close
     for (const m of this.ctx.sessions()) { if (m.status !== "idle" || m.paused || m.sessionId.startsWith("pending-")) continue; if (Date.now() - m.stateSince < SESSION_DAYS * 86400e3) continue;
       const keep = { sessionId: m.sessionId, cwd: m.cwd, title: m.title, userTitle: m.userTitle, startedAt: m.startedAt, worktree: m.worktree, parent: m.parent, abstract: m.abstract, abstractN: m.abstractN, note: m.note, mode: m.mode };
