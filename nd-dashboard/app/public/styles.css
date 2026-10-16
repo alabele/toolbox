@@ -1099,3 +1099,4 @@ main{padding-bottom:60px}
 .keys-table{border-collapse:collapse;margin:8px 0 14px;font-size:13.5px;color:var(--text-secondary)}
 .keys-table td{padding:4px 12px 4px 0;vertical-align:top}
 .keys-table td:first-child{font-family:var(--caps);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-primary);white-space:nowrap}
+.keys[hidden]{display:none}
