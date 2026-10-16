@@ -4,10 +4,12 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fetchTickets, jiraReady } from "./jira";
+import { repliesSince, slackReadReady } from "./slackThread";
+const STALE_MS = 5 * 86400e3; // after five days, one quiet question: still worth waiting for?
 
 const FILE = join(homedir(), ".config", "stillroom", "waits.json");
 const KEY = /\b(VDC|D|STORY|PROJ|OPS|DOCS)-(\d{1,6})\b/i;
-export interface Wait { id: string; kind: "ticket" | "slack" | "pr" | "note"; text: string; link?: string; ticket?: string; until?: string; prKey?: string; status?: string; since: number; back?: string; backAt?: number; sessionId?: string }
+export interface Wait { id: string; kind: "ticket" | "slack" | "pr" | "note"; text: string; link?: string; ticket?: string; until?: string; prKey?: string; status?: string; since: number; back?: string; backAt?: number; sessionId?: string; askedAt?: number; keepAt?: number; lastTs?: string }
 
 export class Waits {
   private rows: Wait[] = [];
@@ -26,10 +28,18 @@ export class Waits {
   remove(id: string) { this.rows = this.rows.filter(w => w.id !== id); this.save(); this.onChange(); }
   /** She says it came back (or the app noticed). It moves to Needs you until she removes it. */
   back(id: string, why: string) { const w = this.rows.find(w => w.id === id); if (!w) return; w.back = why; w.backAt = Date.now(); this.save(); this.onChange(); }
-  /** Ticket waits: a status change brings them back. Called with the poll. */
+  /** Five days on, she said keep it: the question goes away for another five. */
+  keep(id: string) { const w = this.rows.find(w => w.id === id); if (!w) return; w.keepAt = Date.now(); w.askedAt = undefined; this.save(); this.onChange(); }
+  /** Ticket waits: a status change brings them back. Slack waits: a reply from someone else brings them back. Old waits get one question. Called with the poll. */
   async check() {
+    let changed = false;
+    for (const w of this.rows) if (!w.back && !w.askedAt && Date.now() - Math.max(w.since, w.keepAt || 0) > STALE_MS) { w.askedAt = Date.now(); changed = true; }
+    if (slackReadReady()) for (const w of this.rows.filter(w => w.kind === "slack" && w.link && !w.back)) {
+      const r = await repliesSince(w.link!, Math.max(w.since / 1000, +(w.lastTs || 0))); if (!r.ok) continue;
+      if (r.replies.length) { const last = r.replies[r.replies.length - 1]!; w.back = `${last.name} replied: "${last.text.slice(0, 90)}${last.text.length > 90 ? "…" : ""}"`; w.backAt = Date.now(); w.lastTs = last.ts; changed = true; } }
+    if (changed) { this.save(); this.onChange(); }
     const open = this.rows.filter(w => w.kind === "ticket" && w.ticket && !w.back); if (!open.length || !jiraReady()) return;
-    const r = await fetchTickets(open.map(w => w.ticket!)); if (r.error) return; let changed = false;
+    const r = await fetchTickets(open.map(w => w.ticket!)); if (r.error) return; changed = false;
     for (const w of open) { const t = r.tickets.find(t => t.key === w.ticket); if (!t) continue;
       const hit = w.until ? t.status.toLowerCase() === w.until.toLowerCase() : (w.status && t.status !== w.status);
       if (hit) { w.back = `${w.ticket} is ${t.status}`; w.backAt = Date.now(); changed = true; } if (t.status !== w.status) { w.status = t.status; changed = true; } }

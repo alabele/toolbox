@@ -14,6 +14,7 @@ import { SlackIn } from "./slackIn";
 import { Triage } from "./slackTriage";
 import { Projects } from "./projects";
 import { ensureWorktree, removeWorktree, ticketIn } from "./worktrees";
+import { fetchTicketBrief } from "./jira";
 import { postToSlack, replyInThread, slackConnected, slackProbe } from "./slack";
 
 const PORT = Number(process.env.ND_PORT ?? 4747);
@@ -262,6 +263,7 @@ Bun.serve({
       for (const [k, f] of form.entries()) { if (k !== "file" || !(f instanceof File)) continue; const name = (f.name || "file").replace(/[^\w.@-]+/g, "_").slice(0, 80); const p = join(dir, `${Date.now().toString(36)}-${name}`); await Bun.write(p, f); out.push(p); }
       return Response.json({ paths: out }); }
     if (url.pathname === "/api/prs") return Response.json({ prs: prs.list(), repos: prs.repos, jira: prs.jira() });
+    if (url.pathname === "/api/jira/ticket") { const key = String(url.searchParams.get("key") || "").toUpperCase().trim(); if (!/^[A-Z]+-\d+$/.test(key)) return new Response("bad key", { status: 400 }); return Response.json(await fetchTicketBrief(key)); }
     if (url.pathname === "/api/restart") { if (req.method === "POST") { const b = await req.json().catch(() => ({})) as any; restartWanted = !b.cancel; const busy = restartBusy().length; setTimeout(restartIfQuiet, 50); return new Response(restartWanted ? (busy ? `Restart queued. Waiting for ${busy} session${busy === 1 ? "" : "s"} to finish.` : "Restarting now.") : "Restart cancelled."); } return Response.json({ wanted: restartWanted, busy: restartBusy().length }); }
     if (url.pathname === "/api/slack/status") return Response.json({ connected: await slackConnected(), in: slackIn.status() });
     if (url.pathname === "/api/slack/in") return Response.json(slackPayload().payload);
@@ -273,7 +275,7 @@ Bun.serve({
     if (url.pathname === "/api/project" && req.method === "POST") { const b = await req.json(); if (b.remove) projects.remove(String(b.remove)); else if (b.assign) projects.assign(String(b.assign.item), b.assign.project ? String(b.assign.project) : null, b.assign.key); else projects.upsert(b); return new Response("ok"); }
     if (url.pathname === "/api/worktree/remove" && req.method === "POST") { const b = await req.json(); const r = removeWorktree(String(b.path || "")); return r === "ok" ? new Response("ok") : new Response(r, { status: 400 }); }
     if (url.pathname === "/api/waits") return Response.json(waits.list());
-    if (url.pathname === "/api/wait" && req.method === "POST") { const b = await req.json(); if (b.remove) { waits.remove(String(b.remove)); return new Response("ok"); } if (b.back) { waits.back(String(b.back), String(b.why || "It came back")); return new Response("ok"); } const w = await waits.add(String(b.text || ""), b.link, b.sessionId, b.until); return Response.json(w); }
+    if (url.pathname === "/api/wait" && req.method === "POST") { const b = await req.json() as any; if (b.remove) { waits.remove(String(b.remove)); return new Response("ok"); } if (b.keep) { waits.keep(String(b.keep)); return new Response("ok"); } if (b.back) { waits.back(String(b.back), String(b.why || "It came back")); return new Response("ok"); } const w = await waits.add(String(b.text || ""), b.link, b.sessionId, b.until); return Response.json(w); }
     if (url.pathname === "/api/pr/prio" && req.method === "POST") { const b = await req.json(); return prs.setPrio(String(b.key), +b.prio) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/keep-waiting" && req.method === "POST") { const b = await req.json(); return prs.keepWaiting(String(b.key)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/watch" && req.method === "POST") { const b = await req.json(); return prs.setWatch(String(b.key), !!b.on) ? new Response("ok") : new Response("unknown", { status: 404 }); }

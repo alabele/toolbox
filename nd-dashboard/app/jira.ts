@@ -45,3 +45,14 @@ export async function transitionTicket(key: string, status: string): Promise<str
     return p.ok ? "ok" : `Jira said ${p.status} moving ${key}.`;
   } catch (e: any) { return `Jira unreachable: ${e?.message ?? e}`; }
 }
+
+/** One ticket's title, status, and the first lines of its description, for prefilling a new session. */
+export async function fetchTicketBrief(key: string): Promise<{ key: string; summary: string; status: string; description: string; url: string } | { error: string }> {
+  const a = auth(); if (!a) return { error: "Jira not connected." };
+  try { const r = await fetch(`${SITE}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary,status,description`, { headers: { authorization: a, accept: "application/json" } });
+    if (r.status === 404) return { error: `${key} does not exist.` }; if (!r.ok) return { error: `Jira said ${r.status}.` };
+    const i = await r.json() as any; return { key: i.key, summary: i.fields?.summary || "", status: i.fields?.status?.name || "", description: adfText(i.fields?.description).slice(0, 700), url: `${SITE}/browse/${i.key}` };
+  } catch (e: any) { return { error: `Jira unreachable: ${e?.message ?? e}` }; }
+}
+/** Atlassian document format to plain lines. */
+function adfText(node: any): string { if (!node) return ""; if (typeof node === "string") return node; if (node.type === "text") return node.text || ""; const inner = (node.content || []).map(adfText).join(node.type === "paragraph" || node.type === "heading" || node.type === "listItem" ? "" : ""); return ["paragraph", "heading", "listItem", "bulletList", "orderedList", "codeBlock", "blockquote"].includes(node.type) ? inner + "\n" : inner; }

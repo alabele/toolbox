@@ -1046,3 +1046,43 @@ main{padding-bottom:60px}
 .pr-run{margin:6px 0 2px;font-size:13px;color:var(--text-secondary)}
 .pr-run.st-needs-you,.pr-run.st-failed{color:var(--text-primary)}
 .pr-runlog{margin-top:2px}
+
+/* Slack (session 016): one plate per disposition, one conversation per block, each message a line.
+   Speaker names hold a fixed column so repeats from one person stack by eye; it reads as a playscript,
+   never as an inbox. No avatars, no unread bold, no counts. */
+.slack{max-width:980px;margin:0 auto;padding:22px 20px 80px;display:flex;flex-direction:column;gap:26px}
+.sk-plate{display:flex;flex-direction:column;gap:18px}
+.sk-plate.quiet{opacity:.62}
+.sk-plate.quiet:hover{opacity:1}
+.sk-plate.now{border-color:var(--action-danger)}
+.sk-plate.now>.plate-label{color:var(--action-danger)}
+.sk-conv-h{display:block;font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);margin-bottom:5px}
+.sk-list{list-style:none;margin:0;padding:0}
+.sk-row{display:grid;grid-template-columns:122px minmax(0,1fr) auto;column-gap:12px;align-items:baseline;
+  padding:6px 4px;border-bottom:1px solid var(--border-subtle)}
+.sk-row:last-child{border-bottom:0}
+.sk-row:hover{background:color-mix(in srgb,var(--bg-secondary) 70%,transparent)}
+.sk-who{font-family:var(--caps);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sk-said{color:var(--text-primary);font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sk-plate.quiet .sk-said{color:var(--text-secondary)}
+.sk-acts{display:flex;gap:10px;align-items:baseline;opacity:0}
+.sk-row:hover .sk-acts,.sk-row:focus-within .sk-acts{opacity:1}
+.sk-acts a,.sk-acts button{font-family:var(--caps);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--text-tertiary);background:none;border:0;padding:0;cursor:pointer;text-decoration:none}
+.sk-acts a:hover,.sk-acts button:hover{color:var(--action-primary)}
+.sk-foot{padding-top:10px;border-top:1px solid var(--border-subtle)}
+.sk-foot button{font-family:var(--caps);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--text-tertiary);background:none;border:0;padding:0;cursor:pointer}
+.sk-foot button:hover{color:var(--text-primary)}
+.sk-clear{margin-top:4px}
+
+/* a wait that has been on watch five days: one question, two answers */
+.wait-ask{align-items:center}
+.wait-q{font-size:12.5px;color:var(--text-secondary);margin-right:4px}
+
+/* The sidebar foot is navigation, not content: only the project list scrolls, so Pull requests,
+   Slack and Ledger stay on screen however many projects she has. */
+.side{overflow:hidden}
+#side-groups{flex:1 1 auto;min-height:0;overflow:auto;overflow-x:hidden}
+.side-prs,.side-slack,.side-ledger{flex:0 0 auto}
