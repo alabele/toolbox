@@ -1,6 +1,8 @@
-# 017 — Loose ends, not a fairy
+# 017 — Loose ends, not a fairy (rejected)
 
 **Asked:** the parked "fairy": a tidy-up assistant that closes stale sessions, archives dead waits, merges duplicate projects.
+
+**Outcome:** built 2026-10-16, removed the same day. She said: "I don't think I like or need this loose ends thing." The four-day session line and the Good place slot are gone. The five-day wait question, which she asked for separately, stays on the wait row.
 
 **Roundtable:** interaction designer, lived-experience advocate. The advocate vetoed the idea as proposed; both agreed on the shape below.
 

@@ -18,6 +18,6 @@ One file per decision that changed a commitment: a mode, a state, a name, a pale
 | 013 | 2026-09-30 | Rooms | Rounds merged into Projects. The sidebar is the project list by priority; each room holds its own accordion, in flight, waiting, and New session; a good-place plate points to the next room. |
 | 014 | 2026-10-01 | The PR row in three groups | Mark and title, then VDC-2318 #2259, then one word: the step, or what needs her. Steps renamed so none sounds like Jira. Gold once, rust on failing checks only. |
 | 015 | 2026-10-16 | The plate while it works | The last reply folds to "Before that" above the ask; "Working on it" with time so far where the answer will land; clamp at a block edge; priority behind More. |
-| 017 | 2026-10-16 | Loose ends, not a fairy | One question about one thing, in the Good place or on the open plate; asks, never acts; no name, no count. |
+| 017 | 2026-10-16 | Loose ends, not a fairy | Rejected by her the same day. The fairy idea is closed; the five-day wait question stays on its row. |
 | 018 | 2026-10-16 | Keys | Bare keys when not typing: N G P L F Esc R ?; no new ⌘ keys; a sheet behind ?; launch at login via launchd. |
 | 016 | 2026-10-16 | Slack as a fourth source | Sort by what an item wants, not how it arrived. Nothing falls out; no indicators; the hour is a floor. A row opens into an intake. |

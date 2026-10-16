@@ -73,7 +73,7 @@ function renderSide() {
   const none = rooms.get("none") || [];
   const nav = `<nav class="proj-list-nav"><div class="sg-title">${ic("layers")}Projects</div>${pg("p1", "High", byPrio[1], sortP(byPrio[1]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p2", "Medium", byPrio[2], sortP(byPrio[2]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p3", "Low", byPrio[3], sortP(byPrio[3]).map(p => rowFor(p, rooms.get(p.id))).join(""))}${pg("p0", "Unassigned", [], rowFor(null, none)).replace('<span class="where"></span>', `<span class="where${none.some(needsIt) ? " needs" : ""}">${none.filter(needsIt).length ? `${none.filter(needsIt).length} need${none.filter(needsIt).length === 1 ? "s" : ""} you` : none.length ? `${none.length} in flight` : ""}</span>`)}<button type="button" class="menu-note side-addproj" id="side-addproj">+ Add a project</button><form id="side-addproj-form" hidden><input placeholder="Project name, Enter to save" aria-label="Project name"></form></nav>`;
   $("#side-groups").innerHTML = nav;
-  $("#side-older").innerHTML = g("older", "Archive", groups.older, true);
+  $("#side-older").innerHTML = ""; // Archive moved to the Ledger: a pile of tidying does not belong in the navigation
   $("#side-addproj").onclick = () => { const f = $("#side-addproj-form"); f.hidden = false; $("#side-addproj").hidden = true; f.querySelector("input").focus(); };
   $("#side-addproj-form").onsubmit = (e) => { e.preventDefault(); const name = e.target.querySelector("input").value.trim(); if (!name) return; fetch("/api/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, prio: 1 }) }); };
   // rows dragged from a room land on a project here
@@ -92,6 +92,9 @@ function renderSide() {
     unpin(id); if (b.dataset.managed === "true") send({ type: "end", sessionId: id });
     else { try { const r = await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }) }); if (!r.ok) { $("#error").hidden = false; $("#error").textContent = "Could not end it: " + await r.text(); return; } } catch {} }
     prefs.dismissed = [...(prefs.dismissed || []), id]; save(); renderSide(); renderNext(); });
+  // the foot links read their own state from the hash: every route runs renderSide, so none can leave one lit
+  for (const [id, h] of [["side-prs", "#prs"], ["side-slack", "#slack"], ["side-ledger", "#ledger"]])
+    document.getElementById(id)?.setAttribute("aria-current", String(location.hash === h));
   const needsAny = [...rooms].some(([rid, its]) => !mutedRoom(rid) && its.some(needsIt));
   document.title = (needsAny ? "Needs you · " : "") + "Stillroom"; document.body.dataset.needs = needsAny ? "1" : "0"; icons();
 }
@@ -147,7 +150,7 @@ function renderRoom() {
   $("#room-head").innerHTML = `<div class="room-top"><h1 class="room-name">${esc(p ? p.name : "No project")}</h1>${p ? `<span class="room-prio">${PRIO[p.prio]}${p.on ? "" : ", quiet"}</span>` : ""}<span class="grow"></span>${timerLine}</div><p class="room-counts">${counts || "Nothing in flight."}</p>${!p ? `<p class="hint">These have no project yet. Drag a row onto a project in the sidebar, or leave them.</p>` : ""}`;
   $("#room-hour")?.addEventListener("click", () => { roomTimer[id] = Date.now() + 3600e3; renderRoom(); });
   // the accordion
-  if (!cards.length) { const loose = looseEnd(its); el.innerHTML = `<div class="plate room-done"><span class="plate-label">${ic("moon-star")}Good place</span><p>Nothing here needs you.${fl || w ? ` ${[fl ? `${fl} in flight` : "", w ? `${w} on watch` : ""].filter(Boolean).join(", ")}.` : ""}</p>${nextRoom ? `<a class="btn primary" href="#p/${nextRoom.id}">Open ${esc(nextRoom.name)}, ${nextRoom.k} need${nextRoom.k === 1 ? "s" : ""} you</a>` : `<p class="quiet">Nothing needs you in any project.</p>`}${loose}</div>`; openRound = null; wireLoose(el); }
+  if (!cards.length) { el.innerHTML = `<div class="plate room-done"><span class="plate-label">${ic("moon-star")}Good place</span><p>Nothing here needs you.${fl || w ? ` ${[fl ? `${fl} in flight` : "", w ? `${w} on watch` : ""].filter(Boolean).join(", ")}.` : ""}</p>${nextRoom ? `<a class="btn primary" href="#p/${nextRoom.id}">Open ${esc(nextRoom.name)}, ${nextRoom.k} need${nextRoom.k === 1 ? "s" : ""} you</a>` : `<p class="quiet">Nothing needs you in any project.</p>`}</div>`; openRound = null; }
   else {
     if (!openRound || !cards.some(x => x.sessionId === openRound)) { const nx = cards.find(x => !(sentCards.has(x.sessionId) && !x.needsYou)); openRound = nx ? nx.sessionId : null; }
     const ordered = cards.slice(); // in room order; the open one stays where it is, so Cmd+Down walks down the list
@@ -165,7 +168,7 @@ function renderRoom() {
   // the rest: in flight, waiting on others, new session, elsewhere, more
   const row = (it) => { const o = it.o; const title = it.t === "pr" ? (o.tickets?.[0] ? `${o.tickets[0]}: ${o.title}` : o.title) : it.t === "wait" ? o.text : o.title; const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? "On watch" : (sentCards.has(o.sessionId) && !o.needsYou ? "Working" : STATE[o.state].word); const href = it.t === "pr" ? "#prs" : it.t === "wait" ? (o.link || "#") : hrefOf(o);
     const linked = it.t === "session" && o.state === "paused" ? waitList.filter(w => w.sessionId === o.sessionId && !w.back) : [];
-    return `<li class="proj-item${it.t === "session" && o.state === "paused" ? " paused" : ""}" data-item="${esc(itemId(o))}" data-key="${esc(itemKey(o))}"><span class="proj-kind grip" draggable="true" title="Drag onto a project in the sidebar">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : o.state === "paused" ? "pause" : "message-circle")}</span><a href="${esc(href)}" class="proj-title" ${it.t === "wait" && o.link ? 'target="_blank" rel="noopener"' : ""}>${esc(title)}</a><span class="proj-state">${esc(state)}</span>${it.t === "wait" ? `<span class="rc-acts"><button class="btn tiny" data-wback="${o.id}">It came back</button><button class="btn tiny" data-wdrop="${o.id}">Let it go</button></span>` : ""}${it.t === "session" && o.state === "paused" ? `<span class="pause-note">${esc(o.paused?.note || "")}${linked.length ? `<span class="pause-waits">${linked.map(w => `<span>${ic(w.kind === "ticket" ? "ticket" : w.kind === "pr" ? "git-pull-request" : w.kind === "slack" ? "message-circle" : "hourglass")}${esc(w.text)}</span>`).join("")}</span>` : ""}<button class="btn tiny" data-resume="${o.sessionId}">Resume</button></span>` : ""}</li>`; };
+    return `<li class="proj-item${it.t === "session" && o.state === "paused" ? " paused" : ""}" data-item="${esc(itemId(o))}" data-key="${esc(itemKey(o))}"><span class="proj-kind grip" draggable="true" title="Drag onto a project in the sidebar">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : o.state === "paused" ? "pause" : "message-circle")}</span><a href="${esc(href)}" class="proj-title" ${it.t === "wait" && o.link ? 'target="_blank" rel="noopener"' : ""}>${esc(title)}</a><span class="proj-state">${esc(state)}</span>${it.t === "wait" ? (o.askedAt && !o.back ? `<span class="rc-acts wait-ask"><span class="wait-q">${Math.round((Date.now() - o.since) / 86400e3)} days. Still worth waiting for?</span><button class="btn tiny" data-wkeep="${o.id}">Keep it</button><button class="btn tiny" data-wdrop="${o.id}">Let it go</button></span>` : `<span class="rc-acts"><button class="btn tiny" data-wback="${o.id}">It came back</button><button class="btn tiny" data-wdrop="${o.id}">Let it go</button></span>`) : ""}${it.t === "session" && o.state === "paused" ? `<span class="pause-note">${esc(o.paused?.note || "")}${linked.length ? `<span class="pause-waits">${linked.map(w => `<span>${ic(w.kind === "ticket" ? "ticket" : w.kind === "pr" ? "git-pull-request" : w.kind === "slack" ? "message-circle" : "hourglass")}${esc(w.text)}</span>`).join("")}</span>` : ""}<button class="btn tiny" data-resume="${o.sessionId}">Resume</button></span>` : ""}</li>`; };
   const group = (name, arr) => arr.length ? `<h3 class="lg-h">${name}</h3><ul class="proj-items">${arr.map(row).join("")}</ul>` : "";
   const folders = [...new Set(its.filter(it => it.t === "session").map(it => it.o.cwd).filter(Boolean))]; const lastCwd = folders[0] || prefs.lastCwd || "";
   const going = its.filter(it => it.t === "session" && (it.o.state === "working" || it.o.needsYou)).length;
@@ -219,11 +222,6 @@ function clampBlocks(body, limit = 290) { // hide whole blocks past the limit; n
   return cut > 0; }
 function usualText(x) { const u = x.usual; if (!u) return ""; const m = (ms) => Math.max(1, Math.round(ms / 60000)); const lo = m(u.lo), hi = m(u.hi); const el = Date.now() - (x.state === "working" ? Math.min(x.stateSince, sentAt(x.sessionId)) : sentAt(x.sessionId)); if (el > u.hi * 1.6 && el > 90000) return "longer than usual"; return lo === hi ? `usually about ${lo} min` : `usually ${lo} to ${hi} min`; }
 function workingHtml(x) { return `${ic("orbit")}<span>Working on it</span><span class="rc-elapsed">${elapsedFor(x)}</span><span class="rc-usual">${usualText(x)}</span><button type="button" class="rc-doing-t${prefs.showDoing ? " on" : ""}" title="Show what it is doing right now">${prefs.showDoing ? "Hide what it's doing" : "What is it doing"}</button>`; }
-// Loose ends (design session 017): one plain question about one thing, only where nothing needs her, two answers of equal weight. Never a count, never a verdict, never on its own.
-const LOOSE_DAYS = 4;
-function looseEnd(its) { const w = its.filter(it => it.t === "wait" && it.o.askedAt && !it.o.back).map(it => it.o).sort((a, b) => a.since - b.since)[0]; if (!w) return "";
-  return `<p class="loose"><span class="loose-q">${esc(w.text.length > 70 ? w.text.slice(0, 67) + "…" : w.text)}: ${Math.round((Date.now() - w.since) / 86400e3)} days. Still worth waiting for?</span><button class="btn tiny" type="button" data-wkeep="${w.id}">Keep it</button><button class="btn tiny" type="button" data-wdrop="${w.id}">Let it go</button></p>`; }
-function wireLoose(el) { const wpost = (body) => fetch("/api/wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); el.querySelectorAll("[data-wkeep]").forEach(b => b.onclick = () => wpost({ keep: b.dataset.wkeep })); el.querySelectorAll("[data-wdrop]").forEach(b => b.onclick = () => wpost({ remove: b.dataset.wdrop })); }
 function elapsedFor(x) { return ago(Date.now() - (x.state === "working" ? Math.min(x.stateSince, sentAt(x.sessionId)) : sentAt(x.sessionId))); }
 function needLine(x, sent) { // one plain line: what this item wants from you
   if (!x.managed) return x.state === "failed" ? "It failed in a terminal. Look there, or let it go." : "It runs in a terminal. Answer it there.";
@@ -250,10 +248,6 @@ function roundCard(x, isOpen, hasNext) {
   const need = needLine(x, sent); const prior = busy && (x.lastReply || x.last) ? beforeThat(x) : "";
   card.innerHTML = `${label}<h3 class="rc-title">${esc(x.title)}</h3>${soFarHtml(x)}${prior}${x.prompt ? `<div class="rc-ask">${esc(x.prompt)}</div>` : ""}${need ? `<p class="rc-need">${esc(need)}</p>` : ""}`;
   if (prior) { const b = card.querySelector(".rc-before"); const btn = b.querySelector(".rc-before-open"); btn.onclick = () => { b.classList.toggle("open"); btn.textContent = b.classList.contains("open") ? "Fold it" : "Read it"; }; }
-  if (!busy && x.managed && x.state === "finished" && !x.pending && Date.now() - x.stateSince > LOOSE_DAYS * 86400e3 && !(prefs.quietLoose || {})[x.sessionId]) {
-    const l = document.createElement("p"); l.className = "loose"; l.innerHTML = `<span class="loose-q">No reply here in ${Math.round((Date.now() - x.stateSince) / 86400e3)} days. It stays on disk if closed.</span><button class="btn tiny" type="button" data-a="lclose">Close session</button><button class="btn tiny" type="button" data-a="lleave">Leave it open</button>`;
-    l.querySelector('[data-a="lclose"]').onclick = () => { closeWithUndo(x); openRound = null; }; l.querySelector('[data-a="lleave"]').onclick = () => { prefs.quietLoose = { ...(prefs.quietLoose || {}), [x.sessionId]: Date.now() }; save(); l.remove(); };
-    card.appendChild(l); }
   if (busy) { const w = document.createElement("p"); w.className = "rc-working"; w.innerHTML = workingHtml(x); card.appendChild(w);
     const d = document.createElement("p"); d.className = "rc-doing"; d.hidden = !prefs.showDoing; d.textContent = x.doing || "between steps"; card.appendChild(d);
     w.querySelector(".rc-doing-t").onclick = () => { prefs.showDoing = !prefs.showDoing; save(); d.hidden = !prefs.showDoing; const b = w.querySelector(".rc-doing-t"); b.textContent = prefs.showDoing ? "Hide what it's doing" : "What is it doing"; b.classList.toggle("on", !!prefs.showDoing); }; }
@@ -473,7 +467,26 @@ function renderSlack() {
   icons();
 }
 
+// Sessions that went old or idle. They used to sit in the sidebar as a count of tidying she had not done;
+// they live here now, with the only two things that panel could do: the way back in, and removing its worktree.
+function renderQuiet() {
+  const el = $("#ledger-quiet"); if (!el) return;
+  const old = list.filter(x => !isDismissed(x) && (isOld(x) || x.state === "idle")).sort((a, b) => b.stateSince - a.stateSince);
+  el.innerHTML = old.length ? `<details class="lg-quiet"><summary>Went quiet</summary><ul class="lg-list">${old.map(x => `<li><a href="${hrefOf(x)}">${esc(x.title)}</a><span class="lg-state">${ago(Date.now() - x.stateSince)}</span>${x.worktree ? `<button class="iconbtn rmwt" data-path="${esc(x.worktree.path)}" title="Remove its worktree; the branch stays">${ic("folder-x")}</button>` : ""}<button class="iconbtn letgo" data-id="${esc(x.sessionId)}" data-managed="${!!x.managed}" title="Let it go">${ic("x")}</button></li>`).join("")}</ul></details>` : "";
+  wireQuiet(el);
+}
+function wireQuiet(el) {
+  el.querySelectorAll(".rmwt").forEach(b => b.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); if (!confirm("Remove this worktree? Uncommitted changes in it are lost. The branch stays.")) return; const r = await fetch("/api/worktree/remove", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: b.dataset.path }) }); b.title = r.ok ? "Removed" : "Could not remove"; b.disabled = true; });
+  el.querySelectorAll(".letgo").forEach(b => b.onclick = async (e) => { e.preventDefault(); e.stopPropagation(); const id = b.dataset.id;
+    if (!confirm("Let this session go? It ends now. The conversation stays on disk and can be resumed later.")) return;
+    unpin(id); if (b.dataset.managed === "true") send({ type: "end", sessionId: id });
+    else { try { await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }) }); } catch {} }
+    prefs.dismissed = [...(prefs.dismissed || []), id]; save(); renderSide(); renderLedger(); });
+  icons();
+}
+
 function renderLedger() {
+  renderQuiet();
   const now = $("#ledger-now"); const working = list.filter(x => !isDismissed(x) && (x.state === "working" || x.needsYou));
   now.innerHTML = working.length ? `<section class="lg-now"><h2 class="lg-h">In hand</h2><ul class="lg-list lg-hand">${working.map(x => `<li><a href="${x.managed ? "#s/" : "#t/"}${x.sessionId}">${esc(x.title)}</a><span class="lg-state">${STATE[x.state].word}</span></li>`).join("")}</ul></section>` : "";
   for (const b of $$("#ledger-filter [data-f]")) b.setAttribute("aria-pressed", String(ledgerFilter.kind === b.dataset.f));

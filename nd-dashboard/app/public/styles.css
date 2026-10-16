@@ -1100,3 +1100,15 @@ main{padding-bottom:60px}
 .keys-table td{padding:4px 12px 4px 0;vertical-align:top}
 .keys-table td:first-child{font-family:var(--caps);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-primary);white-space:nowrap}
 .keys[hidden]{display:none}
+
+/* Sessions that went quiet: the Archive's two jobs, folded into the Ledger and closed by default. */
+.lg-quiet{margin-top:34px;border-top:1px solid var(--border-subtle);padding-top:14px}
+.lg-quiet>summary{cursor:pointer;list-style:none;font-family:var(--caps);font-size:10.5px;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary)}
+.lg-quiet>summary::-webkit-details-marker{display:none}
+.lg-quiet>summary::before{content:"\25B8  "}
+.lg-quiet[open]>summary::before{content:"\25BE  "}
+.lg-quiet>summary:hover{color:var(--text-primary)}
+.lg-quiet .lg-list{margin-top:12px}
+.lg-quiet li{display:flex;gap:12px;align-items:center;padding:5px 0}
+.lg-quiet li a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
