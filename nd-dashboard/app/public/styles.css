@@ -1029,7 +1029,8 @@ main{padding-bottom:60px}
 .rc-before.open .rc-before-t{display:none}
 .rc-working{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:15px;color:var(--text-secondary)}
 .rc-working .ic{color:var(--st-working);width:14px;height:14px}
-.rc-elapsed{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);margin-left:4px}
+.rc-elapsed{font-size:13px;color:var(--text-tertiary);margin-left:4px}
+.rc-prio-line .prio-b.on.p1{color:var(--text-primary)}
 .rc-prio-line{display:flex;align-items:center;gap:12px;margin:0;font-size:12px;color:var(--text-tertiary)}
 .rc-prio-l{font-family:var(--caps);font-size:10px;letter-spacing:.16em;text-transform:uppercase}
 .rc-prio-line .prio-b{padding:3px 6px}

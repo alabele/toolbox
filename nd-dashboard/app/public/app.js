@@ -150,8 +150,8 @@ function renderRoom() {
     const ordered = cards.slice(); // in room order; the open one stays where it is, so Cmd+Down walks down the list
     const keep = new Set(ordered.map(x => x.sessionId)); for (const old of [...el.children]) if (!keep.has(old.dataset.id)) old.remove();
     ordered.forEach((x, i) => { const isOpen = x.sessionId === openRound;
-      const key = JSON.stringify([x.state, x.pending?.id, (x.lastReply || "").length, sentCards.has(x.sessionId), isOpen && (x.state === "working" || sentCards.has(x.sessionId)) ? Math.floor(Date.now() / 60000) : 0, i, isOpen, x.title, x.note || prefs.notes?.[x.sessionId] || "", ordered.length, x.wait?.back || "", x.pr?.reason || ""]);
-      let card = el.querySelector(`[data-id="${CSS.escape(x.sessionId)}"]`); if (card && card.dataset.key === key) { if (el.children[i] !== card) el.insertBefore(card, el.children[i] || null); return; }
+      const key = JSON.stringify([x.state, x.pending?.id, (x.lastReply || "").length, sentCards.has(x.sessionId), i, isOpen, x.title, x.note || prefs.notes?.[x.sessionId] || "", ordered.length, x.wait?.back || "", x.pr?.reason || ""]);
+      let card = el.querySelector(`[data-id="${CSS.escape(x.sessionId)}"]`); if (card && card.dataset.key === key) { if (el.children[i] !== card) el.insertBefore(card, el.children[i] || null); const e = card.querySelector(".rc-elapsed"); if (e) e.textContent = elapsedFor(x); return; } // the elapsed count moves in place; the card is not rebuilt, so Before that and More stay as she left them
       const fresh = roundCard(x, isOpen, ordered.some(y => y !== x && !(sentCards.has(y.sessionId) && !y.needsYou))); fresh.dataset.key = key; fresh.dataset.item = itemId(x.pr || x.wait || x); fresh.dataset.key2 = itemKey(x.pr || x.wait || x);
       const grip = document.createElement("span"); grip.className = "grip"; grip.title = "Drag onto a project in the sidebar"; grip.draggable = true; grip.innerHTML = ic("grip-vertical"); fresh.insertAdjacentElement("afterbegin", grip);
       grip.addEventListener("dragstart", (e) => { dragItem = { item: fresh.dataset.item, key: fresh.dataset.key2 }; e.dataTransfer.effectAllowed = "move"; });
@@ -212,6 +212,7 @@ function clampBlocks(body, limit = 290) { // hide whole blocks past the limit; n
   const blocks = [...doc.children].flatMap(el => /^(UL|OL)$/.test(el.tagName) ? [...el.children] : [el]);
   blocks.forEach((el, i) => { const r = el.getBoundingClientRect(); if (i > 0 && r.bottom - top > limit) { el.classList.add("cut"); if (r.height > 2) cut++; } });
   return cut > 0; }
+function elapsedFor(x) { return ago(Date.now() - (x.state === "working" ? Math.min(x.stateSince, sentAt(x.sessionId)) : sentAt(x.sessionId))); }
 function needLine(x, sent) { // one plain line: what this item wants from you
   if (!x.managed) return x.state === "failed" ? "It failed in a terminal. Look there, or let it go." : "It runs in a terminal. Answer it there.";
   if (sent && !x.needsYou) return "";
@@ -237,7 +238,7 @@ function roundCard(x, isOpen, hasNext) {
   const need = needLine(x, sent); const prior = busy && (x.lastReply || x.last) ? beforeThat(x) : "";
   card.innerHTML = `${label}<h3 class="rc-title">${esc(x.title)}</h3>${soFarHtml(x)}${prior}${x.prompt ? `<div class="rc-ask">${esc(x.prompt)}</div>` : ""}${need ? `<p class="rc-need">${esc(need)}</p>` : ""}`;
   if (prior) { const b = card.querySelector(".rc-before"); const btn = b.querySelector(".rc-before-open"); btn.onclick = () => { b.classList.toggle("open"); btn.textContent = b.classList.contains("open") ? "Fold it" : "Read it"; }; }
-  if (busy) { const w = document.createElement("p"); w.className = "rc-working"; w.innerHTML = `${ic("orbit")}<span>Working on it</span><span class="rc-elapsed">${ago(Date.now() - (x.state === "working" ? Math.min(x.stateSince, sentAt(x.sessionId)) : sentAt(x.sessionId)))}</span>`; card.appendChild(w); }
+  if (busy) { const w = document.createElement("p"); w.className = "rc-working"; w.innerHTML = `${ic("orbit")}<span>Working on it</span><span class="rc-elapsed">${elapsedFor(x)}</span>`; card.appendChild(w); }
   if (x.pending) { const box = document.createElement("div"); box.className = "pending"; renderPendingInto(box, x.pending, x.sessionId); card.appendChild(box); }
   else if (!busy && (x.lastReply || x.last)) { const body = document.createElement("div"); body.className = "rc-body clamp"; body.appendChild(docHtml(x.lastReply || x.last, x.managed ? x.sessionId : undefined)); card.appendChild(body);
     const more = document.createElement("button"); more.className = "rc-fold"; more.type = "button"; more.textContent = "Read the whole reply"; more.onclick = () => { const folded = body.classList.toggle("clamp"); if (folded) clampBlocks(body); else body.querySelectorAll(".cut").forEach(e => e.classList.remove("cut")); more.textContent = folded ? "Read the whole reply" : "Show less"; }; card.appendChild(more);
@@ -730,3 +731,6 @@ function applyPrefs() { const theme = prefs.theme ?? "stillroom", modePref = pre
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyPrefs);
 if (prefs.themeVersion !== 3) { delete prefs.theme; delete prefs.themeChosen; prefs.themeVersion = 3; save(); } // the board's look is the new default; a theme picked from the menu after this sticks
 applyPrefs(); connect(); route(); icons();
+
+// once a minute, the "how long so far" count on a working plate moves. The card is not rebuilt.
+setInterval(() => { if ($("#rounds-list .rc-elapsed")) renderRoom(); }, 60000);
