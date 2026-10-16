@@ -65,6 +65,8 @@ Four agents for Stillroom as a harness: the software around each Claude Code ses
 
 ## Install
 
+The harness scorer runs on its own on the 16th of each month (`scripts/install-scorer.sh` once; `scripts/score-harness.sh` by hand) and commits its scorecard to `research/harness-scorecards/`.
+
 To restart the server without cutting a session off: `app/restart.sh` (it waits for a quiet moment). Server log: `~/.config/stillroom/server.log`.
 
 Agents live in `agents/`. To make them available in every Claude Code session:
