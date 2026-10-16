@@ -8,7 +8,7 @@ import { join, basename } from "node:path";
 import { SessionManager, type Meta } from "./sessions";
 import { Titler, HELPER_DIR, ask } from "./titles";
 import { Ledger } from "./ledger";
-import { Prs, type Pr } from "./prs";
+import { Prs, type Pr, type ChecklistItem } from "./prs";
 import { Waits } from "./waits";
 import { SlackIn } from "./slackIn";
 import { Triage } from "./slackTriage";
@@ -122,7 +122,7 @@ function deriveState(s: Session): State | null {
   return "idle";
 }
 
-interface View { paused?: { note: string; at: number }; parent?: string; abstract?: string; worktree?: { path: string; branch: string; repo: string }; live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
+interface View { doing?: string; usual?: { lo: number; hi: number; n: number }; handoff?: string; paused?: { note: string; at: number }; parent?: string; abstract?: string; worktree?: { path: string; branch: string; repo: string }; live?: boolean; note?: string; managed?: boolean; pending?: any; lastReply?: string; prompt?: string; sessionId: string; kind: string; cwd: string; repo: string; sub: string | null; state: State; stateSince: number; startedAt: number; title: string; last: string; resume: string; needsYou: boolean }
 let view: View[] = [];
 
 const pendingProj = new Map<any, { project: string; key?: string }>(); // sessions started from a project, waiting for their real id
@@ -146,7 +146,7 @@ function recompute() {
     const i = next.findIndex(v => v.sessionId === mm.sessionId); if (i >= 0) next.splice(i, 1);
     const { repo, sub } = identity(mm.cwd);
     const ai = mm.sessionId.startsWith("pending-") ? "" : transcriptInfo({ cwd: mm.cwd, sessionId: mm.sessionId } as any).title;
-    next.push({ paused: mm.paused, parent: mm.parent, abstract: mm.abstract, worktree: mm.worktree, note: mm.note, managed: true, pending: mm.pending, lastReply: mm.lastReply, prompt: mm.prompt, sessionId: mm.sessionId, kind: "quiet", cwd: mm.cwd, repo, sub, state: st, stateSince: mm.stateSince, startedAt: mm.startedAt, title: mm.userTitle || titler.get(mm.sessionId, mm.first || mm.prompt || "", mm.lastReply || "", st !== "working", ai || mm.title) || ai || mm.title, last: mm.pending ? (mm.pending.kind === "question" ? "Asked you a question" : `Wants to run ${mm.pending.toolName}`) : mm.lastText, resume: `cd ${JSON.stringify(mm.cwd)} && claude --resume ${mm.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
+    next.push({ doing: mm.doing, usual: usualFor(mm), handoff: mm.handoff, paused: mm.paused, parent: mm.parent, abstract: mm.abstract, worktree: mm.worktree, note: mm.note, managed: true, pending: mm.pending, lastReply: mm.lastReply, prompt: mm.prompt, sessionId: mm.sessionId, kind: "quiet", cwd: mm.cwd, repo, sub, state: st, stateSince: mm.stateSince, startedAt: mm.startedAt, title: mm.userTitle || titler.get(mm.sessionId, mm.first || mm.prompt || "", mm.lastReply || "", st !== "working", ai || mm.title) || ai || mm.title, last: mm.pending ? (mm.pending.kind === "question" ? "Asked you a question" : `Wants to run ${mm.pending.toolName}`) : mm.lastText, resume: `cd ${JSON.stringify(mm.cwd)} && claude --resume ${mm.sessionId}`, needsYou: NEEDS_YOU.includes(st) });
   }
   const order: Record<State, number> = { "needs-permission": 0, "needs-answer": 1, failed: 2, finished: 3, working: 4, paused: 5, idle: 6 };
   next.sort((a, b) => order[a.state] - order[b.state] || a.repo.localeCompare(b.repo) || a.startedAt - b.startedAt);
@@ -262,6 +262,7 @@ Bun.serve({
       for (const [k, f] of form.entries()) { if (k !== "file" || !(f instanceof File)) continue; const name = (f.name || "file").replace(/[^\w.@-]+/g, "_").slice(0, 80); const p = join(dir, `${Date.now().toString(36)}-${name}`); await Bun.write(p, f); out.push(p); }
       return Response.json({ paths: out }); }
     if (url.pathname === "/api/prs") return Response.json({ prs: prs.list(), repos: prs.repos, jira: prs.jira() });
+    if (url.pathname === "/api/restart") { if (req.method === "POST") { const b = await req.json().catch(() => ({})) as any; restartWanted = !b.cancel; const busy = restartBusy().length; setTimeout(restartIfQuiet, 50); return new Response(restartWanted ? (busy ? `Restart queued. Waiting for ${busy} session${busy === 1 ? "" : "s"} to finish.` : "Restarting now.") : "Restart cancelled."); } return Response.json({ wanted: restartWanted, busy: restartBusy().length }); }
     if (url.pathname === "/api/slack/status") return Response.json({ connected: await slackConnected(), in: slackIn.status() });
     if (url.pathname === "/api/slack/in") return Response.json(slackPayload().payload);
     if (url.pathname === "/api/slack/seen" && req.method === "POST") { const b = await req.json() as any; if (b.all) { slackIn.markAllSeen(); return new Response("ok"); } return slackIn.markSeen(String(b.id)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
@@ -279,21 +280,14 @@ Bun.serve({
     if (url.pathname === "/api/repo" && req.method === "POST") { const b = await req.json(); const cfg: any = {}; if (b.channel !== undefined) cfg.channel = String(b.channel).trim(); if (b.reviewers !== undefined) cfg.reviewers = String(b.reviewers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.approvers !== undefined) cfg.approvers = String(b.approvers).split(/[ ,]+/).map((s: string) => s.replace(/^@/, "").trim()).filter(Boolean); if (b.qa !== undefined) cfg.qa = !!b.qa; if (b.base !== undefined) cfg.base = String(b.base).trim().replace(/^origin\//, ""); if (b.checklist !== undefined) cfg.checklist = String(b.checklist).split("\n").map((s: string) => s.replace(/^\s*[-*\d.)]+\s*/, "").trim()).filter(Boolean); if (b.ticketSteps !== undefined) { const m: Record<string, string> = {}; for (const ln of String(b.ticketSteps).split("\n")) { const [a, c] = ln.split(/\s*(?:=|->|:)\s*/); if (a?.trim() && c?.trim()) m[a.trim()] = c.trim(); } cfg.ticketSteps = m; } prs.setRepo(String(b.repo), cfg); return new Response("ok"); }
     if (url.pathname === "/api/open" && req.method === "POST") { const b = await req.json(); const u = String(b.url || ""); if (!/^https?:\/\//.test(u)) return new Response("bad url", { status: 400 }); Bun.spawn(["open", "-a", "Google Chrome", u], { stdout: "ignore", stderr: "ignore" }); return new Response("ok"); } // outside links open in Chrome proper, not inside the app window
     if (url.pathname === "/api/pr/skip" && req.method === "POST") { const b = await req.json(); return prs.setSkip(String(b.key), String(b.item), String(b.why || "")) ? new Response("ok") : new Response("unknown", { status: 404 }); }
-    if (url.pathname === "/api/pr/do" && req.method === "POST") { // a checklist step's own button: Claude review, Ask for review, or an instruction to the session that made the PR
-      const b = await req.json(); const pr = prs.get(String(b.key)); if (!pr) return new Response("unknown", { status: 404 }); const c = (pr.checklist || []).find(x => x.item === String(b.item)); if (!c) return new Response("no such step", { status: 404 });
-      if (c.action === "review") return runPrLoop(pr.key) ? new Response("ok") : new Response("already running", { status: 409 });
-      if (c.action === "ask") return new Response("Use Ask for review on the row; it needs your message.", { status: 400 });
-      if (c.action === "send" && c.instruction) { let sid = pr.sessionId; if (sid && mgr.get(sid)) { mgr.send(sid, `${c.instruction}\n\n(Checklist step for ${pr.short}: "${c.item}". When it is done, call ship_step with state done; if it does not apply, state skip with why.)`); return new Response("ok"); }
-        const cwd = pr.headRef ? [...mgr.list()].find(m => m.worktree?.branch === pr.headRef)?.cwd : undefined; const dir = cwd || join(homedir(), "code", pr.repo.split("/")[1]); const wt = ensureWorktree(dir, pr.tickets[0]); const id = mgr.start({ cwd: wt ? wt.path : dir, prompt: `${pr.tickets[0] ? pr.tickets[0] + ": " : ""}${c.instruction} for ${pr.short}, ${pr.url}.\n\n(Checklist step "${c.item}". When done, call ship_step with state done; if it does not apply, state skip with why.)`, worktree: wt ? { path: wt.path, branch: wt.branch, repo: wt.repo } : undefined }); return new Response("started"); }
-      return new Response("no action for this step", { status: 400 }); }
+    if (url.pathname === "/api/pr/do" && req.method === "POST") { // a checklist step's own button
+      const b = await req.json() as any; const pr = prs.get(String(b.key)); if (!pr) return new Response("unknown", { status: 404 }); const c = (pr.checklist || []).find(x => x.item === String(b.item)); if (!c) return new Response("no such step", { status: 404 });
+      const r = await doStep(pr, c); if (r === "done") { prs.setCheck(pr.key, c.item, true); return new Response("ok"); } if (r === "started") return new Response("started"); return new Response(r.replace(/^(error|needs-you):?\s*/, ""), { status: r.startsWith("error") ? 409 : 400 }); }
+    if (url.pathname === "/api/pr/ship" && req.method === "POST") { const b = await req.json() as any; const a = String(b.action || "run"); const k = String(b.key); const ok = a === "go" ? prs.shipGo(k) : a === "stop" ? prs.shipStop(k) : prs.shipRun(k); return ok ? new Response("ok") : new Response("nothing to do", { status: 409 }); }
     if (url.pathname === "/api/pr/check" && req.method === "POST") { const b = await req.json(); return prs.setCheck(String(b.key), String(b.item), !!b.on) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/pr/ask" && req.method === "POST") { // ask for review: GitHub reviewers and the repo's Slack channel, both
       const b = await req.json(); const pr = prs.get(String(b.key)); if (!pr) return new Response("unknown", { status: 404 }); const r = prs.repos[pr.repo] || {}; if (!prs.configured(pr.repo)) return new Response("This repo is not set up: it needs a Slack channel and reviewers.", { status: 400 });
-      const ghr = Bun.spawnSync(["gh", "pr", "edit", String(pr.number), "-R", pr.repo, "--add-reviewer", (r.reviewers || []).join(",")], { stdout: "pipe", stderr: "pipe" }); const ghErr = ghr.exitCode === 0 ? "" : ghr.stderr.toString().trim().split("\n")[0];
-      const text = String(b.text || `Review request: ${pr.title} ${pr.url}`); const sr = await postToSlack(r.channel!, text); const slackErr = sr.startsWith("ERROR") ? sr : "";
-      if (!slackErr) prs.noteSlack(pr.key, { channel: r.channel!, askedAt: Date.now(), permalink: sr }); else if (!ghErr) prs.noteSlack(pr.key, { channel: r.channel!, askedAt: Date.now() });
-      prs.setWatch(pr.key, true); prs.refreshOne(pr.key);
-      if (ghErr && slackErr) return new Response(`GitHub: ${ghErr}. Slack: ${slackErr}`, { status: 502 }); if (ghErr) return new Response(`Slack posted. GitHub said: ${ghErr}`, { status: 207 }); if (slackErr) return new Response(`Reviewers requested on GitHub. Slack: ${slackErr}`, { status: 207 }); return new Response("ok"); }
+      const res = await askForReview(pr, String(b.text || `Review request: ${pr.title} ${pr.url}`)); return new Response(res.text, { status: res.ok ? (res.text === "ok" ? 200 : 207) : 502 }); }
     if (url.pathname === "/api/pr/channel" && req.method === "POST") { const b = await req.json(); prs.setChannel(String(b.repo), String(b.channel).trim()); broadcast({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } }); return new Response("ok"); }
     if (url.pathname === "/api/pr/slack" && req.method === "POST") { const b = await req.json(); const pr = prs.get(String(b.key)); if (!pr) return new Response("unknown", { status: 404 });
       const channel = prs.repos[pr.repo]?.channel; if (!channel) return new Response("no channel for this repo", { status: 400 });
@@ -379,6 +373,43 @@ const triage = new Triage(() => broadcast(slackPayload()), Object.keys(slackIn.s
 function slackPayload() { return { type: "slack" as const, payload: { items: triage.decorate(slackIn.list()), status: slackIn.status() } }; }
 setInterval(() => { slackIn.names(); slackIn.prune(); triage.prune(new Set(slackIn.list().map(i => i.id))); }, 10 * 60_000);
 prs.transcript = (pr) => { const sid = pr.sessionId; if (!sid) return ""; const evs = mgr.events(sid) || []; return evs.map((e: any) => e.kind === "tool" ? `${e.name} ${JSON.stringify(e.input || "").slice(0, 300)}` : String(e.text || "")).join("\n").slice(-60000); };
+/** Runs one checklist step by its method. "done" when finished here, "started" when the app will see it finish, "needs-you: why", or "error: why". */
+async function doStep(pr: Pr, c: ChecklistItem): Promise<string> {
+  if (c.action === "review") return runPrLoop(pr.key) ? "started" : "error: a Claude review is already running";
+  if (c.action === "ask") { if (!prs.configured(pr.repo)) return "needs-you: this repo has no Slack channel and reviewers set up"; const r = await askForReview(pr, `Review request: ${pr.title} ${pr.url}`); return r.ok ? "done" : `error: ${r.text}`; }
+  if (c.action === "cmd" && c.instruction) { const dir = prDir(pr); try { const proc = Bun.spawn(["/bin/zsh", "-lc", c.instruction], { cwd: dir, stdout: "pipe", stderr: "pipe" }); const t = setTimeout(() => proc.kill(), 15 * 60e3); const out = (await new Response(proc.stdout).text()) + (await new Response(proc.stderr).text()); const code = await proc.exited; clearTimeout(t); return code === 0 ? "done" : `error: ${c.instruction} exited ${code}: ${out.trim().split("\n").slice(-3).join(" | ").slice(0, 300)}`; } catch (e: any) { return `error: ${e?.message || e}`; } }
+  if (c.action === "send" && c.instruction) { const sid = pr.sessionId; const tail = `(Checklist step for ${pr.short}: "${c.item}". When it is done, call ship_step with state done; if it does not apply, state skip with why; if you tried and it did not work, state failed with why.)`;
+    if (sid && mgr.get(sid)) { mgr.send(sid, `${c.instruction}\n\n${tail}`); return "started"; }
+    const dir = prDir(pr); const wt = ensureWorktree(dir, pr.tickets[0]); mgr.start({ cwd: wt ? wt.path : dir, prompt: `${pr.tickets[0] ? pr.tickets[0] + ": " : ""}${c.instruction} for ${pr.short}, ${pr.url}.\n\n${tail}`, worktree: wt ? { path: wt.path, branch: wt.branch, repo: wt.repo } : undefined }); return "started"; }
+  return "needs-you: this step has no way to run itself; tick it yourself";
+}
+function prDir(pr: Pr) { const cwd = pr.headRef ? [...mgr.list()].find(m => m.worktree?.branch === pr.headRef)?.cwd : undefined; return cwd || join(homedir(), "code", pr.repo.split("/")[1]); }
+/** GitHub reviewers plus the repo's Slack channel. */
+async function askForReview(pr: Pr, text: string): Promise<{ ok: boolean; text: string }> {
+  const r = prs.repos[pr.repo] || {}; const ghr = Bun.spawnSync(["gh", "pr", "edit", String(pr.number), "-R", pr.repo, "--add-reviewer", (r.reviewers || []).join(",")], { stdout: "pipe", stderr: "pipe" }); const ghErr = ghr.exitCode === 0 ? "" : ghr.stderr.toString().trim().split("\n")[0];
+  const sr = await postToSlack(r.channel!, text); const slackErr = sr.startsWith("ERROR") ? sr : "";
+  if (!slackErr) prs.noteSlack(pr.key, { channel: r.channel!, askedAt: Date.now(), permalink: sr }); else if (!ghErr) prs.noteSlack(pr.key, { channel: r.channel!, askedAt: Date.now() });
+  prs.setWatch(pr.key, true); prs.refreshOne(pr.key);
+  if (ghErr && slackErr) return { ok: false, text: `GitHub: ${ghErr}. Slack: ${slackErr}` }; return { ok: true, text: ghErr ? `Slack posted. GitHub said: ${ghErr}` : slackErr ? `Reviewers requested on GitHub. Slack: ${slackErr}` : "ok" };
+}
+prs.onRunStep = doStep;
+prs.onRunDone = (pr, ok, why) => { const t = pr.tickets[0] ? `${pr.tickets[0]}: ${pr.title}` : pr.title; ledger.add({ id: `ship:${pr.key}:${pr.run?.startedAt || Date.now()}`, sessionId: pr.sessionId || pr.key, cwd: "", title: t, text: ok ? `Done.\n- Ship checklist ran for ${pr.short}: ${why}` : `Partly done.\n- Ship checklist for ${pr.short} ${why}` }); };
+/** How long this session's turns usually take: its own last turns, else other sessions in the same folder. p25 to p75, in ms. */
+function usualFor(mm: { cwd: string; turnTimes?: number[] }): { lo: number; hi: number; n: number } | undefined {
+  let t = (mm.turnTimes || []).filter(x => x > 2000); if (t.length < 3) { const pool = mgr.list().filter(o => o.cwd === mm.cwd).flatMap(o => o.turnTimes || []).filter(x => x > 2000); if (pool.length >= 5) t = pool; }
+  if (t.length < 3) return undefined; const a = t.slice().sort((x, y) => x - y); const q = (f: number) => a[Math.min(a.length - 1, Math.floor(f * (a.length - 1)))]!; return { lo: q(0.25), hi: q(0.75), n: a.length };
+}
+// ---------- restarting without cutting anyone off (QUEUE: safe restarts) ----------
+// POST /api/restart asks; the server restarts itself the first time nothing is working or waiting on her. The page shows the wait.
+let restartWanted = false; const LOG = join(homedir(), ".config", "stillroom", "server.log");
+function restartBusy() { return mgr.list().filter(m => m.status === "working" || m.status === "waiting" || m.status === "starting"); }
+function restartIfQuiet() { if (!restartWanted) return; const busy = restartBusy(); if (busy.length) { broadcast({ type: "restart", payload: { state: "waiting", busy: busy.length } }); return; }
+  restartWanted = false; broadcast({ type: "restart", payload: { state: "now" } }); console.log("restart: nothing is working; restarting now"); mgr.shutdown();
+  try { Bun.spawnSync(["/bin/zsh", "-c", `sleep 1.5; nohup ./start.sh >> "${LOG}" 2>&1 &`], { cwd: import.meta.dir, stdout: "ignore", stderr: "ignore", stdin: "ignore" }); } catch (e) { console.error("restart: could not spawn start.sh", e); }
+  setTimeout(() => process.exit(0), 400); }
+setInterval(restartIfQuiet, 5000);
+process.on("uncaughtException", (e) => { console.error(`${new Date().toISOString()} uncaught exception (kept running):`, e); });
+process.on("unhandledRejection", (e) => { console.error(`${new Date().toISOString()} unhandled rejection (kept running):`, e); });
 const reviewing = new Map<string, any>();
 function runPrLoop(key: string) {
   const pr = prs.get(key); if (!pr || reviewing.has(key)) return false;
@@ -407,6 +438,7 @@ mgr.onShipStep = async (sid, item, state, why) => { const pr = prs.forSession(si
   const hit = list.find(c => c.item.toLowerCase() === want) || list.find(c => c.item.toLowerCase().includes(want) || want.includes(c.item.toLowerCase())) || list.find(c => want.split(/\s+/).filter(w => w.length > 3).some(w => c.item.toLowerCase().includes(w)));
   if (!hit) return `No step like "${item}" on the checklist. Steps: ${list.map(c => c.item).join("; ")}.`;
   if (state === "skip") { prs.setSkip(pr.key, hit.item, why || "does not apply"); return `Marked "${hit.item}" as not applying: ${why || "does not apply"}.`; }
+  if (state === "failed") { prs.shipFail(pr.key, `${hit.item}: ${why || "did not work"}`); return `Noted: "${hit.item}" failed. The ship run stopped; she will see why.`; }
   if (state === "done") { prs.setCheck(pr.key, hit.item, true); return `Ticked "${hit.item}".`; } prs.setCheck(pr.key, hit.item, false); prs.setSkip(pr.key, hit.item, ""); return `Reopened "${hit.item}".`; };
 mgr.onProject = async (sid, name) => { const want = String(name || "").trim(); if (!want || sid.startsWith("pending-")) return "Could not set the project yet.";
   if (/^(none|no project|unassigned)$/i.test(want)) { projects.assign(`s:${sid}`, null); return "Taken out of every project."; }

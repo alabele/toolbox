@@ -23,12 +23,15 @@ export function parseOutcome(text: string): { status: "done" | "partly"; lines: 
   return { status: m[1].toLowerCase().startsWith("partly") ? "partly" : "done", lines: lines.slice(0, 6), next };
 }
 
+function dedupe(rows: Entry[]): Entry[] { const out: Entry[] = []; for (const r of rows) { const sig = r.status + "|" + (r.lines || []).join("|").toLowerCase(); const twin = out.find(o => o.status + "|" + (o.lines || []).join("|").toLowerCase() === sig && Math.abs(o.at - r.at) < 7 * 86400e3); if (twin) { if (r.facts && !twin.facts) twin.facts = r.facts; continue; } out.push(r); } return out; }
 const dayKey = (t: number) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
 export class Ledger {
   private rows: Entry[] = [];
   private summaries: Record<string, Summary> = {}; // "sessionId|day" -> the day's work in that session, rolled up
   private pending = new Set<string>(); private busy = false;
-  constructor(private onChange: () => void) { try { const j = JSON.parse(readFileSync(FILE, "utf8")); if (Array.isArray(j)) this.rows = j; else { this.rows = j.rows ?? []; this.summaries = j.summaries ?? {}; } } catch {} this.queueStale(); }
+  constructor(private onChange: () => void) { try { const j = JSON.parse(readFileSync(FILE, "utf8")); if (Array.isArray(j)) this.rows = j; else { this.rows = j.rows ?? []; this.summaries = j.summaries ?? {}; } } catch {} const before = this.rows.length; this.rows = dedupe(this.rows); if (this.rows.length !== before) this.save(); this.queueStale(); }
+  /** The same outcome, by its words, within a week counts once (a resumed session used to re-add its earlier rows under a temp id). */
+  private twin(e: { status: string; lines: string[]; at: number; title: string }) { const sig = e.status + "|" + e.lines.join("|").toLowerCase(); return this.rows.find(r => r.status + "|" + r.lines.join("|").toLowerCase() === sig && Math.abs(r.at - e.at) < 7 * 86400e3 && (r.title === e.title || r.lines.length > 0)); }
   list(): { entries: Entry[]; summaries: Record<string, Summary> } { return { entries: this.rows, summaries: this.summaries }; }
 
   /** Every session-day whose entries changed since its summary gets a new one. One call at a time. */
@@ -48,6 +51,7 @@ export class Ledger {
     if (this.rows.some(r => r.id === e.id)) return null;
     const p = parseOutcome(e.text); if (!p) return null;
     const row: Entry = { id: e.id, at: e.at ?? Date.now(), sessionId: e.sessionId, cwd: e.cwd, title: e.title, status: p.status, lines: p.lines, next: p.next, ...(e.facts ? { facts: e.facts } : {}) };
+    const twin = this.twin(row); if (twin) { if (e.facts && !twin.facts) { twin.facts = e.facts; this.save(); } return null; }
     this.rows.push(row); this.rows = this.rows.slice(-2000); this.save(); this.onChange(); this.queueStale(); return row;
   }
   retitle(sessionId: string, title: string) { let n = 0; for (const r of this.rows) if (r.sessionId === sessionId && r.title !== title) { r.title = title; n++; } if (n) { this.save(); this.onChange(); } }

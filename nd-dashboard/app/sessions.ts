@@ -3,6 +3,8 @@
 import { readFileSync as readSync_ } from "node:fs";
 import { reshape } from "./titles";
 import { guardConfig, guardHook, DENY_RULES } from "./guard";
+import { writeHandoff, findHandoff } from "./handoff";
+import { appendFileSync } from "node:fs";
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { query, type Query, type SDKUserMessage, type PermissionResult, type PermissionUpdate, type PermissionMode } from "@anthropic-ai/claude-agent-sdk";
@@ -43,6 +45,20 @@ function eventsFromDisk(cwd: string, sessionId: string, cap = 400): Ev[] {
   return out.length > cap ? out.slice(-cap) : out;
 }
 
+/** One short line for what a tool call is doing, for the plate ("reading prs.ts"). */
+export function describeTool(name: string, input: any): string {
+  const base = (p: any) => String(p || "").split("/").filter(Boolean).slice(-1)[0] || "";
+  switch (name) {
+    case "Bash": return `running ${String(input?.description || input?.command || "").replace(/\s+/g, " ").slice(0, 70)}`;
+    case "Read": return `reading ${base(input?.file_path)}`;
+    case "Edit": case "MultiEdit": case "Write": case "NotebookEdit": return `editing ${base(input?.file_path || input?.notebook_path)}`;
+    case "Grep": case "Glob": return `searching for ${String(input?.pattern || "").slice(0, 50)}`;
+    case "Task": case "Agent": return `delegating: ${String(input?.description || "").slice(0, 60)}`;
+    case "WebFetch": case "WebSearch": return `looking up ${String(input?.url || input?.query || "").replace(/^https?:\/\//, "").slice(0, 60)}`;
+    case "AskUserQuestion": return "asking you a question";
+    default: return name.startsWith("mcp__") ? `using ${name.split("__").slice(1).join(" ").replace(/_/g, " ")}` : `using ${name}`;
+  }
+}
 export type Ev =
   | { kind: "user"; text: string; at: number }
   | { kind: "text"; text: string; at: number }
@@ -55,7 +71,7 @@ export interface Pending {
   suggestions?: PermissionUpdate[]; blockedPath?: string; decisionReason?: string;
 }
 export type MStatus = "starting" | "working" | "waiting" | "idle" | "failed" | "ended";
-export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string }; parent?: string; abstract?: string; abstractN?: number; paused?: { note: string; at: number }; turns?: number; plates?: number; questions?: number; denials?: number }
+export interface Meta { sessionId: string; cwd: string; title: string; startedAt: number; status: MStatus; stateSince: number; pending: Pending | null; lastText: string; mode: PermissionMode; model?: string; cost: number; note?: string; lastReply?: string; prompt?: string; userTitle?: string; first?: string; worktree?: { path: string; branch: string; repo: string }; parent?: string; abstract?: string; abstractN?: number; paused?: { note: string; at: number }; turns?: number; plates?: number; questions?: number; denials?: number; turnTimes?: number[]; doing?: string; handoff?: string }
 
 class Inbox implements AsyncIterable<SDKUserMessage> {
   private q: SDKUserMessage[] = []; private waiters: ((v: IteratorResult<SDKUserMessage>) => void)[] = []; private closed = false;
@@ -77,7 +93,7 @@ export function sessionEnv(): Record<string, string | undefined> {
   return env;
 }
 
-interface Managed { meta: Meta; events: Ev[]; inbox: Inbox; q: Query; resolvers: Map<string, (r: PermissionResult) => void>; abort: AbortController; resumedWithoutPrompt?: boolean; denyStreak?: number }
+interface Managed { meta: Meta; events: Ev[]; inbox: Inbox; q: Query; resolvers: Map<string, (r: PermissionResult) => void>; abort: AbortController; resumedWithoutPrompt?: boolean; denyStreak?: number; turnStart?: number; priorReplay?: Ev[] }
 
 export class SessionManager {
   private byId = new Map<string, Managed>();
@@ -87,7 +103,7 @@ export class SessionManager {
   /** Set by the server: a session asked to be put in a project (by name; the server matches or makes it). */
   onProject: (sessionId: string, project: string) => Promise<string> = async () => "Not wired.";
   /** Set by the server: a session marked a ship-checklist step. */
-  onShipStep: (sessionId: string, item: string, state: "done" | "skip" | "open", why?: string) => Promise<string> = async () => "Not wired.";
+  onShipStep: (sessionId: string, item: string, state: "done" | "skip" | "open" | "failed", why?: string) => Promise<string> = async () => "Not wired.";
   /** Set by the server: a session asked for another session. Returns one line to show her. */
   onSpawn: (fromSessionId: string, cwd: string, prompt: string) => Promise<string> = async () => "Not wired.";
   private stillroomTools() { const self = this; return createSdkMcpServer({ name: "stillroom", version: "1.0.0", tools: [
@@ -101,7 +117,7 @@ export class SessionManager {
       { project: z.string().describe("The project name, like 'Release 15.1.0' or 'LetsO bugs'. 'none' takes it out of every project.") },
       async (a) => { const line = await self.onProject(self.currentSessionId, a.project); return { content: [{ type: "text", text: line }] }; }),
     tool("ship_step", "Mark a step on the ship checklist of this session's pull request: done, or skip with a reason when it does not apply (like 'autofix does not apply: no dump, not a bug'). Use when you finish a listed step or decide it is not needed.",
-      { item: z.string().describe("The step, as written on the checklist, or close to it"), state: z.enum(["done", "skip", "open"]).describe("done, skip (does not apply), or open (undo)"), why: z.string().optional().describe("For skip: one short line saying why") },
+      { item: z.string().describe("The step, as written on the checklist, or close to it"), state: z.enum(["done", "skip", "open", "failed"]).describe("done, skip (does not apply), open (undo), or failed (you tried and it did not work; the ship run stops and she is told)"), why: z.string().optional().describe("For skip or failed: one short line saying why") },
       async (a) => { const line = await self.onShipStep(self.currentSessionId, a.item, a.state, a.why); return { content: [{ type: "text", text: line }] }; }),
     tool("pause_session", "Pause this Stillroom session while it waits on something outside: a reply, a review, a ticket moving. It leaves her Needs you list until something comes back or she resumes it. Use when she asks to pause, park, or set this aside, or when the work cannot continue without someone else. Add the waits with add_wait first.",
       { note: z.string().describe("One plain line saying what this is waiting on, like 'Ilya to reply on namespace and retention; DLX review of letso #1762'") },
@@ -122,19 +138,19 @@ export class SessionManager {
 
   private persist() {
     if (this.shuttingDown && this.persistedOnShutdown) return; this.persistedOnShutdown = this.shuttingDown;
-    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree, parent: m.parent, abstract: m.abstract, abstractN: m.abstractN, paused: m.paused, turns: m.turns, plates: m.plates, questions: m.questions, denials: m.denials }));
+    const rows = this.list().filter(m => !m.sessionId.startsWith("pending-") && m.status !== "ended").map(m => ({ sessionId: m.sessionId, cwd: m.cwd, title: m.title, mode: m.mode, startedAt: m.startedAt, note: m.note, userTitle: m.userTitle, worktree: m.worktree, parent: m.parent, abstract: m.abstract, abstractN: m.abstractN, paused: m.paused, turns: m.turns, plates: m.plates, questions: m.questions, denials: m.denials, turnTimes: m.turnTimes }));
     try { mkdirSync(dirname(STATE_FILE), { recursive: true }); writeFileSync(STATE_FILE + ".tmp", JSON.stringify(rows, null, 2)); renameSync(STATE_FILE + ".tmp", STATE_FILE); } catch {}
   }
   /** Reopen every session this server owned before it last stopped. Each waits for input; no turn is started. */
   restore(): number {
     let rows: any[] = []; try { rows = JSON.parse(readFileSync(STATE_FILE, "utf8")); } catch { return 0; }
-    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree, parent: r.parent, abstract: r.abstract, abstractN: r.abstractN, paused: r.paused, counts: { turns: r.turns, plates: r.plates, questions: r.questions, denials: r.denials } }); } catch {} }
+    for (const r of rows) { try { this.start({ cwd: r.cwd, resume: r.sessionId, mode: r.mode, title: r.title, startedAt: r.startedAt, note: r.note, userTitle: r.userTitle, worktree: r.worktree, parent: r.parent, abstract: r.abstract, abstractN: r.abstractN, paused: r.paused, counts: { turns: r.turns, plates: r.plates, questions: r.questions, denials: r.denials, turnTimes: r.turnTimes } }); } catch {} }
     return rows.length;
   }
   get(id: string) { return this.byId.get(id); }
   events(id: string) { return this.byId.get(id)?.events ?? []; }
 
-  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"]; parent?: string; abstract?: string; abstractN?: number; paused?: Meta["paused"]; counts?: Pick<Meta, "turns" | "plates" | "questions" | "denials"> }): string {
+  start(opts: { cwd: string; prompt?: string; resume?: string; mode?: PermissionMode; title?: string; startedAt?: number; note?: string; userTitle?: string; worktree?: Meta["worktree"]; parent?: string; abstract?: string; abstractN?: number; paused?: Meta["paused"]; counts?: Pick<Meta, "turns" | "plates" | "questions" | "denials" | "turnTimes"> }): string {
     const tempId = opts.resume ?? `pending-${randomUUID()}`;
     const inbox = new Inbox(); const abort = new AbortController();
     const prior = opts.resume ? eventsFromDisk(opts.cwd, opts.resume) : [];
@@ -159,8 +175,8 @@ export class SessionManager {
       },
     });
     this.byId.set(tempId, m);
-    if (opts.resume) for (const e of prior) if (e.kind === "text") this.onOutcome(meta, e.text, e.at); // earlier outcomes join the ledger
-    if (opts.prompt) this.send(tempId, opts.prompt);
+    if (opts.resume) m.priorReplay = prior.filter(e => e.kind === "text"); // earlier outcomes join the ledger once the real session id is known
+    if (opts.prompt) { let prompt = opts.prompt; if (!opts.resume) { const h = findHandoff(opts.cwd, opts.worktree); if (h) prompt += `\n\n(There is a hand-off from the last session on this work: ${h}. Read it before anything else, then continue from its Next step unless this message says otherwise.)`; } this.send(tempId, prompt); }
     this.pump(m).catch(e => this.fail(m, String(e?.message ?? e)));
     return tempId;
   }
@@ -171,7 +187,7 @@ export class SessionManager {
     m.events.push({ kind: "user", text, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1));
     m.meta.prompt = text; if (m.meta.paused) m.meta.paused = undefined; // the reply is always read against what you last asked; a message resumes a paused session
     m.inbox.push({ type: "user", parent_tool_use_id: null, message: { role: "user", content: text } });
-    this.setStatus(m, "working");
+    m.turnStart = Date.now(); this.setStatus(m, "working");
   }
 
   answer(id: string, requestId: string, d: { behavior?: "allow" | "deny"; remember?: boolean; message?: string; answers?: Record<string, string>; freeText?: string }) {
@@ -189,7 +205,7 @@ export class SessionManager {
       const updates: PermissionUpdate[] | undefined = d.remember ? (p.suggestions?.length ? p.suggestions : [{ type: "addRules", rules: [{ toolName: p.toolName }], behavior: "allow", destination: "session" }]) : undefined;
       result = { behavior: "allow", updatedInput: p.input, ...(updates ? { updatedPermissions: updates } : {}) };
     }
-    m.resolvers.delete(requestId); m.meta.pending = null; this.setStatus(m, "working"); resolve(result);
+    m.resolvers.delete(requestId); m.meta.pending = null; if (!m.turnStart) m.turnStart = Date.now(); this.setStatus(m, "working"); resolve(result);
   }
 
   /** On server shutdown: stop every session process so none keeps running with no one to answer its prompts. Keeps the state file, so they reopen on the next boot. */
@@ -199,11 +215,11 @@ export class SessionManager {
   setTitle(id: string, title: string) { const m = this.byId.get(id); if (!m) return; m.meta.userTitle = title.trim() || undefined; this.emit("meta", m.meta.sessionId, m.meta); this.persist(); }
   /** Park: a note to self that shows on the outside, so the session can be put down safely. Empty clears it. */
   /** Paused: waiting on something outside. It leaves Needs you and Working until something comes back or she resumes it. */
-  setPaused(id: string, note: string | null) { const m = this.byId.get(id); if (!m) return; m.meta.paused = note === null ? undefined : { note: note.trim() || "Waiting on something", at: Date.now() }; if (note === null) m.meta.stateSince = Date.now(); this.emit("meta", m.meta.sessionId, m.meta); this.persist(); }
+  setPaused(id: string, note: string | null) { const m = this.byId.get(id); if (!m) return; m.meta.paused = note === null ? undefined : { note: note.trim() || "Waiting on something", at: Date.now() }; if (note === null) m.meta.stateSince = Date.now(); this.emit("meta", m.meta.sessionId, m.meta); this.persist(); if (note !== null) this.handoff(m, `paused: ${m.meta.paused!.note}`); }
   setNote(id: string, note: string) { const m = this.byId.get(id); if (!m) return; m.meta.note = note.trim() || undefined; this.emit("meta", m.meta.sessionId, m.meta); this.persist(); }
   async interrupt(id: string) { const m = this.byId.get(id); if (m) { await m.q.interrupt(); } }
   async setMode(id: string, mode: PermissionMode) { const m = this.byId.get(id); if (m) { await m.q.setPermissionMode(mode); m.meta.mode = mode; this.emit("meta", m.meta.sessionId, m.meta); } }
-  end(id: string) { const m = this.byId.get(id); if (!m) return; m.inbox.close(); try { m.q.close(); } catch {} m.abort.abort(); this.setStatus(m, "ended"); this.byId.delete(m.meta.sessionId); this.emit("gone", m.meta.sessionId, null); this.persist(); }
+  end(id: string) { const m = this.byId.get(id); if (!m) return; this.handoff(m, "closed by her").finally(() => this.logLine(m, "closed")); m.inbox.close(); try { m.q.close(); } catch {} m.abort.abort(); this.setStatus(m, "ended"); this.byId.delete(m.meta.sessionId); this.emit("gone", m.meta.sessionId, null); this.persist(); }
 
   private ask(m: Managed, toolName: string, input: any, o: { suggestions?: PermissionUpdate[]; blockedPath?: string; decisionReason?: string }): Promise<PermissionResult> {
     return new Promise(resolve => {
@@ -213,6 +229,18 @@ export class SessionManager {
     });
   }
 
+  /** Writes HANDOFF.md for the next session on this work. Quiet on failure. */
+  private async handoff(m: Managed, why: string) {
+    if (m.events.length < 2) return; // nothing happened yet
+    const turns = m.events.filter(e => e.kind === "user" || e.kind === "text").slice(-30).map(e => `${e.kind === "user" ? "She" : "Claude"}: ${String((e as any).text || "").replace(/\s+/g, " ").slice(0, e.kind === "user" ? 400 : 700)}`).join("\n");
+    const path = await writeHandoff({ cwd: m.meta.cwd, worktree: m.meta.worktree, title: m.meta.userTitle || m.meta.title, first: m.meta.first, abstract: m.meta.abstract, turns, why });
+    if (!path) return; m.meta.handoff = path; if (this.byId.has(m.meta.sessionId)) { m.events.push({ kind: "note", text: `Hand-off written: ${path}`, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1)); this.emit("meta", m.meta.sessionId, m.meta); this.persist(); }
+  }
+  /** One line per session end in ~/.config/stillroom/sessions-log.jsonl, so the record outlives sessions.json (which holds only live ones). */
+  private logLine(m: Managed, how: string) {
+    const x = m.meta; const row = { sessionId: x.sessionId, how, cwd: x.cwd, title: x.userTitle || x.title, startedAt: x.startedAt, endedAt: Date.now(), worktree: x.worktree?.branch, parent: x.parent, paused: x.paused?.note, turns: x.turns, cost: x.cost, plates: x.plates, questions: x.questions, denials: x.denials, turnTimes: x.turnTimes, handoff: x.handoff };
+    try { appendFileSync(join(dirname(STATE_FILE), "sessions-log.jsonl"), JSON.stringify(row) + "\n"); } catch {}
+  }
   /** A hard rule blocked a tool call. Counted; at the limit the session pauses and the plate says why, instead of the model retrying. */
   private denied(m: Managed, reason: string) {
     m.meta.denials = (m.meta.denials || 0) + 1; m.denyStreak = (m.denyStreak || 0) + 1;
@@ -249,11 +277,12 @@ export class SessionManager {
       if (msg.type === "system" && msg.subtype === "init") {
         if (m.meta.sessionId !== msg.session_id) { this.byId.delete(m.meta.sessionId); const old = m.meta.sessionId; m.meta.sessionId = msg.session_id; this.byId.set(msg.session_id, m); this.emit("gone", old, null); }
         m.meta.model = msg.model; if (m.resumedWithoutPrompt) { m.resumedWithoutPrompt = false; } this.emit("meta", m.meta.sessionId, m.meta); this.checkMcp(m).catch(() => {});
+        if (m.priorReplay) { for (const e of m.priorReplay) if (e.kind === "text") this.onOutcome(m.meta, e.text, e.at); m.priorReplay = undefined; }
         this.persist();
       } else if (msg.type === "assistant") {
         for (const b of msg.message.content as any[]) {
           if (b.type === "text" && b.text.trim()) { m.events.push({ kind: "text", text: b.text, at: Date.now() }); m.meta.lastText = b.text.replace(/\s+/g, " ").slice(0, 160); m.meta.lastReply = b.text.slice(0, 6000); this.emit("event", m.meta.sessionId, m.events.at(-1)); }
-          if (b.type === "tool_use") { m.events.push({ kind: "tool", id: b.id, name: b.name, input: b.input, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1)); }
+          if (b.type === "tool_use") { m.events.push({ kind: "tool", id: b.id, name: b.name, input: b.input, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1)); m.meta.doing = describeTool(b.name, b.input); }
         }
         if (m.meta.status !== "waiting") this.setStatus(m, "working");
       } else if (msg.type === "user") {
@@ -263,15 +292,17 @@ export class SessionManager {
           if (ev) { ev.result = typeof b.content === "string" ? b.content : Array.isArray(b.content) ? b.content.filter((x: any) => x.type === "text").map((x: any) => x.text).join("\n") : ""; ev.result = ev.result.slice(0, 4000); ev.isError = !!b.is_error; ev.doneAt = Date.now(); this.emit("event", m.meta.sessionId, ev); }
         }
       } else if (msg.type === "result") {
-        m.meta.cost = (msg as any).total_cost_usd ?? m.meta.cost; m.meta.turns = (m.meta.turns || 0) + ((msg as any).num_turns || 0);
+        m.meta.cost = (msg as any).total_cost_usd ?? m.meta.cost; m.meta.turns = (m.meta.turns || 0) + ((msg as any).num_turns || 0); m.meta.doing = undefined;
+        if (m.turnStart) { m.meta.turnTimes = [...(m.meta.turnTimes || []), Date.now() - m.turnStart].slice(-20); m.turnStart = undefined; }
         m.events.push({ kind: "result", subtype: msg.subtype, cost: (msg as any).total_cost_usd, turns: (msg as any).num_turns, at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1));
-        if (msg.subtype === "error_max_turns" || msg.subtype === "error_max_budget_usd") { m.events.push({ kind: "note", text: msg.subtype === "error_max_turns" ? "Stopped: this session hit its turn cap. Reply to continue, or start a fresh one from a hand-off." : "Stopped: this session hit its spending cap.", at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1)); }
+        if (msg.subtype === "error_max_turns" || msg.subtype === "error_max_budget_usd") { m.events.push({ kind: "note", text: msg.subtype === "error_max_turns" ? "Stopped: this session hit its turn cap. Reply to continue, or start a fresh one from a hand-off." : "Stopped: this session hit its spending cap.", at: Date.now() }); this.emit("event", m.meta.sessionId, m.events.at(-1)); this.handoff(m, msg.subtype === "error_max_turns" ? "hit its turn cap" : "hit its spending cap"); }
         this.setStatus(m, msg.subtype === "success" ? "idle" : "failed");
         this.abstractFor(m);
         this.shapeLast(m).then(() => { const ev = [...m.events].reverse().find(e => e.kind === "text") as Extract<Ev, { kind: "text" }> | undefined; if (ev) this.onOutcome(m.meta, ev.text, ev.at); });
       }
     }
     if (this.shuttingDown) return; // the process is closing on purpose; the state file must keep this session so it reopens next boot
+    this.logLine(m, m.meta.status === "failed" ? "failed" : "ended");
     if (m.meta.status !== "ended") { this.setStatus(m, "ended"); this.byId.delete(m.meta.sessionId); this.emit("gone", m.meta.sessionId, null); this.persist(); }
   }
 }

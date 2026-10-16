@@ -65,6 +65,8 @@ Four agents for Stillroom as a harness: the software around each Claude Code ses
 
 ## Install
 
+To restart the server without cutting a session off: `app/restart.sh` (it waits for a quiet moment). Server log: `~/.config/stillroom/server.log`.
+
 Agents live in `agents/`. To make them available in every Claude Code session:
 
 ```bash

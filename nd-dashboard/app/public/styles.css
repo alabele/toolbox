@@ -1035,3 +1035,14 @@ main{padding-bottom:60px}
 .rc-prio-l{font-family:var(--caps);font-size:10px;letter-spacing:.16em;text-transform:uppercase}
 .rc-prio-line .prio-b{padding:3px 6px}
 .rc-before-body .doc .callout{border-color:var(--border-medium);color:var(--text-secondary)}
+
+/* ===== working plate: usually, and what it is doing (hidden until asked) ===== */
+.rc-usual{font-size:12.5px;color:var(--text-tertiary);margin-left:8px}
+.rc-usual:empty{display:none}
+.rc-doing-t{all:unset;cursor:pointer;margin-left:auto;font-family:var(--caps);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary)}
+.rc-doing-t:hover,.rc-doing-t.on{color:var(--text-secondary)}
+.rc-doing{margin:0 0 6px 22px;font-size:13px;color:var(--text-tertiary);font-style:italic}
+/* the ship run on a PR row */
+.pr-run{margin:6px 0 2px;font-size:13px;color:var(--text-secondary)}
+.pr-run.st-needs-you,.pr-run.st-failed{color:var(--text-primary)}
+.pr-runlog{margin-top:2px}
