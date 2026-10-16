@@ -7,7 +7,7 @@ const done = new Promise<void>((resolve) => {
   ws.onmessage = (e) => { const m = JSON.parse(String(e.data));
     if (m.type === "started") sid = m.payload.tempId;
     if (m.type === "start-failed") { log(`start failed: ${JSON.stringify(m.payload)}`); resolve(); }
-    if (m.type === "meta" && (m.sessionId === sid || sid.startsWith("pending-"))) { if (m.payload.sessionId !== sid) sid = m.payload.sessionId; if (m.payload.paused) log(`paused: ${m.payload.paused.note}`); if (m.payload.status === "idle" || m.payload.status === "failed") resolve(); }
+    if (m.type === "meta" && (m.sessionId === sid || sid.startsWith("pending-"))) { if (m.payload.sessionId !== sid) sid = m.payload.sessionId; if (m.payload.paused) log(`paused: ${m.payload.paused.note}`); if (m.payload.pending) { log(`pending ${m.payload.pending.kind} ${m.payload.pending.toolName} ${JSON.stringify(m.payload.pending.input).slice(0, 120)}`); if (process.env.ANSWER) { ws.send(JSON.stringify({ type: "answer", sessionId: sid, requestId: m.payload.pending.id, decision: { freeText: process.env.ANSWER } })); log("answered"); } } if (m.payload.status === "idle" || m.payload.status === "failed") resolve(); }
     if (m.type === "event" && m.sessionId === sid) { const ev = m.payload; if (ev.kind === "note") notes.push(ev.text); if (ev.kind === "tool") log(`tool ${ev.name} ${JSON.stringify(ev.input).slice(0, 90)}`); if (ev.kind === "tool" && ev.result !== undefined) log(`  -> ${String(ev.result).slice(0, 140).replace(/\n/g, " ")}`); if (ev.kind === "text") reply = ev.text; } };
 });
 await Promise.race([done, new Promise(r => setTimeout(r, 180000))]);
