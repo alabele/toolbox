@@ -93,7 +93,7 @@ function renderSide() {
     else { try { const r = await fetch("/api/letgo", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: id }) }); if (!r.ok) { $("#error").hidden = false; $("#error").textContent = "Could not end it: " + await r.text(); return; } } catch {} }
     prefs.dismissed = [...(prefs.dismissed || []), id]; save(); renderSide(); renderNext(); });
   // the foot links read their own state from the hash: every route runs renderSide, so none can leave one lit
-  for (const [id, h] of [["side-prs", "#prs"], ["side-slack", "#slack"], ["side-ledger", "#ledger"]])
+  for (const [id, h] of [["side-prs", "#prs"], ["side-slack", "#slack"], ["side-ledger", "#ledger"], ["side-reports", "#reports"]])
     document.getElementById(id)?.setAttribute("aria-current", String(location.hash === h));
   const needsAny = [...rooms].some(([rid, its]) => !mutedRoom(rid) && its.some(needsIt));
   document.title = (needsAny ? "Needs you · " : "") + "Stillroom"; document.body.dataset.needs = needsAny ? "1" : "0"; icons();
@@ -501,6 +501,15 @@ function wireQuiet(el) {
   icons();
 }
 
+// Reports: the harness scorecards, newest in full, older ones one line each that open in place. No sub-navigation.
+let reportsOpen = new Set();
+async function renderReports() { const el = $("#reports-list"); let rows = []; try { rows = (await (await fetch("/api/reports")).json()).reports || []; } catch {}
+  if (!rows.length) { el.innerHTML = `<p class="quiet">No reports yet. The harness scorer writes one on the 16th of each month.</p>`; return; }
+  const head = (t) => { const m = t.match(/^#\s*(.+)$/m); return m ? m[1].trim() : ""; };
+  el.innerHTML = rows.map((r, i) => { const open = i === 0 || reportsOpen.has(r.name); return `<article class="report${open ? " open" : ""}" data-name="${esc(r.name)}"><h2 class="lg-h report-h"><span>${esc(r.date || r.name)}</span><span class="report-t">${esc(head(r.text).replace(/^Harness scorecard[:,]?\s*/i, ""))}</span>${i ? `<button class="lg-plus" type="button" aria-label="${open ? "Fold" : "Open"}"><span></span></button>` : ""}</h2><div class="report-body doc" ${open ? "" : "hidden"}></div></article>`; }).join("");
+  rows.forEach((r, i) => { const a = el.children[i]; const body = a.querySelector(".report-body"); if (!body.hidden) body.appendChild(docHtml(r.text.replace(/^#\s*.+\n/, "")));
+    a.querySelector(".lg-plus")?.addEventListener("click", () => { if (reportsOpen.has(r.name)) reportsOpen.delete(r.name); else reportsOpen.add(r.name); renderReports(); }); });
+  icons(); }
 function renderLedger() {
   renderQuiet();
   const now = $("#ledger-now"); const working = list.filter(x => !isDismissed(x) && (x.state === "working" || x.needsYou));
@@ -581,7 +590,7 @@ function applyList(sessions, version) { // the sidebar is navigation and always 
 async function refresh() { const d = await fetchState(); $("#error").hidden = !d.error && !d.pollError; $("#error").textContent = d.error || (d.pollError ? `Could not read sessions: ${d.pollError}` : ""); if (d.error) return; list = withTitles(d.sessions); listVersion = d.version; renderSide(); if (!openId && !termId && !roundsOn) { renderNext(); shownVersion = listVersion; $("#stale").hidden = true; } if (termId) renderTerm(); }
 
 // ---------- routing ----------
-function show(which) { $("#home").hidden = which !== "home"; $("#tsess").hidden = which !== "term"; $("#sess").hidden = which !== "sess"; $("#rounds").hidden = which !== "rounds"; $("#ledger").hidden = which !== "ledger"; $("#side-ledger").setAttribute("aria-current", String(which === "ledger")); $("#prs").hidden = which !== "prs"; $("#side-prs").setAttribute("aria-current", String(which === "prs")); $("#slack").hidden = which !== "slack"; $("#side-slack").setAttribute("aria-current", String(which === "slack")); $("#projects").hidden = true; roundsOn = which === "rounds"; document.body.classList.toggle("in-rounds", roundsOn); $("#side-rounds").setAttribute("aria-current", String(roundsOn)); if (which !== "sess") { openId = null; meta = null; transcript = []; } if (which !== "term") termId = null; }
+function show(which) { $("#home").hidden = which !== "home"; $("#tsess").hidden = which !== "term"; $("#sess").hidden = which !== "sess"; $("#rounds").hidden = which !== "rounds"; $("#ledger").hidden = which !== "ledger"; $("#side-ledger").setAttribute("aria-current", String(which === "ledger")); $("#reports").hidden = which !== "reports"; $("#side-reports").setAttribute("aria-current", String(which === "reports")); $("#prs").hidden = which !== "prs"; $("#side-prs").setAttribute("aria-current", String(which === "prs")); $("#slack").hidden = which !== "slack"; $("#side-slack").setAttribute("aria-current", String(which === "slack")); $("#projects").hidden = true; roundsOn = which === "rounds"; document.body.classList.toggle("in-rounds", roundsOn); $("#side-rounds").setAttribute("aria-current", String(roundsOn)); if (which !== "sess") { openId = null; meta = null; transcript = []; } if (which !== "term") termId = null; }
 function openSession(id) { termId = null; openId = id; transcript = []; meta = null; location.hash = "s/" + id; show("sess"); $("#transcript").innerHTML = ""; $("#pending").hidden = true; $("#park").hidden = true; send({ type: "open", sessionId: id }); renderSide(); setTimeout(() => $("#reply").focus(), 50); }
 function route() { const s = location.hash.match(/^#s\/(.+)$/), t = location.hash.match(/^#t\/(.+)$/);
   if (s) { if (openId !== s[1]) openSession(s[1]); return; }
@@ -591,6 +600,7 @@ function route() { const s = location.hash.match(/^#s\/(.+)$/), t = location.has
   if (location.hash === "#prs") { show("prs"); renderPrs(); renderSide(); return; }
   if (location.hash === "#slack") { show("slack"); loadSlack(); renderSide(); return; }
   if (location.hash === "#ledger") { show("ledger"); renderLedger(); renderSide(); return; }
+  if (location.hash === "#reports") { show("reports"); renderReports(); renderSide(); return; }
   show("home"); refresh(); }
 function topRoom() { const rooms = roomItems(); const on = projects.filter(p => p.on && !mutedRoom(p.id)).sort((x, y) => x.prio - y.prio || x.order - y.order); const withNeeds = on.find(p => rooms.get(p.id).some(needsIt)); if (withNeeds) return withNeeds.id; if (!mutedRoom("none") && (rooms.get("none") || []).some(needsIt)) return "none"; return on[0]?.id || null; }
 setInterval(() => { const w = document.getElementById("sk-when"); if (w && !$("#slack").hidden && w.textContent) w.textContent = slackAgo(); }, 30000);

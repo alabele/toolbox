@@ -13,7 +13,7 @@ cat > "$PLIST" <<PL
   <key>StartCalendarInterval</key><dict><key>Day</key><integer>16</integer><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
   <key>StandardOutPath</key><string>$HOME/.config/stillroom/scorer.log</string>
   <key>StandardErrorPath</key><string>$HOME/.config/stillroom/scorer.log</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string><key>HOME</key><string>$HOME</string></dict>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string><key>HOME</key><string>$HOME</string><key>USER</key><string>$USER</string><key>LOGNAME</key><string>$USER</string></dict>
 </dict></plist>
 PL
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true

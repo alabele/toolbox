@@ -264,6 +264,10 @@ Bun.serve({
       for (const [k, f] of form.entries()) { if (k !== "file" || !(f instanceof File)) continue; const name = (f.name || "file").replace(/[^\w.@-]+/g, "_").slice(0, 80); const p = join(dir, `${Date.now().toString(36)}-${name}`); await Bun.write(p, f); out.push(p); }
       return Response.json({ paths: out }); }
     if (url.pathname === "/api/prs") return Response.json({ prs: prs.list(), repos: prs.repos, jira: prs.jira() });
+    if (url.pathname === "/api/reports") { // the harness scorecards, newest first, whole text; the page shows them in place
+      const dir = join(import.meta.dir, "..", "research", "harness-scorecards"); let names: string[] = []; try { names = readdirSync(dir).filter(n => n.endsWith(".md")); } catch {}
+      const rows = names.map(n => { let text = ""; let at = 0; try { text = readFileSync(join(dir, n), "utf8"); at = statSync(join(dir, n)).mtimeMs; } catch {} const d = n.match(/^(\d{4}-\d{2}-\d{2})/); return { name: n.replace(/\.md$/, ""), date: d ? d[1] : "", at, text }; }).sort((a, b) => (b.date || "").localeCompare(a.date || "") || b.at - a.at);
+      return Response.json({ reports: rows }); }
     if (url.pathname === "/api/fairy") { fairy.seen(); if (req.method !== "POST") return Response.json(fairy.payload()); const b = await req.json().catch(() => ({})) as any;
       if (b.seen) { fairy.markSeen(); return new Response("ok"); } if (b.undo) return fairy.undo(String(b.undo)) ? new Response("ok") : new Response("nothing to undo", { status: 404 }); if (b.undoAll) { const n = fairy.undoAll(b.runAt ? +b.runAt : undefined); return new Response(`${n} undone`); }
       if (b.autoTable !== undefined) { fairy.setAutoTable(!!b.autoTable); return new Response("ok"); } if (b.table) { await fairy.setTable(); return new Response("ok"); } if (b.tickRef) return fairy.tick_(String(b.tickRef), !!b.done) ? new Response("ok") : new Response("unknown", { status: 404 });
