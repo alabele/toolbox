@@ -37,3 +37,7 @@ Nothing here runs on its own. No server restarts while sessions are in flight.
 ## Suggested by Claude, not asked for
 
 - Restart safely: the server waits until no session is working before it restarts, or reloads without ending sessions. This is the real fix for the interruptions.
+
+## Suggested by the harness scorer
+
+- Connector down or restricted was the top failure cause this period (7 of 23; scorecard research/harness-scorecards/2026-10-16-baseline.md): a session whose MCP client fails at startup never retries and cannot see a reconnect, and Slack Connect channels refuse sends. Owner: hx-harness-architect (retry or a "reconnect tools" step); hx-context-engineer (draft to external channels, never send first).
