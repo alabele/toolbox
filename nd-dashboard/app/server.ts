@@ -407,7 +407,7 @@ let restartWanted = false; const LOG = join(homedir(), ".config", "stillroom", "
 function restartBusy() { return mgr.list().filter(m => m.status === "working" || m.status === "waiting" || m.status === "starting"); }
 function restartIfQuiet() { if (!restartWanted) return; const busy = restartBusy(); if (busy.length) { broadcast({ type: "restart", payload: { state: "waiting", busy: busy.length } }); return; }
   restartWanted = false; broadcast({ type: "restart", payload: { state: "now" } }); console.log("restart: nothing is working; restarting now"); mgr.shutdown();
-  try { Bun.spawnSync(["/bin/zsh", "-c", `(for i in {1..60}; do nc -z localhost ${PORT} >/dev/null 2>&1 || break; sleep 0.5; done; nohup ./start.sh >> "${LOG}" 2>&1) &`], { cwd: import.meta.dir, stdout: "ignore", stderr: "ignore", stdin: "ignore" }); } // waits for the old process to let go of the port; closing many sessions can take a few seconds catch (e) { console.error("restart: could not spawn start.sh", e); }
+  try { Bun.spawnSync(["/bin/zsh", "-c", `(for i in {1..60}; do nc -z localhost ${PORT} >/dev/null 2>&1 || break; sleep 0.5; done; nohup ./start.sh >> "${LOG}" 2>&1) &`], { cwd: import.meta.dir, stdout: "ignore", stderr: "ignore", stdin: "ignore" }); } /* waits for the old process to let go of the port; closing many sessions can take a few seconds */ catch (e) { console.error("restart: could not spawn start.sh", e); }
   setTimeout(() => process.exit(0), 400); }
 setInterval(restartIfQuiet, 5000);
 process.on("uncaughtException", (e) => { console.error(`${new Date().toISOString()} uncaught exception (kept running):`, e); });
