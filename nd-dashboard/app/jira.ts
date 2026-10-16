@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { isVantageKey, vantageEntities, vantageReady, vantageStatusWords } from "./vantage";
 
 // site and email live in ~/.config/stillroom/jira.json ({"site": "https://x.atlassian.net", "email": "you@x.com"}); the token in jira-token beside it
 const CONF = (() => { try { return JSON.parse(readFileSync(join(homedir(), ".config", "stillroom", "jira.json"), "utf8")); } catch { return {}; } })();
@@ -12,10 +13,19 @@ export const QA_STATUSES = ["Ready for QA", "In Test"]; // "in QA" in plain word
 export interface Ticket { key: string; status: string; summary: string; assignee?: string; at: number; url: string }
 
 export function jiraReady(): boolean { return !!SITE && !!EMAIL && existsSync(TOKEN_FILE); }
+/** Some ticket source answers: Jira for VDC-style keys, Vantage for PROJ, STORY, D, GOAL, TD. */
+export function ticketsReady(): boolean { return jiraReady() || vantageReady(); }
+const fromVantage = (keys: string[]): Ticket[] => vantageEntities(keys).map(e => ({ key: e.key, status: vantageStatusWords(e.status), summary: e.title, at: Date.now(), url: "" }));
 function auth(): string | null { try { const t = readFileSync(TOKEN_FILE, "utf8").trim(); return t ? "Basic " + Buffer.from(`${EMAIL}:${t}`).toString("base64") : null; } catch { return null; } }
 
 /** One search for all keys. Returns what it found; missing keys are left out. */
 export async function fetchTickets(keys: string[]): Promise<{ tickets: Ticket[]; error?: string }> {
+  const all = [...new Set(keys.map(k => k.toUpperCase()))]; const v = all.filter(isVantageKey); const j = all.filter(k => !isVantageKey(k));
+  const fromV = v.length && vantageReady() ? fromVantage(v) : [];
+  if (!j.length) return { tickets: fromV };
+  const r = await fetchJira(j); return { tickets: [...fromV, ...r.tickets], error: r.error };
+}
+async function fetchJira(keys: string[]): Promise<{ tickets: Ticket[]; error?: string }> {
   const a = auth(); if (!a) return { tickets: [], error: "Jira not connected." };
   const uniq = [...new Set(keys)].slice(0, 100); if (!uniq.length) return { tickets: [] };
   try {
@@ -35,6 +45,7 @@ const toTicket = (i: any): Ticket => ({ key: i.key, status: i.fields?.status?.na
 
 /** Moves a ticket to a status by name. Returns "ok", "already", or an error line. */
 export async function transitionTicket(key: string, status: string): Promise<string> {
+  if (isVantageKey(key)) return "Vantage entities move from the Vantage app, not from here.";
   const a = auth(); if (!a) return "Jira not connected.";
   try {
     const cur = await fetch(`${SITE}/rest/api/3/issue/${key}?fields=status`, { headers: { authorization: a, accept: "application/json" } }); if (!cur.ok) return `Jira said ${cur.status} for ${key}.`;
@@ -48,6 +59,7 @@ export async function transitionTicket(key: string, status: string): Promise<str
 
 /** One ticket's title, status, and the first lines of its description, for prefilling a new session. */
 export async function fetchTicketBrief(key: string): Promise<{ key: string; summary: string; status: string; description: string; url: string } | { error: string }> {
+  if (isVantageKey(key)) { if (!vantageReady()) return { error: "Vantage is not set up on this Mac." }; const e = vantageEntities([key])[0]; return e ? { key: e.key, summary: e.title, status: vantageStatusWords(e.status), description: e.description.slice(0, 700), url: "" } : { error: `${key} is not in Vantage.` }; }
   const a = auth(); if (!a) return { error: "Jira not connected." };
   try { const r = await fetch(`${SITE}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary,status,description`, { headers: { authorization: a, accept: "application/json" } });
     if (r.status === 404) return { error: `${key} does not exist.` }; if (!r.ok) return { error: `Jira said ${r.status}.` };

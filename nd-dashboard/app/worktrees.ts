@@ -7,7 +7,7 @@ import { basename, join } from "node:path";
 const BASE = join(homedir(), ".config", "stillroom", "worktrees");
 const REPOS_FILE = join(homedir(), ".config", "stillroom", "repos.json");
 export interface Worktree { path: string; branch: string; repo: string; created: boolean }
-const KEY = /\b(VDC|D|STORY|PROJ|OPS|DOCS)-(\d{1,6})\b/i;
+const KEY = /\b(VDC|D|STORY|PROJ|GOAL|TD|OPS|DOCS)-(\d{1,6})\b/i;
 
 function git(cwd: string, ...args: string[]): { ok: boolean; out: string } {
   try { const r = Bun.spawnSync(["git", "-C", cwd, ...args], { stdout: "pipe", stderr: "pipe" }); return { ok: r.exitCode === 0, out: (r.stdout.toString() + r.stderr.toString()).trim() }; } catch (e: any) { return { ok: false, out: String(e?.message ?? e) }; }

@@ -4,12 +4,12 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { fetchTickets, jiraReady, QA_STATUSES, transitionTicket, type Ticket } from "./jira";
+import { fetchTickets, jiraReady, ticketsReady, QA_STATUSES, transitionTicket, type Ticket } from "./jira";
 
 const FILE = process.env.ND_PRS ?? join(homedir(), ".config", "stillroom", "prs.json");
 const REPOS_FILE = join(homedir(), ".config", "stillroom", "repos.json");
 const SEARCH_MS = 5 * 60_000, VIEW_STALE_MS = 2 * 60_000, SHELF_IDLE_DAYS = 21, SHELF_DRAFT_DAYS = 14;
-const TICKET_RE = /\b(STORY|D|VDC|PROJ)-(\d{1,6})\b/gi;
+const TICKET_RE = /\b(STORY|D|VDC|PROJ|GOAL|TD)-(\d{1,6})\b/gi;
 const STOP = new Set(["with", "the", "and", "for", "from", "that", "this", "into", "onto", "plugin", "added", "written", "run", "ran", "used", "using", "ticket", "steps", "step"]);
 
 export interface ChecklistItem { item: string; done: boolean; auto: boolean; skip?: string; action?: "review" | "ask" | "send" | "cmd"; instruction?: string; gate?: boolean }
@@ -114,7 +114,7 @@ export class Prs {
       if (Date.now() - this.s.searchedAt > SEARCH_MS) await this.search();
       const due = Object.values(this.s.prs).filter(p => !p.viewedAt || p.updatedAt > p.viewedAt || (p.state === "checks-running" && Date.now() - p.viewedAt > VIEW_STALE_MS)).slice(0, 8);
       for (const p of due) await this.view(p);
-      if (jiraReady() && (Date.now() - (this.s.ticketsAt ?? 0) > JIRA_MS || due.length)) await this.tickets();
+      if (ticketsReady() && (Date.now() - (this.s.ticketsAt ?? 0) > JIRA_MS || due.length)) await this.tickets();
       for (const p of Object.values(this.s.prs)) { p.ticket = p.tickets.map(k => this.s.tickets?.[k]).find(Boolean); const l = this.link(p); if (l) { p.sessionId = l.sessionId; p.sessionTitle = l.title; } this.derive(p); }
       this.save(); this.onChange();
     } catch (e: any) { appendFileSync(join(homedir(), ".config", "stillroom", "prs.log"), `${new Date().toISOString()} ${e?.message ?? e}\n`); }

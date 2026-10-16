@@ -3,12 +3,12 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { fetchTickets, jiraReady } from "./jira";
+import { fetchTickets, ticketsReady } from "./jira";
 import { repliesSince, slackReadReady } from "./slackThread";
 const STALE_MS = 5 * 86400e3; // after five days, one quiet question: still worth waiting for?
 
 const FILE = join(homedir(), ".config", "stillroom", "waits.json");
-const KEY = /\b(VDC|D|STORY|PROJ|OPS|DOCS)-(\d{1,6})\b/i;
+const KEY = /\b(VDC|D|STORY|PROJ|GOAL|TD|OPS|DOCS)-(\d{1,6})\b/i;
 export interface Wait { id: string; kind: "ticket" | "slack" | "pr" | "note"; text: string; link?: string; ticket?: string; until?: string; prKey?: string; status?: string; since: number; back?: string; backAt?: number; sessionId?: string; askedAt?: number; keepAt?: number; lastTs?: string }
 
 export class Waits {
@@ -22,7 +22,7 @@ export class Waits {
     const k = text.match(KEY); const ticket = k ? `${k[1].toUpperCase()}-${k[2]}` : undefined;
     const kind: Wait["kind"] = prKey ? "pr" : ticket ? "ticket" : /slack\.com/.test(url) ? "slack" : "note";
     const w: Wait = { id: Math.random().toString(36).slice(2, 10), kind, text: text.trim(), link: url || undefined, ticket: kind === "ticket" ? ticket : undefined, until: until?.trim() || undefined, prKey, since: Date.now(), sessionId };
-    if (w.ticket && jiraReady()) { const r = await fetchTickets([w.ticket]); w.status = r.tickets[0]?.status; if (w.until && w.status && w.status.toLowerCase() === w.until.toLowerCase()) { w.back = `${w.ticket} is already ${w.status}`; w.backAt = Date.now(); } }
+    if (w.ticket && ticketsReady()) { const r = await fetchTickets([w.ticket]); w.status = r.tickets[0]?.status; if (w.until && w.status && w.status.toLowerCase() === w.until.toLowerCase()) { w.back = `${w.ticket} is already ${w.status}`; w.backAt = Date.now(); } }
     this.rows.push(w); this.save(); this.onChange(); return w;
   }
   remove(id: string) { this.rows = this.rows.filter(w => w.id !== id); this.save(); this.onChange(); }
@@ -38,7 +38,7 @@ export class Waits {
       const r = await repliesSince(w.link!, Math.max(w.since / 1000, +(w.lastTs || 0))); if (!r.ok) continue;
       if (r.replies.length) { const last = r.replies[r.replies.length - 1]!; w.back = `${last.name} replied: "${last.text.slice(0, 90)}${last.text.length > 90 ? "…" : ""}"`; w.backAt = Date.now(); w.lastTs = last.ts; changed = true; } }
     if (changed) { this.save(); this.onChange(); }
-    const open = this.rows.filter(w => w.kind === "ticket" && w.ticket && !w.back); if (!open.length || !jiraReady()) return;
+    const open = this.rows.filter(w => w.kind === "ticket" && w.ticket && !w.back); if (!open.length || !ticketsReady()) return;
     const r = await fetchTickets(open.map(w => w.ticket!)); if (r.error) return; changed = false;
     for (const w of open) { const t = r.tickets.find(t => t.key === w.ticket); if (!t) continue;
       const hit = w.until ? t.status.toLowerCase() === w.until.toLowerCase() : (w.status && t.status !== w.status);
