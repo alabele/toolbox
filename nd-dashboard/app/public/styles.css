@@ -418,9 +418,11 @@ main{height:100%;overflow:auto;padding-bottom:40px}
 .rc-body{max-height:none;overflow:visible;padding:0}
 .rc-body .doc{font-size:15px;line-height:1.55;max-width:64ch;color:var(--text-secondary)}
 .rc-body .doc .callout{border-color:var(--border-medium);color:var(--text-primary)}
-.rc-body.clamp{max-height:9.5em;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,black 70%,transparent);mask-image:linear-gradient(to bottom,black 70%,transparent)}
+.rc-body.clamp{overflow:hidden}
+.rc-body.clamp .cut{display:none}
 .rc-body.clamp .doc .callout{-webkit-mask:none}
-.rc-fold{margin-top:6px;align-self:flex-start}
+.rc-fold{all:unset;cursor:pointer;margin-top:8px;align-self:flex-start;color:var(--text-tertiary);font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-family:var(--caps)}
+.rc-fold:hover{color:var(--text-primary)}
 .rc-hint{font-size:13px;color:var(--text-tertiary)}
 .rc-answer{margin-top:8px}
 .rc .rc-answer .btn.primary{background:transparent;color:var(--text-primary);border:1px solid var(--border-medium)}
@@ -487,7 +489,7 @@ main{height:100%;overflow:auto;padding-bottom:40px}
 .doc h3+*{margin-top:6px}
 .doc ul li::marker{color:var(--text-tertiary)}
 .rc .rc-body{max-height:none;overflow:visible}
-.rc .rc-body.clamp{max-height:14em;overflow:hidden}
+.rc .rc-body.clamp{max-height:none;overflow:hidden}
 .rc-body .doc .callout{border-left:3px solid var(--text-primary)}
 .rc-body .doc .callout.ask{border-left-width:1px}
 .doc ul.lead-list{font-size:16px;line-height:1.5;color:var(--text-primary);padding-left:18px;margin-top:8px}
@@ -737,15 +739,15 @@ main{padding-bottom:60px}
 .si.pr.needs .si-state{font-family:var(--caps);letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary)}
 .rc .rc-acts .btn.primary{background:var(--action-primary);color:var(--bg-primary)}
 /* priority: hers, three words */
-.prio{display:inline-flex;border:1px solid var(--line-quiet);border-radius:4px;overflow:hidden}
+.prio{display:inline-flex;gap:2px}
 .prio-b{all:unset;cursor:pointer;font-family:var(--caps);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;color:var(--text-tertiary)}
-.prio-b+.prio-b{border-left:1px solid var(--line-quiet)}
+
 .prio-b:hover{color:var(--text-primary)}
-.prio-b.on{color:var(--text-primary);background:var(--bg-tertiary)}
+.prio-b.on{color:var(--text-primary)}
 .prio-b.on.p1{color:var(--action-primary)}
 .si-prio{font-family:var(--caps);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-tertiary);flex:none;margin-left:6px}
 .si-prio.p1{color:var(--action-primary)}
-.rc-tail .prio{margin-right:auto;margin-left:12px}
+.rc-tail{justify-content:flex-end}
 .pr-watch{display:inline-flex;margin-right:8px;color:var(--text-secondary);vertical-align:middle}
 .pr-watch .ic{width:12px;height:12px}
 .wait-add{display:flex;gap:6px;padding:2px 12px 8px}
@@ -1013,3 +1015,22 @@ main{padding-bottom:60px}
 .rc.plate:hover .grip{opacity:.6}
 .rc.plate .grip .ic{width:14px;height:14px}
 .proj-kind.grip{cursor:grab}
+
+/* ===== session 015: the plate while it works ===== */
+.rc-before{margin:0 0 12px}
+.rc-before-line{display:flex;align-items:baseline;gap:10px;margin:0;font-size:12.5px;color:var(--text-tertiary);min-width:0}
+.rc-before-l{font-family:var(--caps);font-size:10px;letter-spacing:.16em;text-transform:uppercase;flex:none}
+.rc-before-t{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic}
+.rc-before-open{all:unset;cursor:pointer;flex:none;font-family:var(--caps);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-tertiary)}
+.rc-before-open:hover{color:var(--text-primary)}
+.rc-before-body{display:none;margin-top:8px;padding-left:12px;border-left:1px solid var(--line-quiet)}
+.rc-before-body .doc{font-size:14px;line-height:1.5;color:var(--text-tertiary);max-width:64ch}
+.rc-before.open .rc-before-body{display:block}
+.rc-before.open .rc-before-t{display:none}
+.rc-working{display:flex;align-items:center;gap:8px;margin:0 0 4px;font-size:15px;color:var(--text-secondary)}
+.rc-working .ic{color:var(--st-working);width:14px;height:14px}
+.rc-elapsed{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);margin-left:4px}
+.rc-prio-line{display:flex;align-items:center;gap:12px;margin:0;font-size:12px;color:var(--text-tertiary)}
+.rc-prio-l{font-family:var(--caps);font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+.rc-prio-line .prio-b{padding:3px 6px}
+.rc-before-body .doc .callout{border-color:var(--border-medium);color:var(--text-secondary)}

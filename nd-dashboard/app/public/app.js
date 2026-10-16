@@ -122,11 +122,13 @@ function renderNext() {
 let roundsOn = false; const sentCards = new Map(); // id -> what the item looked like when you answered; a new reply drops it
 let openRound = null; let roomTimer = {}; // roomTimer[id] = end time she asked for
 const sentKey = (x) => `${x.pending?.id || ""}:${(x.lastReply || "").length}`;
+const markSent = (id, x) => sentCards.set(id, { key: x ? sentKey(x) : "", at: Date.now() });
+const sentAt = (id) => sentCards.get(id)?.at || Date.now();
 function renderRounds() { renderRoom(); }
 function renderRoom() {
   const id = roomId() || ""; const p = id === "none" ? null : projects.find(x => x.id === id); if (!p && id !== "none") { $("#room-head").innerHTML = `<p class="quiet">That project is gone.</p>`; $("#rounds-list").innerHTML = ""; $("#room-rest").innerHTML = ""; return; }
   const rooms = roomItems(); const its = rooms.get(id) || []; const el = $("#rounds-list");
-  for (const it of its) if (it.t === "session") { const x = it.o; if (sentCards.has(x.sessionId) && sentCards.get(x.sessionId) !== sentKey(x) && x.needsYou) sentCards.delete(x.sessionId); }
+  for (const it of its) if (it.t === "session") { const x = it.o; if (sentCards.has(x.sessionId) && sentCards.get(x.sessionId)?.key !== sentKey(x) && (x.needsYou || !["working", "finished"].includes(x.state))) sentCards.delete(x.sessionId); }
   // what needs her: blocked first, then your turn, then PRs and waits that came back; inside, her priority, pinned order, longest wait
   const blockedRank = (it) => it.t === "session" ? (it.o.state === "needs-permission" ? 0 : it.o.state === "needs-answer" ? 1 : it.o.state === "failed" ? 2 : 3) : 4;
   const rank = (it) => { const sid = it.t === "session" ? it.o.sessionId : ""; const s = sid ? (prefs.stars || {})[sid] : null; return (sid ? prioOf(sid) : 2) * 1e6 + (s == null ? 1e5 : s); };
@@ -148,7 +150,7 @@ function renderRoom() {
     const ordered = cards.slice(); // in room order; the open one stays where it is, so Cmd+Down walks down the list
     const keep = new Set(ordered.map(x => x.sessionId)); for (const old of [...el.children]) if (!keep.has(old.dataset.id)) old.remove();
     ordered.forEach((x, i) => { const isOpen = x.sessionId === openRound;
-      const key = JSON.stringify([x.state, x.pending?.id, (x.lastReply || "").length, sentCards.has(x.sessionId), i, isOpen, x.title, x.note || prefs.notes?.[x.sessionId] || "", ordered.length, x.wait?.back || "", x.pr?.reason || ""]);
+      const key = JSON.stringify([x.state, x.pending?.id, (x.lastReply || "").length, sentCards.has(x.sessionId), isOpen && (x.state === "working" || sentCards.has(x.sessionId)) ? Math.floor(Date.now() / 60000) : 0, i, isOpen, x.title, x.note || prefs.notes?.[x.sessionId] || "", ordered.length, x.wait?.back || "", x.pr?.reason || ""]);
       let card = el.querySelector(`[data-id="${CSS.escape(x.sessionId)}"]`); if (card && card.dataset.key === key) { if (el.children[i] !== card) el.insertBefore(card, el.children[i] || null); return; }
       const fresh = roundCard(x, isOpen, ordered.some(y => y !== x && !(sentCards.has(y.sessionId) && !y.needsYou))); fresh.dataset.key = key; fresh.dataset.item = itemId(x.pr || x.wait || x); fresh.dataset.key2 = itemKey(x.pr || x.wait || x);
       const grip = document.createElement("span"); grip.className = "grip"; grip.title = "Drag onto a project in the sidebar"; grip.draggable = true; grip.innerHTML = ic("grip-vertical"); fresh.insertAdjacentElement("afterbegin", grip);
@@ -158,7 +160,7 @@ function renderRoom() {
     const focusBox = el.querySelector(".rc.is-open textarea"); if (focusBox && document.activeElement?.tagName !== "TEXTAREA") focusBox.focus({ preventScroll: true });
   }
   // the rest: in flight, waiting on others, new session, elsewhere, more
-  const row = (it) => { const o = it.o; const title = it.t === "pr" ? (o.tickets?.[0] ? `${o.tickets[0]}: ${o.title}` : o.title) : it.t === "wait" ? o.text : o.title; const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? "On watch" : (sentCards.has(o.sessionId) ? "Sent" : STATE[o.state].word); const href = it.t === "pr" ? "#prs" : it.t === "wait" ? (o.link || "#") : hrefOf(o);
+  const row = (it) => { const o = it.o; const title = it.t === "pr" ? (o.tickets?.[0] ? `${o.tickets[0]}: ${o.title}` : o.title) : it.t === "wait" ? o.text : o.title; const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? "On watch" : (sentCards.has(o.sessionId) && !o.needsYou ? "Working" : STATE[o.state].word); const href = it.t === "pr" ? "#prs" : it.t === "wait" ? (o.link || "#") : hrefOf(o);
     const linked = it.t === "session" && o.state === "paused" ? waitList.filter(w => w.sessionId === o.sessionId && !w.back) : [];
     return `<li class="proj-item${it.t === "session" && o.state === "paused" ? " paused" : ""}" data-item="${esc(itemId(o))}" data-key="${esc(itemKey(o))}"><span class="proj-kind grip" draggable="true" title="Drag onto a project in the sidebar">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : o.state === "paused" ? "pause" : "message-circle")}</span><a href="${esc(href)}" class="proj-title" ${it.t === "wait" && o.link ? 'target="_blank" rel="noopener"' : ""}>${esc(title)}</a><span class="proj-state">${esc(state)}</span>${it.t === "wait" ? `<span class="rc-acts"><button class="btn tiny" data-wback="${o.id}">It came back</button><button class="btn tiny" data-wdrop="${o.id}">Let it go</button></span>` : ""}${it.t === "session" && o.state === "paused" ? `<span class="pause-note">${esc(o.paused?.note || "")}${linked.length ? `<span class="pause-waits">${linked.map(w => `<span>${ic(w.kind === "ticket" ? "ticket" : w.kind === "pr" ? "git-pull-request" : w.kind === "slack" ? "message-circle" : "hourglass")}${esc(w.text)}</span>`).join("")}</span>` : ""}<button class="btn tiny" data-resume="${o.sessionId}">Resume</button></span>` : ""}</li>`; };
   const group = (name, arr) => arr.length ? `<h3 class="lg-h">${name}</h3><ul class="proj-items">${arr.map(row).join("")}</ul>` : "";
@@ -203,9 +205,16 @@ function prPlate(x, isOpen, hasNext) { const p = x.pr; const card = document.cre
   card.querySelector(".rc-next")?.addEventListener("click", () => { const others = [...$("#rounds-list").children].map(c => c.dataset.id).filter(id => id !== x.sessionId); openRound = others[0] || null; renderRoom(); });
   card.querySelector('[data-a="start"]')?.addEventListener("click", () => { location.hash = ""; show("home"); $("#ns-cwd").value = guessCwd(p); $("#ns-prompt").value = `${p.tickets[0] ? p.tickets[0] + ": " : ""}pick up ${p.short}, ${p.url}. Read the newest review comments and the failing checks first.`; $("#ns-prompt").focus(); });
   return card; }
+function headLine(text) { const t = aboveRule(String(text || "")).replace(/^\s*(Done|Partly done|Blocked|Found|Question|Working|Failed|Not done)\b[.:!]?\s*/i, "").replace(/[*_`#>]/g, "").split(/\n+/).map(l => l.replace(/^\s*[-*]\s*/, "").trim()).find(Boolean) || ""; return t.length > 110 ? t.slice(0, 107).replace(/\s+\S*$/, "") + "…" : t; }
+function beforeThat(x) { return `<div class="rc-before"><p class="rc-before-line"><span class="rc-before-l">Before that</span><span class="rc-before-t">${esc(headLine(x.lastReply || x.last))}</span><button type="button" class="rc-before-open">Read it</button></p><div class="rc-before-body">${docHtml(x.lastReply || x.last).outerHTML}</div></div>`; }
+function clampBlocks(body, limit = 290) { // hide whole blocks past the limit; never cut a line in half. Returns true when something was hidden
+  body.querySelectorAll(".cut").forEach(e => e.classList.remove("cut")); const doc = body.querySelector(".doc") || body; const top = doc.getBoundingClientRect().top; let cut = 0;
+  const blocks = [...doc.children].flatMap(el => /^(UL|OL)$/.test(el.tagName) ? [...el.children] : [el]);
+  blocks.forEach((el, i) => { const r = el.getBoundingClientRect(); if (i > 0 && r.bottom - top > limit) { el.classList.add("cut"); if (r.height > 2) cut++; } });
+  return cut > 0; }
 function needLine(x, sent) { // one plain line: what this item wants from you
   if (!x.managed) return x.state === "failed" ? "It failed in a terminal. Look there, or let it go." : "It runs in a terminal. Answer it there.";
-  if (sent && !x.needsYou) return "Sent. Working on it.";
+  if (sent && !x.needsYou) return "";
   if (x.pending?.kind === "permission") return `Wants to run ${x.pending.toolName || "a tool"}. Allow it?`;
   if (x.pending) return "Asked you a question.";
   if (x.state === "failed") return "It failed. Reply to try again, or close it.";
@@ -221,18 +230,21 @@ function roundCard(x, isOpen, hasNext) {
   if (x.pr) return prPlate(x, isOpen, hasNext);
   const st = STATE[x.state]; const sent = sentCards.has(x.sessionId); const note = x.note || prefs.notes?.[x.sessionId] || "";
   const card = document.createElement("article"); card.className = "rc plate " + (isOpen ? "is-open" : "is-collapsed") + (sent ? " sent" : ""); card.dataset.id = x.sessionId;
-  const label = `<span class="plate-label">${ic(st.icon)}${sent && !x.needsYou ? "Sent" : st.word}</span>`;
-  if (!isOpen) { card.innerHTML = `${label}<button class="rc-row" type="button"><span class="rc-title">${esc(x.title)}</span>${sent && !x.needsYou ? `<span class="rc-note">Sent. Working on it.</span>` : note ? `<span class="rc-note">${esc(note)}</span>` : ""}</button>`;
+  const busy = sent; const lab = busy ? STATE.working : st; const label = `<span class="plate-label">${ic(lab.icon)}${lab.word}</span>`;
+  if (!isOpen) { card.innerHTML = `${label}<button class="rc-row" type="button"><span class="rc-title">${esc(x.title)}</span>${busy ? `<span class="rc-note">Working on it</span>` : note ? `<span class="rc-note">${esc(note)}</span>` : ""}</button>`;
     card.querySelector(".rc-row").onclick = () => { openRound = x.sessionId; renderRounds(); }; return card; }
   // the open item: title, one line saying what it needs, the reply, one way to answer, and the rest behind More
-  const need = needLine(x, sent); card.innerHTML = `${label}<h3 class="rc-title">${esc(x.title)}</h3>${soFarHtml(x)}${x.prompt ? `<div class="rc-ask">${esc(x.prompt)}</div>` : ""}${need ? `<p class="rc-need">${esc(need)}</p>` : ""}`;
+  const need = needLine(x, sent); const prior = busy && (x.lastReply || x.last) ? beforeThat(x) : "";
+  card.innerHTML = `${label}<h3 class="rc-title">${esc(x.title)}</h3>${soFarHtml(x)}${prior}${x.prompt ? `<div class="rc-ask">${esc(x.prompt)}</div>` : ""}${need ? `<p class="rc-need">${esc(need)}</p>` : ""}`;
+  if (prior) { const b = card.querySelector(".rc-before"); const btn = b.querySelector(".rc-before-open"); btn.onclick = () => { b.classList.toggle("open"); btn.textContent = b.classList.contains("open") ? "Fold it" : "Read it"; }; }
+  if (busy) { const w = document.createElement("p"); w.className = "rc-working"; w.innerHTML = `${ic("orbit")}<span>Working on it</span><span class="rc-elapsed">${ago(Date.now() - (x.state === "working" ? Math.min(x.stateSince, sentAt(x.sessionId)) : sentAt(x.sessionId)))}</span>`; card.appendChild(w); }
   if (x.pending) { const box = document.createElement("div"); box.className = "pending"; renderPendingInto(box, x.pending, x.sessionId); card.appendChild(box); }
-  else if (x.lastReply || x.last) { const body = document.createElement("div"); body.className = "rc-body clamp"; body.appendChild(docHtml(x.lastReply || x.last, x.managed ? x.sessionId : undefined)); card.appendChild(body);
-    const more = document.createElement("button"); more.className = "btn tiny rc-fold"; more.textContent = "Read the whole reply"; more.onclick = () => { body.classList.toggle("clamp"); more.textContent = body.classList.contains("clamp") ? "Read the whole reply" : "Show less"; }; card.appendChild(more);
-    requestAnimationFrame(() => { if (body.scrollHeight <= body.clientHeight + 4) { body.classList.remove("clamp"); more.hidden = true; } }); }
-  const answered = () => { sentCards.set(x.sessionId, sentKey(x)); renderRoom(); }; // stays here; the reply lands in this plate. Cmd+Down moves on
+  else if (!busy && (x.lastReply || x.last)) { const body = document.createElement("div"); body.className = "rc-body clamp"; body.appendChild(docHtml(x.lastReply || x.last, x.managed ? x.sessionId : undefined)); card.appendChild(body);
+    const more = document.createElement("button"); more.className = "rc-fold"; more.type = "button"; more.textContent = "Read the whole reply"; more.onclick = () => { const folded = body.classList.toggle("clamp"); if (folded) clampBlocks(body); else body.querySelectorAll(".cut").forEach(e => e.classList.remove("cut")); more.textContent = folded ? "Read the whole reply" : "Show less"; }; card.appendChild(more);
+    requestAnimationFrame(() => { if (!clampBlocks(body)) { body.classList.remove("clamp"); more.hidden = true; } }); }
+  const answered = () => { markSent(x.sessionId, x); renderRoom(); }; // stays here; the reply lands in this plate. Cmd+Down moves on
   if (!x.managed) { card.insertAdjacentHTML("beforeend", `<div class="rc-answer"><button class="btn primary" data-a="resume">Resume in Terminal</button></div>`); card.querySelector('[data-a="resume"]').onclick = (e) => act("/api/resume", x.sessionId, e.target); }
-  else if (!(sent && !x.needsYou)) {
+  else if (!busy) {
     const f = document.createElement("form"); f.className = "rc-reply";
     const ph = x.pending ? (x.pending.kind === "permission" ? "Or type to deny with a note" : "Or answer in your own words") : "Reply. Enter to send";
     f.innerHTML = `<textarea rows="2" placeholder="${ph}"></textarea><button class="btn primary" type="submit">Send</button>`; if (!x.pending) armSuggestion(f.querySelector("textarea"), x.lastReply || "");
@@ -241,12 +253,12 @@ function roundCard(x, isOpen, hasNext) {
       if (x.pending) send({ type: "answer", sessionId: x.sessionId, requestId: x.pending.id, decision: x.pending.kind === "permission" ? { behavior: "deny", message: t } : { freeText: t } }); else send({ type: "send", sessionId: x.sessionId, text: t }); answered(); };
     f.querySelector("textarea").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); f.requestSubmit(); } }); card.appendChild(f);
   }
-  const row = document.createElement("div"); row.className = "rc-tail"; row.insertAdjacentHTML("beforeend", prioCtl(x.sessionId));
+  const row = document.createElement("div"); row.className = "rc-tail";
   const more = document.createElement("button"); more.className = "rc-more"; more.type = "button"; more.textContent = "More"; row.appendChild(more);
   if (hasNext) { const nx = document.createElement("button"); nx.className = "rc-next"; nx.type = "button"; nx.textContent = "Next one"; nx.title = "Next one (Cmd+Down; Cmd+Up goes back)"; nx.onclick = () => { const ids = [...$("#rounds-list").children].map(c => c.dataset.id); const i = ids.indexOf(x.sessionId); openRound = ids[i + 1] || ids.find(id => id !== x.sessionId) || null; renderRoom(); $("#rounds-list").querySelector(".rc.is-open")?.scrollIntoView({ block: "start" }); }; card.insertAdjacentElement("afterbegin", nx); }
   card.appendChild(row);
   const extra = document.createElement("div"); extra.className = "rc-extra"; extra.hidden = true;
-  extra.innerHTML = `<div class="rc-acts"><button class="btn tiny" data-a="note">Leave a note</button>${x.managed ? `<button class="btn tiny" data-a="pause">Pause, on watch for…</button><button class="btn tiny" data-a="close">Close session</button><a class="btn tiny" href="#s/${x.sessionId}">Open in focus</a>` : `<button class="btn tiny" data-a="letgo">Let it go</button>`}</div><p class="rc-foot">${ago(Date.now() - x.stateSince)} waiting<span class="path">${esc(x.cwd)}</span></p>`;
+  extra.innerHTML = `<p class="rc-prio-line"><span class="rc-prio-l">Priority</span>${prioCtl(x.sessionId)}</p><div class="rc-acts"><button class="btn tiny" data-a="note">Leave a note</button>${x.managed ? `<button class="btn tiny" data-a="pause">Pause, on watch for…</button><button class="btn tiny" data-a="close">Close session</button><a class="btn tiny" href="#s/${x.sessionId}">Open in focus</a>` : `<button class="btn tiny" data-a="letgo">Let it go</button>`}</div><p class="rc-foot">${ago(Date.now() - x.stateSince)} waiting<span class="path">${esc(x.cwd)}</span></p>`;
   more.onclick = () => { extra.hidden = !extra.hidden; more.textContent = extra.hidden ? "More" : "Less"; };
   extra.querySelector('[data-a="note"]').onclick = () => { const v = prompt("Note to self, shown on the item", note); if (v === null) return; if (x.managed) send({ type: "note", sessionId: x.sessionId, note: v }); else { prefs.notes = { ...(prefs.notes || {}), [x.sessionId]: v.trim() }; if (!prefs.notes[x.sessionId]) delete prefs.notes[x.sessionId]; save(); renderSide(); renderRounds(); } };
   extra.querySelector('[data-a="close"]')?.addEventListener("click", () => { closeWithUndo(x); openRound = null; });
@@ -279,7 +291,7 @@ function renderProjects() {
   const ordered = projects.slice().sort((a, b) => (a.on ? 0 : 1) - (b.on ? 0 : 1) || (buckets.get(b.id).filter(needs).length > 0) - (buckets.get(a.id).filter(needs).length > 0) || a.prio - b.prio || a.order - b.order);
   const row = (it) => { const o = it.o; const id = itemId(o); const key = itemKey(o);
     const title = it.t === "pr" ? (o.tickets?.[0] ? `${o.tickets[0]}: ${o.title}` : o.title) : it.t === "wait" ? o.text : o.title;
-    const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? (o.back ? "Came back" : "On watch") : (sentCards.has(o.sessionId) && !o.needsYou ? "Sent" : STATE[o.state].word);
+    const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? (o.back ? "Came back" : "On watch") : (sentCards.has(o.sessionId) && !o.needsYou ? "Working" : STATE[o.state].word);
     const href = it.t === "pr" ? "#prs" : it.t === "wait" ? (o.link || "#") : hrefOf(o);
     const canOpen = it.t !== "wait"; const open = projRowOpen === id;
     return `<li class="proj-item${open ? " open" : ""}" data-item="${esc(id)}" data-key="${esc(key)}"><span class="proj-kind grip" draggable="true">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : "message-circle")}</span>${canOpen ? `<button type="button" class="proj-title proj-open" data-open="${esc(id)}">${esc(title)}</button>` : `<a href="${esc(href)}" class="proj-title">${esc(title)}</a>`}<span class="proj-state">${esc(state)}</span>${open ? `<div class="proj-work" data-work="${esc(id)}"></div>` : ""}</li>`; };
@@ -688,16 +700,16 @@ function renderPendingInto(box, p, sid) {
   if (p.kind === "question") { const qs = p.input.questions || []; const picks = {};
     box.innerHTML = `<span class="plate-label">${ic("message-circle-question")}Claude has a question</span>` + qs.map((q, qi) => `<div class="q" data-q="${qi}"><div class="qh">${esc(q.header || "")}</div><div class="qt">${esc(q.question)}</div><div class="opts">${(q.options || []).map(o => `<button type="button" class="opt" data-l="${esc(o.label)}" aria-pressed="false">${esc(o.label)}<small>${esc(o.description || "")}</small></button>`).join("")}</div></div>`).join("") + `<div class="acts"><button class="btn primary" id="q-send">Answer</button><span class="pd">Or type a reply below to answer in your own words.</span></div>`;
     box.querySelectorAll(".q").forEach((qel, qi) => { const q = qs[qi]; qel.querySelectorAll(".opt").forEach(b => b.onclick = () => { if (q.multiSelect) { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", String(on)); picks[q.question] = [...qel.querySelectorAll('.opt[aria-pressed="true"]')].map(x => x.dataset.l).join(", "); } else { qel.querySelectorAll(".opt").forEach(x => x.setAttribute("aria-pressed", "false")); b.setAttribute("aria-pressed", "true"); picks[q.question] = b.dataset.l; } }); });
-    box.querySelector("#q-send").onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { answers: Object.fromEntries(qs.map(q => [q.question, picks[q.question] ?? ""])) } }); sentCards.add(sid); };
+    box.querySelector("#q-send").onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { answers: Object.fromEntries(qs.map(q => [q.question, picks[q.question] ?? ""])) } }); markSent(sid); };
   } else { const i = p.input || {}; let body = "";
     if (p.toolName === "Bash") body = `<pre>${esc(i.command || "")}</pre>${i.description ? `<div class="pd">${esc(i.description)}</div>` : ""}`;
     else if (p.toolName === "Edit") body = `<div class="pd">${esc(i.file_path)}</div><pre>- ${esc(String(i.old_string || "").slice(0, 600))}\n+ ${esc(String(i.new_string || "").slice(0, 600))}</pre>`;
     else if (p.toolName === "Write") body = `<div class="pd">${esc(i.file_path)}</div><pre>${esc(String(i.content || "").slice(0, 800))}</pre>`;
     else body = `<pre>${esc(JSON.stringify(i, null, 2).slice(0, 1200))}</pre>`;
     box.innerHTML = `<span class="plate-label">${ic("hand")}Wants to run ${esc(p.toolName)}</span>${body}${p.decisionReason ? `<div class="pd">${esc(p.decisionReason)}</div>` : ""}<div class="acts"><button class="btn primary" data-d="allow">Allow</button><button class="btn soft" data-d="remember">Allow for this session</button><button class="btn ghost" data-d="deny">Deny</button><span class="pd">Or type below to deny with a note.</span></div>`;
-    box.querySelector('[data-d="allow"]').onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { behavior: "allow" } }); sentCards.add(sid); };
-    box.querySelector('[data-d="remember"]').onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { behavior: "allow", remember: true } }); sentCards.add(sid); };
-    box.querySelector('[data-d="deny"]').onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { behavior: "deny" } }); sentCards.add(sid); }; }
+    box.querySelector('[data-d="allow"]').onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { behavior: "allow" } }); markSent(sid); };
+    box.querySelector('[data-d="remember"]').onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { behavior: "allow", remember: true } }); markSent(sid); };
+    box.querySelector('[data-d="deny"]').onclick = () => { send({ type: "answer", sessionId: sid, requestId: p.id, decision: { behavior: "deny" } }); markSent(sid); }; }
 }
 acceptFiles($("#reply"), () => openId); acceptFiles($("#ns-prompt"), () => "new");
 $("#composer").onsubmit = (e) => { e.preventDefault(); const t = withFiles($("#reply"), $("#reply").value.trim()); if (!t || !openId) return; const p = meta?.pending; if (p?.kind === "permission") send({ type: "answer", sessionId: openId, requestId: p.id, decision: { behavior: "deny", message: t } }); else send({ type: "send", sessionId: openId, text: t }); $("#reply").value = ""; };
