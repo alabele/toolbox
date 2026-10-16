@@ -430,6 +430,16 @@ async function loadSlack() {
   try { const d = await (await fetch("/api/slack/in")).json(); slackList = d.items || []; slackStatus = d.status || {}; } catch {}
   renderSlack();
 }
+// Freshness in words, because a timestamp makes her do the arithmetic.
+function slackAgo() {
+  if (!slackStatus.at) return "Not looked yet";
+  const mins = Math.round((Date.now() - slackStatus.at) / 60000);
+  const when = new Date(slackStatus.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (mins < 1) return "Looked just now";
+  if (mins < 60) return `Looked ${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const hrs = Math.round(mins / 60);
+  return `Looked ${hrs} hour${hrs === 1 ? "" : "s"} ago, at ${when}`;
+}
 function slackWhere(i) { return i.kind === "dm" ? (i.userName || i.channelName || "Direct message") : "#" + (i.channelName || i.channel); }
 function slackRow(i) {
   // the reason sits on the row as quiet text, and the actions take its place on hover
@@ -455,11 +465,17 @@ function renderSlack() {
   note.hidden = !err; note.textContent = err;
   const d = (i) => i.verdict?.disp || (i.needsYou ? "needs-you" : "nothing");
   const now = slackList.filter(i => d(i) === "emergency"), asks = slackList.filter(i => d(i) === "needs-you"), rest = slackList.filter(i => d(i) === "nothing");
-  const when = slackStatus.at ? new Date(slackStatus.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
-  el.innerHTML = (asks.length || now.length || rest.length)
+  // the head says how fresh this is, in her words, with a way to look again
+  const head = `<div class="sk-head"><span class="sk-when" id="sk-when">${esc(slackAgo())}</span><button type="button" id="sk-sync">Look now</button></div>`;
+  el.innerHTML = head + ((asks.length || now.length || rest.length)
     ? slackPlate("Now", now, "now") + slackPlate("Wants an answer", asks, "needs") + slackRest(rest)
-      + (asks.length || now.length ? "" : `<p class="quiet sk-clear">Nothing in Slack needs you.${when ? ` Last looked ${when}.` : ""}</p>`)
-    : `<p class="quiet">Nothing in Slack needs you.${when ? ` Last looked ${when}.` : ""}</p>`;
+      + (asks.length || now.length ? "" : `<p class="quiet sk-clear">Nothing in Slack needs you.</p>`)
+    : `<p class="quiet">Nothing in Slack needs you.</p>`);
+  const sync = $("#sk-sync");
+  sync.onclick = async () => { sync.disabled = true; sync.textContent = "Looking\u2026"; $("#sk-when").textContent = "";
+    try { const d = await (await fetch("/api/slack/sync", { method: "POST" })).json(); slackList = d.items || []; slackStatus = d.status || {}; }
+    catch { slackStatus = { ...slackStatus, error: "Could not reach Slack. It will try again on its own." }; }
+    renderSlack(); };
   const seen = (id) => fetch("/api/slack/seen", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
   el.querySelectorAll("[data-seen]").forEach(a => a.onclick = () => { seen(a.dataset.seen); slackList = slackList.filter(x => x.id !== a.dataset.seen); setTimeout(renderSlack, 400); });
   el.querySelectorAll("[data-let]").forEach(b => b.onclick = () => { seen(b.dataset.let); slackList = slackList.filter(x => x.id !== b.dataset.let); renderSlack(); });
@@ -552,6 +568,7 @@ function connect() {
     if (m.type === "event" && m.sessionId === openId) { const ev = m.payload; const i = ev.kind === "tool" ? transcript.findIndex(x => x.kind === "tool" && x.id === ev.id) : -1; if (i >= 0) transcript[i] = ev; else transcript.push(ev); renderTranscript(); }
     if (m.type === "transcript" && m.sessionId === openId) { meta = m.payload.meta; transcript = m.payload.events; renderSessHead(); renderTranscript(); renderPending(); }
     if (m.type === "error") { $("#error").hidden = false; $("#error").textContent = m.payload; }
+    if (m.type === "fairy") { fairyState = m.payload || {}; renderFairy(); if (!fairyArrived) { fairyArrived = true; if (fairyState.autoTable && (!fairyState.table || Date.now() - fairyState.table.at > 6 * 3600e3)) fairyPost({ table: true }); } }
     if (m.type === "restart") { const u = $("#undo"); $("#undo-text").textContent = m.payload.state === "now" ? "Stillroom is restarting. Back in a few seconds." : `Restart queued. It happens when ${m.payload.busy} session${m.payload.busy === 1 ? "" : "s"} finish${m.payload.busy === 1 ? "es" : ""}.`; $("#undo-btn").hidden = true; u.hidden = false; clearTimeout(u._t); u._t = setTimeout(() => { u.hidden = true; $("#undo-btn").hidden = false; }, m.payload.state === "now" ? 6000 : 4000); }
   };
 }
@@ -576,6 +593,7 @@ function route() { const s = location.hash.match(/^#s\/(.+)$/), t = location.has
   if (location.hash === "#ledger") { show("ledger"); renderLedger(); renderSide(); return; }
   show("home"); refresh(); }
 function topRoom() { const rooms = roomItems(); const on = projects.filter(p => p.on && !mutedRoom(p.id)).sort((x, y) => x.prio - y.prio || x.order - y.order); const withNeeds = on.find(p => rooms.get(p.id).some(needsIt)); if (withNeeds) return withNeeds.id; if (!mutedRoom("none") && (rooms.get("none") || []).some(needsIt)) return "none"; return on[0]?.id || null; }
+setInterval(() => { const w = document.getElementById("sk-when"); if (w && !$("#slack").hidden && w.textContent) w.textContent = slackAgo(); }, 30000);
 window.addEventListener("hashchange", route);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !openId) refresh(); });
 window.addEventListener("focus", () => { if (!openId) refresh(); });
@@ -815,7 +833,25 @@ $("#reply").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shi
 
 // ---------- appearance ----------
 const menu = $("#menu"), gear = $("#gear");
-function closeMenu() { menu.hidden = true; gear.setAttribute("aria-expanded", "false"); }
+function closeMenu() { menu.hidden = true; gear.setAttribute("aria-expanded", "false"); const f = $("#fairy"); if (f && !f.hidden) { f.hidden = true; $("#wand").setAttribute("aria-expanded", "false"); } }
+// ---------- the fairy: tidies while she is away; sets the table when she asks ----------
+let fairyState = {}, fairyArrived = false;
+const fairyPost = (body) => fetch("/api/fairy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+function renderFairy() { const st = fairyState || {}; $("#wand-dot").hidden = !st.unseen;
+  const log = (st.log || []).slice().reverse().slice(0, 12); $("#fairy-log").innerHTML = log.length ? log.map(a => `<li class="${a.undone ? "undone" : ""}"><span>${esc(a.text)}</span>${a.undone ? `<span class="lg-n">undone</span>` : `<button type="button" class="btn tiny" data-fundo="${a.id}">Undo</button>`}</li>`).join("") : `<li class="quiet">Nothing yet. ${st.lastRun ? `Last looked ${ago(Date.now() - st.lastRun)} ago.` : "It looks after you have been away an hour."}</li>`;
+  $("#fairy-log").querySelectorAll("[data-fundo]").forEach(b => b.onclick = () => fairyPost({ undo: b.dataset.fundo }));
+  $("#fairy-undo-all").hidden = !log.some(a => !a.undone); $("#fairy-auto").checked = !!st.autoTable;
+  const t = $("#fairy-table"); const items = st.table?.items || [];
+  const href = (ref) => ref.startsWith("s:") ? `#s/${ref.slice(2)}` : ref.startsWith("pr:") ? "#prs" : ref.startsWith("wait:") ? (waitList.find(w => w.id === ref.slice(5))?.link || "#") : "#";
+  t.innerHTML = st.table ? (items.length ? `<ul class="table-list">${items.map((it, i) => `<li class="${it.done ? "done" : ""}"><label><input type="checkbox" data-tick="${esc(it.ref)}" ${it.done ? "checked" : ""}><span class="box">${ic("check")}</span></label><div class="t-main"><a class="t-title" href="${esc(href(it.ref))}">${esc(it.title)}</a><span class="t-step">${esc(it.step)}</span>${it.why ? `<span class="t-why">${esc(it.why)}</span>` : ""}</div></li>`).join("")}</ul><p class="lg-n">Set ${ago(Date.now() - st.table.at)} ago</p>` : `<p class="quiet">Nothing needs you. Set ${ago(Date.now() - st.table.at)} ago.</p>`) : `<p class="quiet">Not set. Press the button, or opt in below.</p>`;
+  t.querySelectorAll("[data-tick]").forEach(c => c.onchange = () => fairyPost({ tickRef: c.dataset.tick, done: c.checked }));
+  t.querySelectorAll("a.t-title").forEach(a => a.onclick = () => closeMenu());
+  icons(); }
+$("#wand").onclick = (e) => { e.stopPropagation(); const f = $("#fairy"); const open = f.hidden; menu.hidden = true; gear.setAttribute("aria-expanded", "false"); f.hidden = !open; $("#wand").setAttribute("aria-expanded", String(open)); if (open) { renderFairy(); if (fairyState.unseen) fairyPost({ seen: true }); } };
+$("#fairy-undo-all").onclick = () => { const last = (fairyState.log || []).filter(a => !a.undone).at(-1); fairyPost({ undoAll: true, runAt: last?.runAt }); };
+$("#fairy-tidy").onclick = (e) => { e.target.disabled = true; fairyPost({ tidy: true }).finally(() => { e.target.disabled = false; }); };
+$("#fairy-table-now").onclick = (e) => { e.target.disabled = true; e.target.textContent = "Setting…"; fairyPost({ table: true }).finally(() => { e.target.disabled = false; e.target.textContent = "Set the table now"; }); };
+$("#fairy-auto").onchange = (e) => fairyPost({ autoTable: e.target.checked });
 gear.onclick = () => { menu.hidden = !menu.hidden; gear.setAttribute("aria-expanded", String(!menu.hidden)); };
 document.addEventListener("click", (e) => { if (!e.target.closest(".menu-wrap")) closeMenu(); });
 function seg(el, opts, cur, on) { el.innerHTML = opts.map(([k, v]) => `<button data-k="${k}" aria-pressed="${k === cur}">${v}</button>`).join(""); el.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; on(b.dataset.k); [...el.children].forEach(c => c.setAttribute("aria-pressed", String(c === b))); }; }

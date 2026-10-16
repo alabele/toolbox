@@ -25,6 +25,8 @@ export class Waits {
     if (w.ticket && ticketsReady()) { const r = await fetchTickets([w.ticket]); w.status = r.tickets[0]?.status; if (w.until && w.status && w.status.toLowerCase() === w.until.toLowerCase()) { w.back = `${w.ticket} is already ${w.status}`; w.backAt = Date.now(); } }
     this.rows.push(w); this.save(); this.onChange(); return w;
   }
+  /** The fairy let one go and she undid it: back as it was. */
+  restore(w: Wait) { if (!w?.id || this.rows.some(x => x.id === w.id)) return; this.rows.push(w); this.save(); this.onChange(); }
   remove(id: string) { this.rows = this.rows.filter(w => w.id !== id); this.save(); this.onChange(); }
   /** She says it came back (or the app noticed). It moves to Needs you until she removes it. */
   back(id: string, why: string) { const w = this.rows.find(w => w.id === id); if (!w) return; w.back = why; w.backAt = Date.now(); this.save(); this.onChange(); }

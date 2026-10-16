@@ -15,6 +15,7 @@ import { Triage } from "./slackTriage";
 import { Projects } from "./projects";
 import { ensureWorktree, removeWorktree, ticketIn } from "./worktrees";
 import { fetchTicketBrief } from "./jira";
+import { Fairy } from "./fairy";
 import { postToSlack, replyInThread, slackConnected, slackProbe } from "./slack";
 
 const PORT = Number(process.env.ND_PORT ?? 4747);
@@ -228,10 +229,10 @@ const types: Record<string, string> = { ".html": "text/html; charset=utf-8", ".j
 Bun.serve({
   port: PORT,
   websocket: {
-    open(ws) { sockets.add(ws); try { ws.send(JSON.stringify({ type: "ledger", payload: ledger.list() })); ws.send(JSON.stringify({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } })); ws.send(JSON.stringify({ type: "waits", payload: waits.list() })); ws.send(JSON.stringify(slackPayload())); ws.send(JSON.stringify({ type: "projects", payload: projects.list() })); } catch {} ws.send(JSON.stringify({ type: "hello", payload: { sessions: view, managed: mgr.list(), cwds: knownCwds(), version } })); },
+    open(ws) { sockets.add(ws); fairy.seen(); try { ws.send(JSON.stringify({ type: "fairy", payload: fairy.payload() })); } catch {} try { ws.send(JSON.stringify({ type: "ledger", payload: ledger.list() })); ws.send(JSON.stringify({ type: "prs", payload: { prs: prs.list(), repos: prs.repos, jira: prs.jira() } })); ws.send(JSON.stringify({ type: "waits", payload: waits.list() })); ws.send(JSON.stringify(slackPayload())); ws.send(JSON.stringify({ type: "projects", payload: projects.list() })); } catch {} ws.send(JSON.stringify({ type: "hello", payload: { sessions: view, managed: mgr.list(), cwds: knownCwds(), version } })); },
     close(ws) { sockets.delete(ws); },
     async message(ws, raw) {
-      let msg: any; try { msg = JSON.parse(String(raw)); } catch { return; }
+      let msg: any; try { msg = JSON.parse(String(raw)); } catch { return; } fairy.seen();
       try {
         switch (msg.type) {
           case "start": { const cwd = String(msg.cwd || "").replace(/^~(?=\/|$)/, homedir()); let ok = false; try { ok = statSync(cwd).isDirectory(); } catch {}
@@ -263,10 +264,15 @@ Bun.serve({
       for (const [k, f] of form.entries()) { if (k !== "file" || !(f instanceof File)) continue; const name = (f.name || "file").replace(/[^\w.@-]+/g, "_").slice(0, 80); const p = join(dir, `${Date.now().toString(36)}-${name}`); await Bun.write(p, f); out.push(p); }
       return Response.json({ paths: out }); }
     if (url.pathname === "/api/prs") return Response.json({ prs: prs.list(), repos: prs.repos, jira: prs.jira() });
+    if (url.pathname === "/api/fairy") { fairy.seen(); if (req.method !== "POST") return Response.json(fairy.payload()); const b = await req.json().catch(() => ({})) as any;
+      if (b.seen) { fairy.markSeen(); return new Response("ok"); } if (b.undo) return fairy.undo(String(b.undo)) ? new Response("ok") : new Response("nothing to undo", { status: 404 }); if (b.undoAll) { const n = fairy.undoAll(b.runAt ? +b.runAt : undefined); return new Response(`${n} undone`); }
+      if (b.autoTable !== undefined) { fairy.setAutoTable(!!b.autoTable); return new Response("ok"); } if (b.table) { await fairy.setTable(); return new Response("ok"); } if (b.tickRef) return fairy.tick_(String(b.tickRef), !!b.done) ? new Response("ok") : new Response("unknown", { status: 404 });
+      if (b.tidy) { const k = await fairy.tidy(); return new Response(`${k} tidied`); } return new Response("what?", { status: 400 }); }
     if (url.pathname === "/api/jira/ticket") { const key = String(url.searchParams.get("key") || "").toUpperCase().trim(); if (!/^[A-Z]+-\d+$/.test(key)) return new Response("bad key", { status: 400 }); return Response.json(await fetchTicketBrief(key)); }
     if (url.pathname === "/api/restart") { if (req.method === "POST") { const b = await req.json().catch(() => ({})) as any; restartWanted = !b.cancel; const busy = restartBusy().length; setTimeout(restartIfQuiet, 50); return new Response(restartWanted ? (busy ? `Restart queued. Waiting for ${busy} session${busy === 1 ? "" : "s"} to finish.` : "Restarting now.") : "Restart cancelled."); } return Response.json({ wanted: restartWanted, busy: restartBusy().length }); }
     if (url.pathname === "/api/slack/status") return Response.json({ connected: await slackConnected(), in: slackIn.status() });
     if (url.pathname === "/api/slack/in") return Response.json(slackPayload().payload);
+    if (url.pathname === "/api/slack/sync" && req.method === "POST") { await slackIn.refresh(); return Response.json(slackPayload().payload); }
     if (url.pathname === "/api/slack/seen" && req.method === "POST") { const b = await req.json() as any; if (b.all) { slackIn.markAllSeen(); return new Response("ok"); } return slackIn.markSeen(String(b.id)) ? new Response("ok") : new Response("unknown", { status: 404 }); }
     if (url.pathname === "/api/slack/probe") return new Response(await slackProbe(url.searchParams.get("q") || "general"));
     if (url.pathname === "/api/jira/refresh" && req.method === "POST") { await prs.refreshTickets(); return Response.json(prs.jira()); }
@@ -413,6 +419,13 @@ function restartIfQuiet() { if (!restartWanted) return; const busy = restartBusy
 setInterval(restartIfQuiet, 5000);
 process.on("uncaughtException", (e) => { console.error(`${new Date().toISOString()} uncaught exception (kept running):`, e); });
 process.on("unhandledRejection", (e) => { console.error(`${new Date().toISOString()} unhandled rejection (kept running):`, e); });
+const fairy = new Fairy({
+  sessions: () => mgr.list() as any, end: (id) => mgr.end(id), reopen: (k) => { try { mgr.start({ cwd: k.cwd, resume: k.sessionId, title: k.title, userTitle: k.userTitle, startedAt: k.startedAt, worktree: k.worktree, parent: k.parent, abstract: k.abstract, abstractN: k.abstractN, note: k.note, mode: k.mode }); } catch {} },
+  waits: { list: () => waits.list(), remove: (id) => waits.remove(id), restore: (w) => waits.restore(w) },
+  projects: { list: () => projects.list() as any, assign: (item, project, key) => projects.assign(item, project, key) },
+  prs: () => prs.list() as any,
+}, () => broadcast({ type: "fairy", payload: fairy.payload() }));
+setInterval(() => fairy.tick().catch(e => console.error("fairy", e)), 5 * 60e3);
 const reviewing = new Map<string, any>();
 function runPrLoop(key: string) {
   const pr = prs.get(key); if (!pr || reviewing.has(key)) return false;
