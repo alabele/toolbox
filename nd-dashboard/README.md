@@ -31,6 +31,17 @@ The research report is at [research/REPORT.md](research/REPORT.md). Each agent e
 | [nd-design-critic](agents/nd-design-critic.md) | Michael Bierut | critic | Runs DESIGN_GOVERNANCE.md and the generic-tells list against every screenshot |
 | [nd-usability-scorer](agents/nd-usability-scorer.md) | Ginny Redish | critic | Persona-by-goal scorecard, 0 to 4, ported from the docs project |
 
+### The harness bench
+
+Four agents for Stillroom as a harness: the software around each Claude Code session. Grounded in [research/harnesses.md](research/harnesses.md), a graded brief on what the field knows in 2026. Run them with `/roundtable-harness`.
+
+| Agent | Persona | Role | Owns |
+|---|---|---|---|
+| [hx-harness-architect](agents/hx-harness-architect.md) | John Yang | actor | The session loop: setup, tools, caps, stop conditions, hand-offs between sessions |
+| [hx-context-engineer](agents/hx-context-engineer.md) | Lilian Weng | actor | What a session reads: system prompt, first message, instruction files, memory, summaries |
+| [hx-oversight-designer](agents/hx-oversight-designer.md) | Simon Willison | critic | What a session may do and what evidence it leaves: deny rules, hooks, sandbox, plates, the fresh-context reviewer; veto on blast radius |
+| [hx-harness-scorer](agents/hx-harness-scorer.md) | Hamel Husain | critic | Whether it worked: `config/harness-rubric.json`, scorecards in `research/harness-scorecards/`, error analysis, the gap list |
+
 ## Design governance
 
 `DESIGN_GOVERNANCE.md` holds the numbered rules. `config/design-rules.json` is its machine-checkable half; `bun scripts/validate-design.js` checks it. `config/usability-rubric.json` and `config/usability-goals.json` drive the scorer. Decisions live in `design-sessions/`. Process: proposal by an actor, validator, critic on a screenshot, simulator walk, scorer when a flow changed, then the user.
@@ -57,7 +68,7 @@ The research report is at [research/REPORT.md](research/REPORT.md). Each agent e
 Agents live in `agents/`. To make them available in every Claude Code session:
 
 ```bash
-for f in ~/code/toolbox/nd-dashboard/agents/*.md; do ln -sf "$f" ~/.claude/agents/; done
+for f in ~/code/stillroom/nd-dashboard/agents/*.md; do ln -sf "$f" ~/.claude/agents/; done
 ```
 
 To scope them to one project instead, copy them into that project's `.claude/agents/`.
