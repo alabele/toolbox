@@ -20,4 +20,5 @@ One file per decision that changed a commitment: a mode, a state, a name, a pale
 | 015 | 2026-10-16 | The plate while it works | The last reply folds to "Before that" above the ask; "Working on it" with time so far where the answer will land; clamp at a block edge; priority behind More. |
 | 017 | 2026-10-16 | Loose ends, not a fairy | Rejected by her the same day. The fairy idea is closed; the five-day wait question stays on its row. |
 | 018 | 2026-10-16 | Keys | Bare keys when not typing: N G P L F Esc R ?; no new ⌘ keys; a sheet behind ?; launch at login via launchd. |
+| 019 | 2026-10-16 | The fairy | Her call over 017: a wand in the bar; tidies after an hour away with undo per line; the table is an opt-in to-do list she walks herself. |
 | 016 | 2026-10-16 | Slack as a fourth source | Sort by what an item wants, not how it arrived. Nothing falls out; no indicators; the hour is a floor. A row opens into an intake. |
