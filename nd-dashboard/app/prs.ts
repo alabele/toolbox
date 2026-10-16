@@ -39,7 +39,7 @@ const JIRA_MS = 15 * 60_000;
 export class Prs {
   private s: Store = { prs: {}, searchedAt: 0 };
   private busy = false; private timer: any;
-  repos: Record<string, { channel?: string; reviewers?: string[]; approvers?: string[]; qa?: boolean; checklist?: string[]; ticketSteps?: Record<string, string> }> = {}; // ticketSteps: step name -> Jira status to move the ticket to when the PR reaches it // per repo: the Slack channel, who to ask, who counts as the approval, whether QA signs off after
+  repos: Record<string, { channel?: string; reviewers?: string[]; approvers?: string[]; qa?: boolean; base?: string; checklist?: string[]; ticketSteps?: Record<string, string> }> = {}; // base: the branch a ticket worktree starts from, when PRs do not land on the GitHub default // ticketSteps: step name -> Jira status to move the ticket to when the PR reaches it // per repo: the Slack channel, who to ask, who counts as the approval, whether QA signs off after
   onGone: (pr: Pr, how: "merged" | "closed", by?: string) => void = () => {};
   transcript: ((pr: Pr) => string) | null = null; // set by the server: text of the session that made the PR // set by the server: a PR that left the list
   constructor(private onChange: () => void, private link: (pr: Pr) => { sessionId: string; title: string } | null) {
@@ -56,7 +56,7 @@ export class Prs {
   setSkip(key: string, item: string, why: string) { const p = this.s.prs[key]; if (!p) return false; p.skip = { ...(p.skip || {}) }; if (why) p.skip[item] = why; else delete p.skip[item]; this.derive(p); this.save(); this.onChange(); return true; }
   /** The PR a session is on, by its id. */
   forSession(sid: string) { return Object.values(this.s.prs).find(p => p.sessionId === sid); }
-  setRepo(repo: string, cfg: Partial<{ channel: string; reviewers: string[]; approvers: string[]; qa: boolean; checklist: string[] }>) { this.repos[repo] = { ...(this.repos[repo] || {}), ...cfg }; try { mkdirSync(dirname(REPOS_FILE), { recursive: true }); writeFileSync(REPOS_FILE, JSON.stringify(this.repos, null, 1)); } catch {} for (const p of Object.values(this.s.prs)) if (p.repo === repo) this.derive(p); this.save(); this.onChange(); }
+  setRepo(repo: string, cfg: Partial<{ channel: string; reviewers: string[]; approvers: string[]; qa: boolean; base: string; checklist: string[] }>) { this.repos[repo] = { ...(this.repos[repo] || {}), ...cfg }; try { mkdirSync(dirname(REPOS_FILE), { recursive: true }); writeFileSync(REPOS_FILE, JSON.stringify(this.repos, null, 1)); } catch {} for (const p of Object.values(this.s.prs)) if (p.repo === repo) this.derive(p); this.save(); this.onChange(); }
   /** A repo is set up when it has a channel and reviewers to ask. */
   configured(repo: string) { const r = this.repos[repo]; return !!(r?.channel && r?.reviewers?.length); }
   start() { this.tick(); this.timer = setInterval(() => this.tick(), 60_000); }
