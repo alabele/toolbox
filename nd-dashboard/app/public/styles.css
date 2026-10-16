@@ -1050,39 +1050,52 @@ main{padding-bottom:60px}
 /* Slack (session 016): one plate per disposition, one conversation per block, each message a line.
    Speaker names hold a fixed column so repeats from one person stack by eye; it reads as a playscript,
    never as an inbox. No avatars, no unread bold, no counts. */
-.slack{max-width:980px;margin:0 auto;padding:22px 20px 80px;display:flex;flex-direction:column;gap:26px}
-.sk-plate{display:flex;flex-direction:column;gap:18px}
-.sk-plate.quiet{opacity:.62}
-.sk-plate.quiet:hover{opacity:1}
+.slack{max-width:900px;margin:0 auto;padding:30px 20px 80px;display:flex;flex-direction:column;gap:38px}
+.sk-plate{display:flex;flex-direction:column;gap:16px;padding:20px 16px 14px}
 .sk-plate.now{border-color:var(--action-danger)}
 .sk-plate.now>.plate-label{color:var(--action-danger)}
-.sk-conv-h{display:block;font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);margin-bottom:5px}
+.sk-conv-h{display:block;font-family:var(--mono);font-size:11px;color:var(--text-tertiary);margin-bottom:2px}
 .sk-list{list-style:none;margin:0;padding:0}
-.sk-row{display:grid;grid-template-columns:122px minmax(0,1fr) auto;column-gap:12px;align-items:baseline;
-  padding:6px 4px;border-bottom:1px solid var(--border-subtle)}
+.sk-row{display:grid;grid-template-columns:96px minmax(0,1fr) auto;column-gap:14px;align-items:baseline;
+  padding:5px 6px;border-bottom:1px solid var(--border-subtle)}
 .sk-row:last-child{border-bottom:0}
 .sk-row:hover{background:color-mix(in srgb,var(--bg-secondary) 70%,transparent)}
-.sk-who{font-family:var(--caps);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sk-who{font-family:var(--caps);font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sk-said{color:var(--text-primary);font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sk-plate.quiet .sk-said{color:var(--text-secondary)}
-.sk-acts{display:flex;gap:10px;align-items:baseline;opacity:0}
-.sk-row:hover .sk-acts,.sk-row:focus-within .sk-acts{opacity:1}
-.sk-acts a,.sk-acts button{font-family:var(--caps);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+/* the reason the triage gave, and the actions that replace it under the pointer */
+.sk-why{font-size:11.5px;color:var(--text-tertiary);white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;grid-column:3}
+.sk-acts{grid-column:3;display:none;gap:12px;align-items:baseline}
+.sk-row:hover .sk-why,.sk-row:focus-within .sk-why{display:none}
+.sk-row:hover .sk-acts,.sk-row:focus-within .sk-acts{display:flex}
+.sk-acts a,.sk-acts button{font-family:var(--caps);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--text-tertiary);background:none;border:0;padding:0;cursor:pointer;text-decoration:none}
 .sk-acts a:hover,.sk-acts button:hover{color:var(--action-primary)}
-.sk-foot{padding-top:10px;border-top:1px solid var(--border-subtle)}
-.sk-foot button{font-family:var(--caps);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+/* what wants nothing stays folded; opening it is a choice, never the default view */
+.sk-rest{border-top:1px solid var(--border-subtle);padding-top:14px}
+.sk-rest>summary{cursor:pointer;list-style:none;font-family:var(--caps);font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--text-tertiary)}
+.sk-rest>summary::-webkit-details-marker{display:none}
+.sk-rest>summary::before{content:"\25B8  "}
+.sk-rest[open]>summary::before{content:"\25BE  "}
+.sk-rest>summary:hover{color:var(--text-primary)}
+.sk-rest>.sk-conv{margin-top:16px;opacity:.72}
+.sk-rest>.sk-conv:hover{opacity:1}
+.sk-foot{padding-top:12px;margin-top:14px;border-top:1px solid var(--border-subtle)}
+.sk-foot button{font-family:var(--caps);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--text-tertiary);background:none;border:0;padding:0;cursor:pointer}
 .sk-foot button:hover{color:var(--text-primary)}
 .sk-clear{margin-top:4px}
-
-/* a wait that has been on watch five days: one question, two answers */
-.wait-ask{align-items:center}
-.wait-q{font-size:12.5px;color:var(--text-secondary);margin-right:4px}
 
 /* The sidebar foot is navigation, not content: only the project list scrolls, so Pull requests,
    Slack and Ledger stay on screen however many projects she has. */
 .side{overflow:hidden}
 #side-groups{flex:1 1 auto;min-height:0;overflow:auto;overflow-x:hidden}
 .side-prs,.side-slack,.side-ledger{flex:0 0 auto}
+
+/* the shortcuts sheet: one static sheet, Esc or ? closes it */
+.keys{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50}
+.keys-sheet{position:relative;background:var(--bg-primary);border:1px solid var(--border-medium);border-radius:var(--r);padding:22px 22px 16px;max-width:420px;width:calc(100% - 32px)}
+.keys-table{border-collapse:collapse;margin:8px 0 14px;font-size:13.5px;color:var(--text-secondary)}
+.keys-table td{padding:4px 12px 4px 0;vertical-align:top}
+.keys-table td:first-child{font-family:var(--caps);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-primary);white-space:nowrap}

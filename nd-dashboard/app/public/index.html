@@ -49,6 +49,7 @@
       <div class="swatches" id="swatches"></div>
       <div class="menu-row"><span>Mode</span><div class="seg" id="modes"></div></div>
       <div class="menu-row"><span>Density</span><div class="seg" id="density"></div></div>
+      <div class="menu-row"><span>Keys</span><button type="button" class="btn tiny" id="menu-keys">Show the shortcuts</button></div>
       <p class="menu-note">Nothing here moves on its own. Sessions update when you open them or come back to the window.</p>
     </div>
   </div>
@@ -63,6 +64,7 @@
   </div>
   <div id="side-groups"></div>
   <a href="#prs" class="side-rounds side-prs" id="side-prs" title="Every pull request of yours that is open"><i data-lucide="git-pull-request" class="ic"></i>Pull requests <span id="prs-n"></span></a>
+  <a href="#slack" class="side-rounds side-slack" id="side-slack" title="What people have asked you in Slack"><i data-lucide="star" class="ic"></i>Slack</a>
   <a href="#ledger" class="side-rounds side-ledger side-bottom" id="side-ledger" title="What got done, day by day"><i data-lucide="book-open" class="ic"></i>Ledger</a>
   <div id="side-older" class="side-older"></div>
   <div class="side-grip" id="side-grip" title="Drag to resize"></div>
@@ -88,6 +90,11 @@
     <p class="hint" id="prs-note" hidden></p>
     <div id="prs-groups"></div>
   </section>
+  <section id="slack" class="slack" hidden>
+    <p class="hint" id="slack-note" hidden></p>
+    <div id="slack-groups"></div>
+  </section>
+
   <section id="ledger" class="ledger" hidden>
     <div id="ledger-now"></div>
     <div class="lg-filter" id="ledger-filter"><button class="btn tiny" data-f="all" aria-pressed="true">All</button><button class="btn tiny" data-f="today">Today</button><button class="btn tiny" data-f="week">This week</button><input type="date" id="ledger-date" aria-label="Pick a day"></div>
@@ -142,7 +149,8 @@
     </form>
   </section>
 
-  <p class="undo" id="undo" hidden><span id="undo-text"></span> <button class="btn tiny" id="undo-btn">Undo</button></p>
+  <div class="keys" id="keys" hidden><div class="keys-sheet"><span class="plate-label">Keys</span><p class="hint">These work when you are not typing. Escape leaves a text box first.</p><table class="keys-table"><tr><td>N</td><td>New session in this room</td></tr><tr><td>G</td><td>Go to the next room that needs you</td></tr><tr><td>P</td><td>Pull requests</td></tr><tr><td>L</td><td>Ledger</td></tr><tr><td>F</td><td>Open this session in Focus</td></tr><tr><td>Esc</td><td>Back to the room, or leave a text box</td></tr><tr><td>R</td><td>Refresh</td></tr><tr><td>⌘↓ ⌘↑</td><td>Next or previous plate</td></tr><tr><td>Enter</td><td>Send. Shift+Enter for a new line, Tab takes the grey suggestion</td></tr><tr><td>?</td><td>This sheet</td></tr></table><button type="button" class="btn tiny" id="keys-close">Close</button></div></div>
+    <p class="undo" id="undo" hidden><span id="undo-text"></span> <button class="btn tiny" id="undo-btn">Undo</button></p>
   <p class="stale" id="stale" hidden>Something changed while you were reading. It will show when you next open or return to a session.</p>
   <p class="errbox" id="error" hidden></p>
 </main>

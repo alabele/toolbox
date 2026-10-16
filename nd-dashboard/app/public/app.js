@@ -104,6 +104,8 @@ function roomItems() { const rooms = new Map(projects.map(p => [p.id, []])); roo
   for (const it of items) { const p = projectOf(it.o); if (!p && it.t === "pr" && !(it.o.watched || it.o.needsYou)) continue; (rooms.get(p ? p.id : "none") || rooms.get("none")).push(it); } return rooms; }
 const mutedRoom = (rid) => { const p = rid === "none" ? null : projects.find(x => x.id === rid); const key = rid === "none" ? "p0" : p ? `p${p.prio}` : "p0"; return !!prefs.mute?.[key]; };
 const roomId = () => { const m = location.hash.match(/^#p\/(.+)$/); return m ? m[1] : null; };
+/** The highest-priority other room with something for her, or null. */
+function roomNeeding(id, rooms = roomItems()) { const on = projects.filter(q => q.on && q.id !== id && !mutedRoom(q.id)).sort((x, y) => x.prio - y.prio || x.order - y.order); for (const q of on) { const k = (rooms.get(q.id) || []).filter(needsIt).length; if (k) return { name: q.name, id: q.id, k }; } const k = mutedRoom("none") ? 0 : (rooms.get("none") || []).filter(needsIt).length; return k && id !== "none" ? { name: "Unassigned", id: "none", k } : null; }
 function renderNext() {
   const el = $("#next"); const live = list.filter(x => !isDismissed(x) && !isOld(x));
   const urgent = live.filter(x => x.needsYou && x.state !== "finished").sort((a, b) => a.stateSince - b.stateSince);
@@ -140,12 +142,12 @@ function renderRoom() {
   const counts = [n ? `<b>${n} need${n === 1 ? "s" : ""} you</b>` : "", fl ? `${fl} in flight` : "", w ? `${w} on watch` : ""].filter(Boolean).join(", ");
   // elsewhere: only blocked items in other rooms
   const elsewhere = []; for (const [rid, ris] of rooms) { if (rid === id || mutedRoom(rid)) continue; for (const it of ris) if (it.t === "session" && it.o.needsYou && it.o.state !== "finished" && (rid === "none" || projects.find(q => q.id === rid)?.on)) elsewhere.push({ rid, it }); }
-  const nextRoom = (() => { const on = projects.filter(q => q.on && q.id !== id && !mutedRoom(q.id)).sort((x, y) => x.prio - y.prio || x.order - y.order); for (const q of on) { const k = rooms.get(q.id).filter(needsIt).length; if (k) return { name: q.name, id: q.id, k }; } const k = mutedRoom("none") ? 0 : (rooms.get("none") || []).filter(needsIt).length; return k && id !== "none" ? { name: "Unassigned", id: "none", k } : null; })();
+  const nextRoom = roomNeeding(id, rooms);
   const timer = roomTimer[id]; const timerLine = timer ? (Date.now() > timer ? `<span class="room-timer">Your hour is up. Stay, or ${nextRoom ? `<a href="#p/${nextRoom.id}">go to ${esc(nextRoom.name)}</a>` : "find a good place"}.</span>` : `<span class="room-timer">Here until ${new Date(timer).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>`) : `<button type="button" class="btn tiny" id="room-hour">Work here for an hour</button>`;
   $("#room-head").innerHTML = `<div class="room-top"><h1 class="room-name">${esc(p ? p.name : "No project")}</h1>${p ? `<span class="room-prio">${PRIO[p.prio]}${p.on ? "" : ", quiet"}</span>` : ""}<span class="grow"></span>${timerLine}</div><p class="room-counts">${counts || "Nothing in flight."}</p>${!p ? `<p class="hint">These have no project yet. Drag a row onto a project in the sidebar, or leave them.</p>` : ""}`;
   $("#room-hour")?.addEventListener("click", () => { roomTimer[id] = Date.now() + 3600e3; renderRoom(); });
   // the accordion
-  if (!cards.length) { el.innerHTML = `<div class="plate room-done"><span class="plate-label">${ic("moon-star")}Good place</span><p>Nothing here needs you.${fl || w ? ` ${[fl ? `${fl} in flight` : "", w ? `${w} on watch` : ""].filter(Boolean).join(", ")}.` : ""}</p>${nextRoom ? `<a class="btn primary" href="#p/${nextRoom.id}">Open ${esc(nextRoom.name)}, ${nextRoom.k} need${nextRoom.k === 1 ? "s" : ""} you</a>` : `<p class="quiet">Nothing needs you in any project.</p>`}</div>`; openRound = null; }
+  if (!cards.length) { const loose = looseEnd(its); el.innerHTML = `<div class="plate room-done"><span class="plate-label">${ic("moon-star")}Good place</span><p>Nothing here needs you.${fl || w ? ` ${[fl ? `${fl} in flight` : "", w ? `${w} on watch` : ""].filter(Boolean).join(", ")}.` : ""}</p>${nextRoom ? `<a class="btn primary" href="#p/${nextRoom.id}">Open ${esc(nextRoom.name)}, ${nextRoom.k} need${nextRoom.k === 1 ? "s" : ""} you</a>` : `<p class="quiet">Nothing needs you in any project.</p>`}${loose}</div>`; openRound = null; wireLoose(el); }
   else {
     if (!openRound || !cards.some(x => x.sessionId === openRound)) { const nx = cards.find(x => !(sentCards.has(x.sessionId) && !x.needsYou)); openRound = nx ? nx.sessionId : null; }
     const ordered = cards.slice(); // in room order; the open one stays where it is, so Cmd+Down walks down the list
@@ -163,7 +165,7 @@ function renderRoom() {
   // the rest: in flight, waiting on others, new session, elsewhere, more
   const row = (it) => { const o = it.o; const title = it.t === "pr" ? (o.tickets?.[0] ? `${o.tickets[0]}: ${o.title}` : o.title) : it.t === "wait" ? o.text : o.title; const state = it.t === "pr" ? PR_WORD[o.state] : it.t === "wait" ? "On watch" : (sentCards.has(o.sessionId) && !o.needsYou ? "Working" : STATE[o.state].word); const href = it.t === "pr" ? "#prs" : it.t === "wait" ? (o.link || "#") : hrefOf(o);
     const linked = it.t === "session" && o.state === "paused" ? waitList.filter(w => w.sessionId === o.sessionId && !w.back) : [];
-    return `<li class="proj-item${it.t === "session" && o.state === "paused" ? " paused" : ""}" data-item="${esc(itemId(o))}" data-key="${esc(itemKey(o))}"><span class="proj-kind grip" draggable="true" title="Drag onto a project in the sidebar">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : o.state === "paused" ? "pause" : "message-circle")}</span><a href="${esc(href)}" class="proj-title" ${it.t === "wait" && o.link ? 'target="_blank" rel="noopener"' : ""}>${esc(title)}</a><span class="proj-state">${esc(state)}</span>${it.t === "wait" ? (o.askedAt && !o.back ? `<span class="rc-acts wait-ask"><span class="wait-q">${Math.round((Date.now() - o.since) / 86400e3)} days. Still worth waiting for?</span><button class="btn tiny" data-wkeep="${o.id}">Keep it</button><button class="btn tiny" data-wdrop="${o.id}">Let it go</button></span>` : `<span class="rc-acts"><button class="btn tiny" data-wback="${o.id}">It came back</button><button class="btn tiny" data-wdrop="${o.id}">Let it go</button></span>`) : ""}${it.t === "session" && o.state === "paused" ? `<span class="pause-note">${esc(o.paused?.note || "")}${linked.length ? `<span class="pause-waits">${linked.map(w => `<span>${ic(w.kind === "ticket" ? "ticket" : w.kind === "pr" ? "git-pull-request" : w.kind === "slack" ? "message-circle" : "hourglass")}${esc(w.text)}</span>`).join("")}</span>` : ""}<button class="btn tiny" data-resume="${o.sessionId}">Resume</button></span>` : ""}</li>`; };
+    return `<li class="proj-item${it.t === "session" && o.state === "paused" ? " paused" : ""}" data-item="${esc(itemId(o))}" data-key="${esc(itemKey(o))}"><span class="proj-kind grip" draggable="true" title="Drag onto a project in the sidebar">${ic(it.t === "pr" ? "git-pull-request" : it.t === "wait" ? "hourglass" : o.state === "paused" ? "pause" : "message-circle")}</span><a href="${esc(href)}" class="proj-title" ${it.t === "wait" && o.link ? 'target="_blank" rel="noopener"' : ""}>${esc(title)}</a><span class="proj-state">${esc(state)}</span>${it.t === "wait" ? `<span class="rc-acts"><button class="btn tiny" data-wback="${o.id}">It came back</button><button class="btn tiny" data-wdrop="${o.id}">Let it go</button></span>` : ""}${it.t === "session" && o.state === "paused" ? `<span class="pause-note">${esc(o.paused?.note || "")}${linked.length ? `<span class="pause-waits">${linked.map(w => `<span>${ic(w.kind === "ticket" ? "ticket" : w.kind === "pr" ? "git-pull-request" : w.kind === "slack" ? "message-circle" : "hourglass")}${esc(w.text)}</span>`).join("")}</span>` : ""}<button class="btn tiny" data-resume="${o.sessionId}">Resume</button></span>` : ""}</li>`; };
   const group = (name, arr) => arr.length ? `<h3 class="lg-h">${name}</h3><ul class="proj-items">${arr.map(row).join("")}</ul>` : "";
   const folders = [...new Set(its.filter(it => it.t === "session").map(it => it.o.cwd).filter(Boolean))]; const lastCwd = folders[0] || prefs.lastCwd || "";
   const going = its.filter(it => it.t === "session" && (it.o.state === "working" || it.o.needsYou)).length;
@@ -217,6 +219,11 @@ function clampBlocks(body, limit = 290) { // hide whole blocks past the limit; n
   return cut > 0; }
 function usualText(x) { const u = x.usual; if (!u) return ""; const m = (ms) => Math.max(1, Math.round(ms / 60000)); const lo = m(u.lo), hi = m(u.hi); const el = Date.now() - (x.state === "working" ? Math.min(x.stateSince, sentAt(x.sessionId)) : sentAt(x.sessionId)); if (el > u.hi * 1.6 && el > 90000) return "longer than usual"; return lo === hi ? `usually about ${lo} min` : `usually ${lo} to ${hi} min`; }
 function workingHtml(x) { return `${ic("orbit")}<span>Working on it</span><span class="rc-elapsed">${elapsedFor(x)}</span><span class="rc-usual">${usualText(x)}</span><button type="button" class="rc-doing-t${prefs.showDoing ? " on" : ""}" title="Show what it is doing right now">${prefs.showDoing ? "Hide what it's doing" : "What is it doing"}</button>`; }
+// Loose ends (design session 017): one plain question about one thing, only where nothing needs her, two answers of equal weight. Never a count, never a verdict, never on its own.
+const LOOSE_DAYS = 4;
+function looseEnd(its) { const w = its.filter(it => it.t === "wait" && it.o.askedAt && !it.o.back).map(it => it.o).sort((a, b) => a.since - b.since)[0]; if (!w) return "";
+  return `<p class="loose"><span class="loose-q">${esc(w.text.length > 70 ? w.text.slice(0, 67) + "…" : w.text)}: ${Math.round((Date.now() - w.since) / 86400e3)} days. Still worth waiting for?</span><button class="btn tiny" type="button" data-wkeep="${w.id}">Keep it</button><button class="btn tiny" type="button" data-wdrop="${w.id}">Let it go</button></p>`; }
+function wireLoose(el) { const wpost = (body) => fetch("/api/wait", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); el.querySelectorAll("[data-wkeep]").forEach(b => b.onclick = () => wpost({ keep: b.dataset.wkeep })); el.querySelectorAll("[data-wdrop]").forEach(b => b.onclick = () => wpost({ remove: b.dataset.wdrop })); }
 function elapsedFor(x) { return ago(Date.now() - (x.state === "working" ? Math.min(x.stateSince, sentAt(x.sessionId)) : sentAt(x.sessionId))); }
 function needLine(x, sent) { // one plain line: what this item wants from you
   if (!x.managed) return x.state === "failed" ? "It failed in a terminal. Look there, or let it go." : "It runs in a terminal. Answer it there.";
@@ -243,6 +250,10 @@ function roundCard(x, isOpen, hasNext) {
   const need = needLine(x, sent); const prior = busy && (x.lastReply || x.last) ? beforeThat(x) : "";
   card.innerHTML = `${label}<h3 class="rc-title">${esc(x.title)}</h3>${soFarHtml(x)}${prior}${x.prompt ? `<div class="rc-ask">${esc(x.prompt)}</div>` : ""}${need ? `<p class="rc-need">${esc(need)}</p>` : ""}`;
   if (prior) { const b = card.querySelector(".rc-before"); const btn = b.querySelector(".rc-before-open"); btn.onclick = () => { b.classList.toggle("open"); btn.textContent = b.classList.contains("open") ? "Fold it" : "Read it"; }; }
+  if (!busy && x.managed && x.state === "finished" && !x.pending && Date.now() - x.stateSince > LOOSE_DAYS * 86400e3 && !(prefs.quietLoose || {})[x.sessionId]) {
+    const l = document.createElement("p"); l.className = "loose"; l.innerHTML = `<span class="loose-q">No reply here in ${Math.round((Date.now() - x.stateSince) / 86400e3)} days. It stays on disk if closed.</span><button class="btn tiny" type="button" data-a="lclose">Close session</button><button class="btn tiny" type="button" data-a="lleave">Leave it open</button>`;
+    l.querySelector('[data-a="lclose"]').onclick = () => { closeWithUndo(x); openRound = null; }; l.querySelector('[data-a="lleave"]').onclick = () => { prefs.quietLoose = { ...(prefs.quietLoose || {}), [x.sessionId]: Date.now() }; save(); l.remove(); };
+    card.appendChild(l); }
   if (busy) { const w = document.createElement("p"); w.className = "rc-working"; w.innerHTML = workingHtml(x); card.appendChild(w);
     const d = document.createElement("p"); d.className = "rc-doing"; d.hidden = !prefs.showDoing; d.textContent = x.doing || "between steps"; card.appendChild(d);
     w.querySelector(".rc-doing-t").onclick = () => { prefs.showDoing = !prefs.showDoing; save(); d.hidden = !prefs.showDoing; const b = w.querySelector(".rc-doing-t"); b.textContent = prefs.showDoing ? "Hide what it's doing" : "What is it doing"; b.classList.toggle("on", !!prefs.showDoing); }; }
@@ -425,17 +436,24 @@ async function loadSlack() {
   try { const d = await (await fetch("/api/slack/in")).json(); slackList = d.items || []; slackStatus = d.status || {}; } catch {}
   renderSlack();
 }
-function slackWhere(i) { return i.kind === "dm" ? i.channelName || i.userName : "#" + (i.channelName || i.channel); }
+function slackWhere(i) { return i.kind === "dm" ? (i.userName || i.channelName || "Direct message") : "#" + (i.channelName || i.channel); }
 function slackRow(i) {
-  const why = i.verdict?.why ? ` title="${esc(i.verdict.why)}"` : "";
-  return `<li class="sk-row" data-sk="${esc(i.id)}"${why}><span class="sk-who">${esc(i.userName || "\u2014")}</span><span class="sk-said">${esc(i.text)}</span><span class="sk-acts"><a class="sk-open" href="${esc(i.permalink)}" target="_blank" rel="noopener" data-seen="${esc(i.id)}">Open</a><button type="button" class="sk-let" data-let="${esc(i.id)}">Let it go</button></span></li>`;
+  // the reason sits on the row as quiet text, and the actions take its place on hover
+  return `<li class="sk-row" data-sk="${esc(i.id)}"><span class="sk-who">${esc(i.userName || "\u2014")}</span><span class="sk-said">${esc(i.text)}</span><span class="sk-why">${esc(i.verdict?.why || "")}</span><span class="sk-acts"><a class="sk-open" href="${esc(i.permalink)}" target="_blank" rel="noopener" data-seen="${esc(i.id)}">Open</a><button type="button" class="sk-let" data-let="${esc(i.id)}">Let it go</button></span></li>`;
+}
+function slackConvs(items) {
+  // one block per conversation, so three messages from the same person stack under one heading
+  const by = new Map(); for (const i of items) { const k = slackWhere(i); if (!by.has(k)) by.set(k, []); by.get(k).push(i); }
+  return [...by].map(([where, rows]) => `<div class="sk-conv"><span class="sk-conv-h">${esc(where)}</span><ul class="sk-list">${rows.map(slackRow).join("")}</ul></div>`).join("");
 }
 function slackPlate(label, items, cls) {
   if (!items.length) return "";
-  // one plate per conversation, so three messages from the same person stack under one name
-  const by = new Map(); for (const i of items) { const k = slackWhere(i); if (!by.has(k)) by.set(k, []); by.get(k).push(i); }
-  const groups = [...by].map(([where, rows]) => `<div class="sk-conv"><span class="sk-conv-h">${esc(where)}</span><ul class="sk-list">${rows.map(slackRow).join("")}</ul></div>`).join("");
-  return `<section class="plate sk-plate ${cls}"><span class="plate-label">${label}</span>${groups}${cls === "quiet" ? `<div class="sk-foot"><button type="button" id="sk-done">Done reading</button></div>` : ""}</section>`;
+  return `<section class="plate sk-plate ${cls}"><span class="plate-label">${label}</span>${slackConvs(items)}</section>`;
+}
+// What wants nothing is folded away: it is the bulk of the screen and none of it is hers to act on.
+function slackRest(items) {
+  if (!items.length) return "";
+  return `<details class="sk-rest"><summary>Nothing to do</summary>${slackConvs(items)}<div class="sk-foot"><button type="button" id="sk-done">Done reading</button></div></details>`;
 }
 function renderSlack() {
   const el = $("#slack-groups"), note = $("#slack-note");
@@ -445,7 +463,7 @@ function renderSlack() {
   const now = slackList.filter(i => d(i) === "emergency"), asks = slackList.filter(i => d(i) === "needs-you"), rest = slackList.filter(i => d(i) === "nothing");
   const when = slackStatus.at ? new Date(slackStatus.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
   el.innerHTML = (asks.length || now.length || rest.length)
-    ? slackPlate("Now", now, "now") + slackPlate("Wants an answer", asks, "needs") + slackPlate("Nothing to do", rest, "quiet")
+    ? slackPlate("Now", now, "now") + slackPlate("Wants an answer", asks, "needs") + slackRest(rest)
       + (asks.length || now.length ? "" : `<p class="quiet sk-clear">Nothing in Slack needs you.${when ? ` Last looked ${when}.` : ""}</p>`)
     : `<p class="quiet">Nothing in Slack needs you.${when ? ` Last looked ${when}.` : ""}</p>`;
   const seen = (id) => fetch("/api/slack/seen", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
@@ -548,7 +566,19 @@ function topRoom() { const rooms = roomItems(); const on = projects.filter(p => 
 window.addEventListener("hashchange", route);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !openId) refresh(); });
 window.addEventListener("focus", () => { if (!openId) refresh(); });
-document.addEventListener("keydown", (e) => { if (e.target.matches("input,select,textarea")) return; if (e.key === "r" || e.key === "R") { e.preventDefault(); refresh(); } if (e.key === "Escape") closeMenu(); });
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input,select,textarea")) { if (e.key === "Escape" && !e.target.closest(".proj-new")) e.target.blur(); return; } // Escape leaves the box, so the bare keys can be reached right after Send
+  if (e.metaKey || e.ctrlKey || e.altKey) return; const k = e.key;
+  if (k === "r" || k === "R") { e.preventDefault(); refresh(); return; }
+  if (k === "Escape") { if (!$("#keys").hidden) { $("#keys").hidden = true; return; } closeMenu(); if (!$("#sess").hidden) { const b = $("#sess-back"); if (b && !b.hidden) location.hash = b.getAttribute("href"); } return; }
+  if (k === "?") { e.preventDefault(); $("#keys").hidden = !$("#keys").hidden; return; }
+  if (k === "n" || k === "N") { if (!roundsOn) return; e.preventDefault(); projNewOpen = roomId() || "none"; renderRoom(); $("#room-rest .proj-new textarea")?.focus(); return; }
+  if (k === "g" || k === "G") { e.preventDefault(); const nx = roomNeeding(roomId() || ""); if (nx) location.hash = `#p/${nx.id}`; return; }
+  if (k === "p" || k === "P") { e.preventDefault(); location.hash = "#prs"; return; }
+  if (k === "l" || k === "L") { e.preventDefault(); location.hash = "#ledger"; return; }
+  if (k === "f" || k === "F") { if (!roundsOn || !openRound || openRound.startsWith("pr:") || openRound.startsWith("wait:")) return; e.preventDefault(); location.hash = `#s/${openRound}`; return; }
+});
+$("#keys-close")?.addEventListener("click", () => { $("#keys").hidden = true; }); $("#menu-keys")?.addEventListener("click", () => { closeMenu(); $("#keys").hidden = false; });
 
 // ---------- new session ----------
 $("#newsess").onsubmit = (e) => { e.preventDefault(); const cwd = resolveCwd($("#ns-cwd").value), prompt = withFiles($("#ns-prompt"), $("#ns-prompt").value.trim()); if (!cwd || !prompt) { (cwd ? $("#ns-prompt") : $("#ns-cwd")).focus(); return; } prefs.lastCwd = tilde(cwd); save(); send({ type: "start", cwd, prompt }); $("#ns-prompt").value = ""; };
@@ -672,7 +702,7 @@ const stripReplyLine = (t) => String(t || "").replace(REPLY_LINE, "").replace(/\
 function armSuggestion(box, text) { // grey suggestion in the box; Tab takes it
   const s = suggestReply(text); box.dataset.suggest = s; const base = box.dataset.basePlaceholder || (box.dataset.basePlaceholder = box.placeholder);
   box.placeholder = s ? `${s}   (Tab to use this)` : base; box.classList.toggle("has-suggest", !!s); }
-document.addEventListener("keydown", (e) => { if (!roundsOn || !(e.metaKey || e.ctrlKey)) return; if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return; e.preventDefault();
+document.addEventListener("keydown", (e) => { if (!roundsOn || !(e.metaKey || e.ctrlKey)) return; if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return; if (e.target.matches("input,select,textarea")) return; e.preventDefault();
   const ids = [...$("#rounds-list").children].map(c => c.dataset.id); if (!ids.length) return; const i = ids.indexOf(openRound); const j = e.key === "ArrowDown" ? (i < 0 ? 0 : Math.min(ids.length - 1, i + 1)) : (i <= 0 ? 0 : i - 1); if (ids[j] === openRound) return;
   openRound = ids[j]; renderRoom(); $("#rounds-list").querySelector(".rc.is-open")?.scrollIntoView({ block: "start" }); $("#rounds-list").querySelector(".rc.is-open textarea")?.focus({ preventScroll: true }); });
 document.addEventListener("keydown", (e) => { if (e.key !== "Tab" || e.shiftKey) return; const t = e.target; if (!(t instanceof HTMLTextAreaElement) || t.value || !t.dataset.suggest) return; e.preventDefault(); t.value = t.dataset.suggest; t.setSelectionRange(t.value.length, t.value.length); }, true);
